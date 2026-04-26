@@ -16,6 +16,7 @@ export {
   type TypeResolver,
   type UnmarshalOptions,
 } from "./decode.js";
+export { marshal, type MarshalOptions } from "./encode.js";
 export { Result } from "./result.js";
 export {
   findFieldByProtoName,
