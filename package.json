@@ -26,9 +26,17 @@
     "./sbe": {
       "types": "./dist/sbe/index.d.ts",
       "import": "./dist/sbe/index.js"
+    },
+    "./cli": {
+      "types": "./dist/cli/main.d.ts",
+      "import": "./dist/cli/main.js"
     }
   },
+  "bin": {
+    "protowire": "./bin/protowire.js"
+  },
   "files": [
+    "bin",
     "dist",
     "src",
     "README.md"
