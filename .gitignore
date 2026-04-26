@@ -1,8 +1,29 @@
+# Dependencies
 node_modules/
+
+# Build output
 dist/
-coverage/
 *.tsbuildinfo
-.DS_Store
+
+# Test / coverage output
+coverage/
+
+# Local env
+.env
+.env.local
+.env.*.local
+
+# npm pack output
+*.tgz
+
+# Editor / IDE
 .vscode/
 .idea/
+*.swp
+
+# OS
+.DS_Store
+
+# Logs
 *.log
+npm-debug.log*
