@@ -8,6 +8,7 @@ export {
 export { PxfError } from "./errors.js";
 export { Lexer } from "./lexer.js";
 export { parse } from "./parser.js";
+export { format, type FormatOptions } from "./format.js";
 export type {
   Assignment,
   Block,
