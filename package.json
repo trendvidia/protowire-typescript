@@ -38,6 +38,7 @@
   "files": [
     "bin",
     "dist",
+    "proto",
     "src",
     "README.md"
   ],
@@ -49,6 +50,12 @@
     "gen:testdata:any": "protoc --include_imports --descriptor_set_out=src/pxf/testdata/any-test.binpb -I src/pxf/testdata src/pxf/testdata/any-test.proto",
     "gen:testdata:d4": "protoc --include_imports --descriptor_set_out=src/pxf/testdata/d4-test.binpb -I src/pxf/testdata -I ../protowire/proto src/pxf/testdata/d4-test.proto",
     "gen:testdata:sbe": "protoc --include_imports --descriptor_set_out=src/sbe/testdata/sbe-test.binpb -I src/sbe/testdata -I ../protowire/proto src/sbe/testdata/sbe-test.proto",
+    "gen:testdata:buf": "npm run gen:testdata:shared && npm run gen:testdata:any:buf && npm run gen:testdata:d4:buf && npm run gen:testdata:sbe:buf",
+    "gen:testdata:any:buf": "buf build --as-file-descriptor-set --exclude-source-info --path src/pxf/testdata/any-test.proto -o src/pxf/testdata/any-test.binpb",
+    "gen:testdata:d4:buf": "buf build --as-file-descriptor-set --exclude-source-info --path src/pxf/testdata/d4-test.proto -o src/pxf/testdata/d4-test.binpb",
+    "gen:testdata:sbe:buf": "buf build --as-file-descriptor-set --exclude-source-info --path src/sbe/testdata/sbe-test.proto -o src/sbe/testdata/sbe-test.binpb",
+    "buf:lint": "buf lint",
+    "buf:format": "buf format -w",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit"
