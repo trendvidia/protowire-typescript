@@ -44,10 +44,11 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "clean": "rm -rf dist",
-    "gen:testdata": "npm run gen:testdata:shared && npm run gen:testdata:any && npm run gen:testdata:d4",
+    "gen:testdata": "npm run gen:testdata:shared && npm run gen:testdata:any && npm run gen:testdata:d4 && npm run gen:testdata:sbe",
     "gen:testdata:shared": "protoc --include_imports --descriptor_set_out=src/pxf/testdata/test.binpb -I ../protowire/testdata ../protowire/testdata/test.proto",
     "gen:testdata:any": "protoc --include_imports --descriptor_set_out=src/pxf/testdata/any-test.binpb -I src/pxf/testdata src/pxf/testdata/any-test.proto",
     "gen:testdata:d4": "protoc --include_imports --descriptor_set_out=src/pxf/testdata/d4-test.binpb -I src/pxf/testdata -I ../protowire/proto src/pxf/testdata/d4-test.proto",
+    "gen:testdata:sbe": "protoc --include_imports --descriptor_set_out=src/sbe/testdata/sbe-test.binpb -I src/sbe/testdata -I ../protowire/proto src/sbe/testdata/sbe-test.proto",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit"
