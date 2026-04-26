@@ -4,17 +4,19 @@
  * Mirrors the Go `encoding/pb` package's struct-tag approach, but with
  * an explicit field schema (TS has no struct tags or runtime field metadata).
  *
- * Wire-format choices match the Go pb package exactly:
- *   - signed integer fields (int32/int64) use zigzag varint (proto3 sint32/sint64)
- *   - unsigned integer fields (uint32/uint64) use plain varint
- *   - bool uses varint (0/1)
- *   - float uses fixed32, double uses fixed64
- *   - string and bytes are length-delimited
- *   - nested messages are length-delimited
- *   - repeated fields emit one tag+value per element (non-packed)
+ * Wire-format choices match proto3 semantics:
+ *   - int32 / int64: plain varint, with negative values sign-extended to a
+ *     10-byte uint64 (proto3 `int32` / `int64`).
+ *   - sint32 / sint64: zigzag varint (proto3 `sint32` / `sint64`); more
+ *     compact for negative values.
+ *   - uint32 / uint64: plain varint.
+ *   - bool: varint (0/1).
+ *   - float: fixed32; double: fixed64.
+ *   - string and bytes: length-delimited.
+ *   - nested messages: length-delimited.
+ *   - repeated fields: one tag+value per element (non-packed).
  *
- * Adds a feature beyond the Go pb's current scope: proto3 maps, encoded as
- * `repeated MapEntry { key = 1; value = 2; }` per the protobuf spec.
+ * Maps follow the proto3 spec: `repeated MapEntry { key = 1; value = 2; }`.
  */
 
 import { Reader, Writer, WireType } from "./wire.js";
@@ -23,6 +25,8 @@ export type ScalarKind =
   | "bool"
   | "int32"
   | "int64"
+  | "sint32"
+  | "sint64"
   | "uint32"
   | "uint64"
   | "float"
@@ -31,7 +35,15 @@ export type ScalarKind =
   | "bytes";
 
 /** Map keys may not be float/double/bytes per the proto3 spec. */
-export type MapKeyKind = "bool" | "int32" | "int64" | "uint32" | "uint64" | "string";
+export type MapKeyKind =
+  | "bool"
+  | "int32"
+  | "int64"
+  | "sint32"
+  | "sint64"
+  | "uint32"
+  | "uint64"
+  | "string";
 
 export type Kind = ScalarKind | { readonly message: CodecBase };
 
@@ -133,11 +145,13 @@ function isZero(kind: ScalarKind, v: unknown): boolean {
     case "bool":
       return v === false;
     case "int32":
+    case "sint32":
     case "uint32":
     case "float":
     case "double":
       return v === 0;
     case "int64":
+    case "sint64":
     case "uint64":
       return v === 0n;
     case "string":
@@ -152,6 +166,8 @@ function wireTypeOf(kind: ScalarKind | "message"): WireType {
     case "bool":
     case "int32":
     case "int64":
+    case "sint32":
+    case "sint64":
     case "uint32":
     case "uint64":
       return WireType.Varint;
@@ -171,10 +187,20 @@ function writeScalarValue(w: Writer, kind: ScalarKind, v: unknown): void {
     case "bool":
       w.varint(v ? 1 : 0);
       return;
-    case "int32":
+    case "int32": {
+      // proto3 int32: plain varint; negative values sign-extend to uint64
+      // and emit a 10-byte varint.
+      const n = v as number;
+      w.varint(n < 0 ? BigInt(n) : n);
+      return;
+    }
+    case "int64":
+      w.varint(typeof v === "bigint" ? v : BigInt(v as number));
+      return;
+    case "sint32":
       w.zigzag32(v as number);
       return;
-    case "int64":
+    case "sint64":
       w.zigzag64(typeof v === "bigint" ? v : BigInt(v as number));
       return;
     case "uint32":
@@ -375,9 +401,18 @@ function readScalarValue(r: Reader, kind: ScalarKind): unknown {
   switch (kind) {
     case "bool":
       return r.varint() !== 0;
-    case "int32":
+    case "int32": {
+      // proto3 int32: read 10-byte-tolerant varint, take low 32 bits as signed.
+      const u = r.varintBig();
+      return Number(BigInt.asIntN(32, u));
+    }
+    case "int64": {
+      const u = r.varintBig();
+      return BigInt.asIntN(64, u);
+    }
+    case "sint32":
       return r.zigzag32();
-    case "int64":
+    case "sint64":
       return r.zigzag64();
     case "uint32":
       return r.varint();
@@ -447,9 +482,11 @@ function mapKeyZero(kind: MapKeyKind): unknown {
     case "bool":
       return false;
     case "int32":
+    case "sint32":
     case "uint32":
       return 0;
     case "int64":
+    case "sint64":
     case "uint64":
       return 0n;
     case "string":
@@ -463,11 +500,13 @@ function scalarZero(kind: Kind): unknown {
     case "bool":
       return false;
     case "int32":
+    case "sint32":
     case "uint32":
     case "float":
     case "double":
       return 0;
     case "int64":
+    case "sint64":
     case "uint64":
       return 0n;
     case "string":
