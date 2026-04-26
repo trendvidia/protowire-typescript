@@ -9,6 +9,22 @@ export { PxfError } from "./errors.js";
 export { Lexer } from "./lexer.js";
 export { parse } from "./parser.js";
 export { format, type FormatOptions } from "./format.js";
+export {
+  unmarshal,
+  unmarshalFull,
+  registryAsTypeResolver,
+  type TypeResolver,
+  type UnmarshalOptions,
+} from "./decode.js";
+export { Result } from "./result.js";
+export {
+  findFieldByProtoName,
+  isWrapperType,
+  isTimestamp,
+  isDuration,
+  isAny,
+  isFieldMask,
+} from "./descriptor.js";
 export type {
   Assignment,
   Block,
