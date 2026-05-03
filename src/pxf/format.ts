@@ -166,21 +166,29 @@ class Formatter {
 // ---------------------------------------------------------------------------
 
 /**
- * Re-emit only the escape sequences the lexer recognizes. Non-printable
- * characters that aren't in the list pass through unchanged — they're a
- * limitation users should avoid by using a `bytes` field.
+ * Re-emit a string in PXF source syntax. Mirrors the schema-bound encoder's
+ * `writeQuotedString` (encode.ts): emits the simple escape mnemonics for
+ * `"`, `\`, `\n`, `\r`, `\t`, and `\xHH` for any other byte under 0x20.
+ * Code units ≥ 0x20 pass through literally — valid UTF-8 stays UTF-8.
  */
+const HEX = "0123456789abcdef";
+
 function quoteString(s: string): string {
   let out = '"';
   for (let i = 0; i < s.length; i++) {
-    const ch = s[i]!;
-    switch (ch) {
-      case "\\": out += "\\\\"; break;
-      case '"': out += '\\"'; break;
-      case "\n": out += "\\n"; break;
-      case "\t": out += "\\t"; break;
-      case "\r": out += "\\r"; break;
-      default: out += ch; break;
+    const code = s.charCodeAt(i);
+    switch (code) {
+      case 0x22: out += '\\"'; break;
+      case 0x5c: out += "\\\\"; break;
+      case 0x0a: out += "\\n"; break;
+      case 0x0d: out += "\\r"; break;
+      case 0x09: out += "\\t"; break;
+      default:
+        if (code < 0x20) {
+          out += "\\x" + HEX[(code >> 4) & 0xf] + HEX[code & 0xf];
+        } else {
+          out += s[i];
+        }
     }
   }
   out += '"';

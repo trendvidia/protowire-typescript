@@ -82,9 +82,12 @@ describe("strings", () => {
     expect(t[0]?.value).toBe('a\nb\tc\rd\\e"f');
   });
 
-  it("unknown escape is preserved as backslash + char", () => {
+  it("unknown escape is illegal", () => {
+    // Unknown escapes used to silently pass through; they now produce
+    // an ILLEGAL token to match the Go reference.
     const t = tokens('"\\q"');
-    expect(t[0]?.value).toBe("\\q");
+    expect(t[0]?.kind).toBe(TokenKind.ILLEGAL);
+    expect(t[0]?.value).toContain("unknown escape");
   });
 
   it("UTF-8 content passes through", () => {
@@ -336,5 +339,88 @@ tls {
     expect(meaningful.find((t) => t.kind === TokenKind.DURATION)?.value)
       .toBe("30s");
     expect(meaningful.filter((t) => t.kind === TokenKind.LBRACE)).toHaveLength(1);
+  });
+});
+
+// Full Go-aligned escape set. Mirrors protowire-go/encoding/pxf/lexer_test.go
+// and protowire-cpp/test/pxf_escapes_test.cc.
+describe("escape sequences (full set)", () => {
+  // Lex one STRING token; returns null on ILLEGAL.
+  function lexOne(src: string): string | null {
+    const lex = new Lexer(src);
+    const t = lex.next();
+    return t.kind === TokenKind.STRING ? t.value : null;
+  }
+
+  it("extended simple escapes", () => {
+    expect(lexOne('"\\a"')).toBe("\x07");
+    expect(lexOne('"\\b"')).toBe("\x08");
+    expect(lexOne('"\\f"')).toBe("\x0c");
+    expect(lexOne('"\\v"')).toBe("\x0b");
+    expect(lexOne('"\\\'"')).toBe("'");
+    expect(lexOne('"\\?"')).toBe("?");
+    expect(lexOne('"\\a\\b\\f\\n\\r\\t\\v"')).toBe("\x07\x08\x0c\n\r\t\x0b");
+  });
+
+  it("hex byte escapes (\\xHH)", () => {
+    expect(lexOne('"\\x41"')).toBe("A");
+    expect(lexOne('"\\x00"')).toBe("\x00");
+    expect(lexOne('"\\xff"')).toBe("\xff");
+    // Two adjacent \x escapes — JS strings store byte values as code units.
+    expect(lexOne('"\\xc3\\xa9"')).toBe("\xc3\xa9");
+  });
+
+  it("octal byte escapes (\\nnn)", () => {
+    expect(lexOne('"\\101"')).toBe("A");
+    expect(lexOne('"\\000"')).toBe("\x00");
+    expect(lexOne('"\\377"')).toBe("\xff");
+  });
+
+  it("unicode 4-hex escape (\\uHHHH)", () => {
+    expect(lexOne('"\\u00e9"')).toBe("é");
+    expect(lexOne('"\\u4e2d"')).toBe("中");
+    expect(lexOne('"a\\u00e9b"')).toBe("aéb");
+  });
+
+  it("unicode 8-hex escape (\\UHHHHHHHH)", () => {
+    expect(lexOne('"\\U0001F600"')).toBe("\u{1F600}");
+    expect(lexOne('"\\U0000004A"')).toBe("J");
+  });
+
+  it("literal multi-byte UTF-8 round-trips", () => {
+    expect(lexOne('"café"')).toBe("café");
+    expect(lexOne('"日本語"')).toBe("日本語");
+    expect(lexOne('"\u{1F600}"')).toBe("\u{1F600}");
+  });
+
+  it("rejects invalid escape forms", () => {
+    expect(lexOne('"\\z"')).toBe(null);
+    expect(lexOne('"\\u12"')).toBe(null);
+    expect(lexOne('"\\u12gh"')).toBe(null);
+    expect(lexOne('"\\uD800"')).toBe(null);
+    expect(lexOne('"\\uDFFF"')).toBe(null);
+    expect(lexOne('"\\U00110000"')).toBe(null);
+    expect(lexOne('"\\U0001F60"')).toBe(null);
+    expect(lexOne('"\\x"')).toBe(null);
+    expect(lexOne('"\\x4"')).toBe(null);
+    expect(lexOne('"\\xZZ"')).toBe(null);
+    expect(lexOne('"\\10"')).toBe(null);
+    expect(lexOne('"\\18a"')).toBe(null);
+  });
+
+  it("bytes literal does not interpret escapes", () => {
+    // b"..." now reads body raw. A literal `\` is invalid base64, so must
+    // produce ILLEGAL — not be interpreted as a backslash escape.
+    const lex = new Lexer('b"hello\\"');
+    const t = lex.next();
+    expect(t.kind).toBe(TokenKind.ILLEGAL);
+  });
+
+  it("bytes literal accepts valid base64", () => {
+    // "Hello" in base64 = "SGVsbG8="
+    const lex = new Lexer('b"SGVsbG8="');
+    const t = lex.next();
+    expect(t.kind).toBe(TokenKind.BYTES);
+    expect(t.value).toBe("SGVsbG8=");
   });
 });

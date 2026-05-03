@@ -146,24 +146,98 @@ export class Lexer {
       if (ch === '"') {
         return { kind: TokenKind.STRING, value: out, pos };
       }
-      if (ch === "\\") {
-        if (this.pos >= this.input.length) {
-          return { kind: TokenKind.ILLEGAL, value: "unterminated escape sequence", pos };
-        }
-        const esc = this.advance();
-        switch (esc) {
-          case '"': out += '"'; break;
-          case "\\": out += "\\"; break;
-          case "n": out += "\n"; break;
-          case "t": out += "\t"; break;
-          case "r": out += "\r"; break;
-          default: out += "\\" + esc; break;
-        }
+      if (ch !== "\\") {
+        out += ch;
         continue;
       }
-      out += ch;
+      if (this.pos >= this.input.length) {
+        return { kind: TokenKind.ILLEGAL, value: "unterminated escape sequence", pos };
+      }
+      const esc = this.advance();
+      switch (esc) {
+        case '"': case "\\": case "'": case "?":
+          out += esc; break;
+        case "a": out += "\x07"; break;
+        case "b": out += "\x08"; break;
+        case "f": out += "\x0c"; break;
+        case "n": out += "\n"; break;
+        case "r": out += "\r"; break;
+        case "t": out += "\t"; break;
+        case "v": out += "\x0b"; break;
+        case "x": {
+          // Exactly 2 hex digits → 1 byte, appended as a Latin-1 code unit.
+          const b = this.readHexByte();
+          if (b === null) {
+            return { kind: TokenKind.ILLEGAL, value: "invalid \\x escape: expected 2 hex digits", pos };
+          }
+          out += String.fromCharCode(b);
+          break;
+        }
+        case "0": case "1": case "2": case "3": {
+          // \nnn — exactly 3 octal digits, leading 0–3 keeps the value ≤ 0xFF.
+          const b = this.readOctRest(esc);
+          if (b === null) {
+            return { kind: TokenKind.ILLEGAL, value: "invalid octal escape: expected 3 octal digits", pos };
+          }
+          out += String.fromCharCode(b);
+          break;
+        }
+        case "u": {
+          const r = this.readHexRune(4);
+          if (r === null || !isValidRune(r)) {
+            return { kind: TokenKind.ILLEGAL, value: "invalid \\u escape: expected 4 hex digits forming a valid codepoint", pos };
+          }
+          out += String.fromCodePoint(r);
+          break;
+        }
+        case "U": {
+          const r = this.readHexRune(8);
+          if (r === null || !isValidRune(r)) {
+            return { kind: TokenKind.ILLEGAL, value: "invalid \\U escape: expected 8 hex digits forming a valid codepoint", pos };
+          }
+          out += String.fromCodePoint(r);
+          break;
+        }
+        default:
+          return { kind: TokenKind.ILLEGAL, value: `unknown escape sequence \\${esc}`, pos };
+      }
     }
     return { kind: TokenKind.ILLEGAL, value: "unterminated string", pos };
+  }
+
+  /** Reads exactly 2 hex digits from the current position. */
+  private readHexByte(): number | null {
+    if (this.pos + 1 >= this.input.length) return null;
+    const hi = hexVal(this.input[this.pos]!);
+    const lo = hexVal(this.input[this.pos + 1]!);
+    if (hi === null || lo === null) return null;
+    this.advance(); this.advance();
+    return (hi << 4) | lo;
+  }
+
+  /** Reads exactly N hex digits from the current position. */
+  private readHexRune(n: number): number | null {
+    if (this.pos + n > this.input.length) return null;
+    let r = 0;
+    for (let i = 0; i < n; i++) {
+      const v = hexVal(this.input[this.pos]!);
+      if (v === null) return null;
+      r = (r << 4) | v;
+      this.advance();
+    }
+    return r;
+  }
+
+  /** Reads two more octal digits after the leading one already consumed
+   *  (as part of `\nnn` — exactly 3 octal digits total). The caller has
+   *  restricted `first` to 0–3 so the value can't exceed 0xFF. */
+  private readOctRest(first: string): number | null {
+    if (this.pos + 1 >= this.input.length) return null;
+    const d1 = octVal(this.input[this.pos]!);
+    const d2 = octVal(this.input[this.pos + 1]!);
+    if (d1 === null || d2 === null) return null;
+    this.advance(); this.advance();
+    return ((first.charCodeAt(0) - 0x30) << 6) | (d1 << 3) | d2;
   }
 
   private lexTripleString(pos: Position): Token {
@@ -190,12 +264,27 @@ export class Lexer {
 
   private lexBytes(pos: Position): Token {
     this.advance(); // b
-    const tok = this.lexString(pos);
-    if (tok.kind !== TokenKind.STRING) return tok;
-    if (!isValidBase64(tok.value)) {
-      return { kind: TokenKind.ILLEGAL, value: "invalid base64 in bytes literal", pos };
+    if (this.pos >= this.input.length || this.input[this.pos] !== '"') {
+      return { kind: TokenKind.ILLEGAL, value: "expected '\"' after b", pos };
     }
-    return { kind: TokenKind.BYTES, value: tok.value, pos };
+    this.advance(); // opening "
+    const start = this.pos;
+    while (this.pos < this.input.length) {
+      const ch = this.input[this.pos];
+      if (ch === '"') {
+        const raw = this.input.slice(start, this.pos);
+        this.advance(); // closing "
+        if (!isValidBase64(raw)) {
+          return { kind: TokenKind.ILLEGAL, value: "invalid base64 in bytes literal", pos };
+        }
+        return { kind: TokenKind.BYTES, value: raw, pos };
+      }
+      if (ch === "\n") {
+        return { kind: TokenKind.ILLEGAL, value: "unterminated bytes literal", pos };
+      }
+      this.advance();
+    }
+    return { kind: TokenKind.ILLEGAL, value: "unterminated bytes literal", pos };
   }
 
   private lexDirective(pos: Position): Token {
@@ -326,6 +415,23 @@ function isIdentPart(ch: string): boolean {
 
 function isDurationUnit(ch: string): boolean {
   return ch === "h" || ch === "m" || ch === "s" || ch === "n" || ch === "u";
+}
+
+function hexVal(ch: string): number | null {
+  if (ch >= "0" && ch <= "9") return ch.charCodeAt(0) - 0x30;
+  if (ch >= "a" && ch <= "f") return ch.charCodeAt(0) - 0x61 + 10;
+  if (ch >= "A" && ch <= "F") return ch.charCodeAt(0) - 0x41 + 10;
+  return null;
+}
+
+function octVal(ch: string): number | null {
+  if (ch >= "0" && ch <= "7") return ch.charCodeAt(0) - 0x30;
+  return null;
+}
+
+/** Mirrors Go's utf8.ValidRune: rejects > U+10FFFF and the surrogate range. */
+function isValidRune(r: number): boolean {
+  return r >= 0 && r <= 0x10FFFF && (r < 0xD800 || r > 0xDFFF);
 }
 
 function isLowerAlpha(ch: string): boolean {
