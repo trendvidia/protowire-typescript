@@ -23,20 +23,41 @@ import {
 } from "./ast.js";
 import { PxfError } from "./errors.js";
 import { Lexer } from "./lexer.js";
-import { type Token, TokenKind, tokenKindName } from "./token.js";
+import { type Position, type Token, TokenKind, tokenKindName } from "./token.js";
 
 export function parse(input: string): Document {
   return new Parser(input).parseDocument();
 }
 
+/**
+ * Maximum allowed nesting depth for PXF parsing. Bounds stack costs on
+ * adversarial input — see HARDENING.md § Recursion.
+ */
+const MAX_NESTING_DEPTH = 100;
+
 class Parser {
   private readonly lex: Lexer;
   private current!: Token;
   private pendingComments: Comment[] = [];
+  private depth = 0;
 
   constructor(input: string) {
     this.lex = new Lexer(input);
     this.advance();
+  }
+
+  private enter(pos: Position): void {
+    this.depth++;
+    if (this.depth > MAX_NESTING_DEPTH) {
+      throw new PxfError(
+        pos,
+        `nesting depth exceeds maximum of ${MAX_NESTING_DEPTH}`,
+      );
+    }
+  }
+
+  private leave(): void {
+    this.depth--;
   }
 
   /**
@@ -207,24 +228,29 @@ class Parser {
 
   private parseList(): ListVal {
     const pos = this.current.pos;
-    this.advance(); // consume [
+    this.enter(pos);
+    try {
+      this.advance(); // consume [
 
-    const elements: Value[] = [];
-    while (
-      this.current.kind !== TokenKind.RBRACKET &&
-      this.current.kind !== TokenKind.EOF
-    ) {
-      elements.push(this.parseValue());
-      if (this.current.kind === TokenKind.COMMA) this.advance();
+      const elements: Value[] = [];
+      while (
+        this.current.kind !== TokenKind.RBRACKET &&
+        this.current.kind !== TokenKind.EOF
+      ) {
+        elements.push(this.parseValue());
+        if (this.current.kind === TokenKind.COMMA) this.advance();
+      }
+      if (this.current.kind !== TokenKind.RBRACKET) {
+        throw new PxfError(
+          this.current.pos,
+          `expected ']', got ${tokenKindName(this.current.kind)}`,
+        );
+      }
+      this.advance();
+      return { kind: "list", pos, elements };
+    } finally {
+      this.leave();
     }
-    if (this.current.kind !== TokenKind.RBRACKET) {
-      throw new PxfError(
-        this.current.pos,
-        `expected ']', got ${tokenKindName(this.current.kind)}`,
-      );
-    }
-    this.advance();
-    return { kind: "list", pos, elements };
   }
 
   private parseBlockVal(): BlockVal {
@@ -235,21 +261,26 @@ class Parser {
   }
 
   private parseBody(): Entry[] {
-    const entries: Entry[] = [];
-    while (
-      this.current.kind !== TokenKind.RBRACE &&
-      this.current.kind !== TokenKind.EOF
-    ) {
-      entries.push(this.parseEntry());
+    this.enter(this.current.pos);
+    try {
+      const entries: Entry[] = [];
+      while (
+        this.current.kind !== TokenKind.RBRACE &&
+        this.current.kind !== TokenKind.EOF
+      ) {
+        entries.push(this.parseEntry());
+      }
+      if (this.current.kind !== TokenKind.RBRACE) {
+        throw new PxfError(
+          this.current.pos,
+          `expected '}', got ${tokenKindName(this.current.kind)}`,
+        );
+      }
+      this.advance();
+      return entries;
+    } finally {
+      this.leave();
     }
-    if (this.current.kind !== TokenKind.RBRACE) {
-      throw new PxfError(
-        this.current.pos,
-        `expected '}', got ${tokenKindName(this.current.kind)}`,
-      );
-    }
-    this.advance();
-    return entries;
   }
 }
 

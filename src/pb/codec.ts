@@ -355,9 +355,11 @@ function unmarshalMessageFrom(
 
   // Initialize empty containers for repeated/map fields if not already set,
   // so wire-absent collections come back as [] / {} rather than undefined.
+  // Map containers use a null-prototype object so `__proto__`/`constructor`/
+  // `prototype` on the wire cannot taint Object.prototype (HARDENING.md).
   for (const f of codec.fields) {
     if (f.mapKey !== undefined && obj[f.name] === undefined) {
-      obj[f.name] = {};
+      obj[f.name] = Object.create(null) as Record<string, unknown>;
     } else if (f.repeated && obj[f.name] === undefined) {
       obj[f.name] = [];
     }
@@ -429,13 +431,28 @@ function readScalarValue(r: Reader, kind: ScalarKind): unknown {
   }
 }
 
+/**
+ * Maximum allowed message-nesting depth on unmarshal. Bounds CPU/stack costs
+ * for adversarial input — see HARDENING.md § Recursion. Mirrors the cap used
+ * by sibling protowire ports.
+ */
+const MAX_NESTING_DEPTH = 100;
+
 function readNestedMessage(r: Reader, codec: CodecBase): unknown {
   const len = r.varint();
   const end = r.pos + len;
   if (end > r.data.length) throw new Error("nested message exceeds buffer");
-  const obj = codec.create();
-  codec.unmarshalFrom(r, end, obj);
-  return obj;
+  r.depth++;
+  if (r.depth > MAX_NESTING_DEPTH) {
+    throw new Error(`nesting depth exceeds maximum of ${MAX_NESTING_DEPTH}`);
+  }
+  try {
+    const obj = codec.create();
+    codec.unmarshalFrom(r, end, obj);
+    return obj;
+  } finally {
+    r.depth--;
+  }
 }
 
 function readMapEntry(
@@ -471,10 +488,16 @@ function readMapEntry(
 
   let target = obj[f.name] as Record<string, unknown> | undefined;
   if (target === undefined) {
-    target = {};
+    target = Object.create(null) as Record<string, unknown>;
     obj[f.name] = target;
   }
-  target[String(key)] = value;
+  const keyStr = String(key);
+  // Block prototype-pollution sinks: even if the caller pre-populated the map
+  // field with a plain `{}`, these keys must never reach Object.prototype.
+  if (keyStr === "__proto__" || keyStr === "constructor" || keyStr === "prototype") {
+    throw new Error(`map key ${JSON.stringify(keyStr)} is not allowed`);
+  }
+  target[keyStr] = value;
 }
 
 function mapKeyZero(kind: MapKeyKind): unknown {

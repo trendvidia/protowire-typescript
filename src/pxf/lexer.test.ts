@@ -362,18 +362,30 @@ describe("escape sequences (full set)", () => {
     expect(lexOne('"\\a\\b\\f\\n\\r\\t\\v"')).toBe("\x07\x08\x0c\n\r\t\x0b");
   });
 
-  it("hex byte escapes (\\xHH)", () => {
+  it("hex byte escapes (\\xHH) inject raw bytes validated as UTF-8", () => {
+    // ASCII-range bytes are valid 1-byte UTF-8.
     expect(lexOne('"\\x41"')).toBe("A");
     expect(lexOne('"\\x00"')).toBe("\x00");
-    expect(lexOne('"\\xff"')).toBe("\xff");
-    // Two adjacent \x escapes — JS strings store byte values as code units.
-    expect(lexOne('"\\xc3\\xa9"')).toBe("\xc3\xa9");
+    // Two-byte UTF-8 sequences round-trip to the corresponding code point.
+    expect(lexOne('"\\xc3\\xa9"')).toBe("é"); // 0xC3 0xA9 = U+00E9
   });
 
-  it("octal byte escapes (\\nnn)", () => {
+  it("octal byte escapes (\\nnn) inject raw bytes validated as UTF-8", () => {
     expect(lexOne('"\\101"')).toBe("A");
     expect(lexOne('"\\000"')).toBe("\x00");
-    expect(lexOne('"\\377"')).toBe("\xff");
+    // Multi-byte UTF-8 sequence round-trips.
+    expect(lexOne('"\\303\\251"')).toBe("é"); // 0xC3 0xA9 = U+00E9
+  });
+
+  it("rejects byte escapes that produce invalid UTF-8", () => {
+    // 0xFF is never a valid UTF-8 lead byte (HARDENING.md § UTF-8).
+    expect(lexOne('"\\xff"')).toBe(null);
+    // Adversarial corpus: pxf/invalid-utf8-string.pxf (\xFF\xFE).
+    expect(lexOne('"\\xff\\xfe"')).toBe(null);
+    // A continuation byte without a lead byte is also invalid.
+    expect(lexOne('"\\x80"')).toBe(null);
+    // Octal form of 0xFF rejects the same way.
+    expect(lexOne('"\\377"')).toBe(null);
   });
 
   it("unicode 4-hex escape (\\uHHHH)", () => {

@@ -118,12 +118,20 @@ export function unmarshalFull<Desc extends DescMessage>(
   return { message: msg, result };
 }
 
+/**
+ * Maximum allowed nesting depth for PXF decoding. Bounds CPU/stack costs on
+ * adversarial input — see HARDENING.md § Recursion. Mirrors the cap used by
+ * sibling protowire ports.
+ */
+const MAX_NESTING_DEPTH = 100;
+
 class Decoder {
   private readonly lex: Lexer;
   private current!: Token;
   private rootRefl: ReflectMessage | null = null;
   private rootNullMaskFd: DescField | undefined = undefined;
   private pathPrefix = "";
+  private depth = 0;
 
   constructor(
     input: string,
@@ -133,6 +141,20 @@ class Decoder {
   ) {
     this.lex = new Lexer(input);
     this.advance();
+  }
+
+  private enter(pos: Position): void {
+    this.depth++;
+    if (this.depth > MAX_NESTING_DEPTH) {
+      throw this.err(
+        pos,
+        `nesting depth exceeds maximum of ${MAX_NESTING_DEPTH}`,
+      );
+    }
+  }
+
+  private leave(): void {
+    this.depth--;
   }
 
   /** Cache the `_null` FieldMask descriptor for `desc`, if any. */
@@ -181,6 +203,15 @@ class Decoder {
   }
 
   private decodeFields(parent: ReflectMessage, inBlock: boolean): void {
+    this.enter(this.current.pos);
+    try {
+      this.decodeFieldsInner(parent, inBlock);
+    } finally {
+      this.leave();
+    }
+  }
+
+  private decodeFieldsInner(parent: ReflectMessage, inBlock: boolean): void {
     const desc = parent.desc;
     const setOneofs = new Map<string, string>();
 
