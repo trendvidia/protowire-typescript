@@ -10,6 +10,10 @@
 import { GROUP_HEADER_SIZE, HEADER_SIZE, type Codec } from "./sbe.js";
 import type { FieldTemplate, MessageTemplate } from "./template.js";
 
+// proto3 strings must be valid UTF-8 (HARDENING.md § UTF-8). `fatal: true`
+// throws on invalid sequences instead of substituting U+FFFD.
+const utf8Decoder = new TextDecoder("utf-8", { fatal: true });
+
 export interface ViewSchema {
   fields: Map<string, FieldTemplate>;
   groups: ViewGroupInfo[];
@@ -159,7 +163,7 @@ export class View {
     const slice = this.block.subarray(ft.offset, ft.offset + ft.size);
     let n = slice.length;
     while (n > 0 && slice[n - 1] === 0) n--;
-    return new TextDecoder().decode(slice.subarray(0, n));
+    return utf8Decoder.decode(slice.subarray(0, n));
   }
 
   /** Zero-copy subarray view over the field's bytes. */

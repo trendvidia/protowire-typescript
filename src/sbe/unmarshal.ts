@@ -9,6 +9,10 @@ import { type ReflectList, type ReflectMessage, reflect } from "@bufbuild/protob
 import { Codec, GROUP_HEADER_SIZE, HEADER_SIZE } from "./sbe.js";
 import type { FieldTemplate, GroupTemplate, MessageTemplate } from "./template.js";
 
+// proto3 strings must be valid UTF-8 (HARDENING.md § UTF-8). `fatal: true`
+// throws on invalid sequences instead of substituting U+FFFD.
+const utf8Decoder = new TextDecoder("utf-8", { fatal: true });
+
 export function unmarshal<Desc extends DescMessage>(
   codec: Codec,
   desc: Desc,
@@ -106,7 +110,7 @@ function readField(
         // STRING — trim trailing null padding.
         let n = slice.length;
         while (n > 0 && slice[n - 1] === 0) n--;
-        parent.set(fd, new TextDecoder().decode(slice.subarray(0, n)));
+        parent.set(fd, utf8Decoder.decode(slice.subarray(0, n)));
       }
       return;
     }

@@ -17,6 +17,14 @@
 
 import { type Position, type Token, TokenKind } from "./token.js";
 
+// Module-scoped UTF-8 codec instances for string-literal lexing.
+// `fatal: true` makes the decoder throw on invalid UTF-8 instead of
+// substituting U+FFFD — required for HARDENING.md § UTF-8 conformance,
+// since `\xNN` and `\nnn` escapes emit raw bytes that can form invalid
+// sequences (e.g. `\xFF\xFE`).
+const utf8Encoder = new TextEncoder();
+const utf8FatalDecoder = new TextDecoder("utf-8", { fatal: true });
+
 export class Lexer {
   private pos = 0;
   private line = 1;
@@ -140,37 +148,67 @@ export class Lexer {
 
   private lexString(pos: Position): Token {
     this.advance(); // opening "
-    let out = "";
+
+    // Accumulate the string as a UTF-8 byte sequence so we can validate
+    // it at close time. `\xNN` / `\nnn` escapes inject raw bytes that may
+    // form invalid UTF-8 (HARDENING.md § UTF-8 — e.g. `"\xFF\xFE"` must be
+    // rejected). Regular chars and `\u`/`\U` escapes contribute valid UTF-8
+    // bytes; raw-byte escapes contribute one byte each. The final fatal
+    // TextDecoder pass either yields the JS string or throws.
+    const bytes: number[] = [];
+    let pending = "";
+    const flushPending = (): void => {
+      if (pending.length === 0) return;
+      const u = utf8Encoder.encode(pending);
+      for (let i = 0; i < u.length; i++) bytes.push(u[i]!);
+      pending = "";
+    };
+
     while (this.pos < this.input.length) {
       const ch = this.advance();
       if (ch === '"') {
-        return { kind: TokenKind.STRING, value: out, pos };
+        flushPending();
+        let value: string;
+        try {
+          value = utf8FatalDecoder.decode(new Uint8Array(bytes));
+        } catch {
+          return {
+            kind: TokenKind.ILLEGAL,
+            value: "invalid UTF-8 in string literal",
+            pos,
+          };
+        }
+        return { kind: TokenKind.STRING, value, pos };
       }
       if (ch !== "\\") {
-        out += ch;
+        pending += ch;
         continue;
       }
+      flushPending();
       if (this.pos >= this.input.length) {
         return { kind: TokenKind.ILLEGAL, value: "unterminated escape sequence", pos };
       }
       const esc = this.advance();
       switch (esc) {
-        case '"': case "\\": case "'": case "?":
-          out += esc; break;
-        case "a": out += "\x07"; break;
-        case "b": out += "\x08"; break;
-        case "f": out += "\x0c"; break;
-        case "n": out += "\n"; break;
-        case "r": out += "\r"; break;
-        case "t": out += "\t"; break;
-        case "v": out += "\x0b"; break;
+        case '"': bytes.push(0x22); break;
+        case "\\": bytes.push(0x5c); break;
+        case "'": bytes.push(0x27); break;
+        case "?": bytes.push(0x3f); break;
+        case "a": bytes.push(0x07); break;
+        case "b": bytes.push(0x08); break;
+        case "f": bytes.push(0x0c); break;
+        case "n": bytes.push(0x0a); break;
+        case "r": bytes.push(0x0d); break;
+        case "t": bytes.push(0x09); break;
+        case "v": bytes.push(0x0b); break;
         case "x": {
-          // Exactly 2 hex digits → 1 byte, appended as a Latin-1 code unit.
+          // \xNN injects one raw byte. The byte sequence is validated as
+          // UTF-8 at close time, so e.g. `\xFF\xFE` rejects.
           const b = this.readHexByte();
           if (b === null) {
             return { kind: TokenKind.ILLEGAL, value: "invalid \\x escape: expected 2 hex digits", pos };
           }
-          out += String.fromCharCode(b);
+          bytes.push(b);
           break;
         }
         case "0": case "1": case "2": case "3": {
@@ -179,7 +217,7 @@ export class Lexer {
           if (b === null) {
             return { kind: TokenKind.ILLEGAL, value: "invalid octal escape: expected 3 octal digits", pos };
           }
-          out += String.fromCharCode(b);
+          bytes.push(b);
           break;
         }
         case "u": {
@@ -187,7 +225,8 @@ export class Lexer {
           if (r === null || !isValidRune(r)) {
             return { kind: TokenKind.ILLEGAL, value: "invalid \\u escape: expected 4 hex digits forming a valid codepoint", pos };
           }
-          out += String.fromCodePoint(r);
+          const u = utf8Encoder.encode(String.fromCodePoint(r));
+          for (let i = 0; i < u.length; i++) bytes.push(u[i]!);
           break;
         }
         case "U": {
@@ -195,7 +234,8 @@ export class Lexer {
           if (r === null || !isValidRune(r)) {
             return { kind: TokenKind.ILLEGAL, value: "invalid \\U escape: expected 8 hex digits forming a valid codepoint", pos };
           }
-          out += String.fromCodePoint(r);
+          const u = utf8Encoder.encode(String.fromCodePoint(r));
+          for (let i = 0; i < u.length; i++) bytes.push(u[i]!);
           break;
         }
         default:

@@ -16,7 +16,10 @@ export const enum WireType {
 }
 
 const textEncoder = new TextEncoder();
-const textDecoder = new TextDecoder("utf-8", { fatal: false });
+// proto3 strings must be valid UTF-8 (HARDENING.md § UTF-8). `fatal: true`
+// makes TextDecoder throw on invalid sequences instead of substituting U+FFFD,
+// so adversarial payloads surface as a clean reject rather than silent data loss.
+const textDecoder = new TextDecoder("utf-8", { fatal: true });
 
 export class Writer {
   private buf: Uint8Array;
@@ -175,6 +178,13 @@ export class Writer {
 
 export class Reader {
   public pos = 0;
+  /**
+   * Current message-nesting depth. Bumped by `readNestedMessage` and similar
+   * recursive-descent helpers to enforce HARDENING.md § Recursion's
+   * MaxNestingDepth cap. Lives on the Reader so `CodecBase.unmarshalFrom`
+   * stays a 3-arg interface.
+   */
+  public depth = 0;
   private dv: DataView;
 
   constructor(public readonly data: Uint8Array, start = 0, end?: number) {
