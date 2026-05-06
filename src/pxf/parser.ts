@@ -85,12 +85,15 @@ class Parser {
 
     const entries: Entry[] = [];
     while (this.current.kind !== TokenKind.EOF) {
-      entries.push(this.parseEntry());
+      // Top-level: only field_entry is allowed. The document represents a
+      // proto message, never a map<K,V>; map_entry (`:` form) is reserved
+      // for the inside of a `{ ... }` block.
+      entries.push(this.parseEntry({ allowMapEntry: false }));
     }
     return { typeUrl, entries, leadingComments };
   }
 
-  private parseEntry(): Entry {
+  private parseEntry(opts: { allowMapEntry: boolean } = { allowMapEntry: true }): Entry {
     const leadingComments = this.flushComments();
     const pos = this.current.pos;
     const k = this.current.kind;
@@ -101,11 +104,21 @@ class Parser {
         `expected identifier, string, or integer, got ${tokenKindName(k)} (${JSON.stringify(this.current.value)})`,
       );
     }
+    const keyKind = k;
     const key = this.current.value;
     this.advance();
 
     switch (this.current.kind) {
       case TokenKind.EQUALS: {
+        // `=` denotes a field assignment on a proto message; the key must be
+        // an identifier (= proto field name). Map-style keys (string/integer)
+        // are only valid with `:`. See docs/grammar.ebnf → field_entry.
+        if (keyKind !== TokenKind.IDENT) {
+          throw new PxfError(
+            pos,
+            `field assignment with '=' requires an identifier key, got ${tokenKindName(keyKind)} (${JSON.stringify(key)}); use ':' for map entries`,
+          );
+        }
         this.advance();
         const value = this.parseValue();
         const a: Assignment = {
@@ -119,6 +132,14 @@ class Parser {
         return a;
       }
       case TokenKind.COLON: {
+        // Map entry. Only allowed inside a `{ ... }` block, never at
+        // document top level. See docs/grammar.ebnf → document.
+        if (!opts.allowMapEntry) {
+          throw new PxfError(
+            pos,
+            `map entry (':' form) is only allowed inside a '{ … }' block; use '=' for top-level field assignments`,
+          );
+        }
         this.advance();
         const value = this.parseValue();
         const m: MapEntry = {
@@ -132,6 +153,14 @@ class Parser {
         return m;
       }
       case TokenKind.LBRACE: {
+        // `{ ... }` denotes a submessage field; same identifier-only rule
+        // as `=` applies. See docs/grammar.ebnf → field_entry.
+        if (keyKind !== TokenKind.IDENT) {
+          throw new PxfError(
+            pos,
+            `submessage block requires an identifier key, got ${tokenKindName(keyKind)} (${JSON.stringify(key)})`,
+          );
+        }
         this.advance(); // consume {
         const entries = this.parseBody();
         const b: Block = {
