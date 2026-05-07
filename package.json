@@ -1,0 +1,102 @@
+{
+  "name": "@trendvidia/protowire",
+  "version": "0.70.0",
+  "description": "TypeScript port of protowire — PXF text format, SBE binary, struct-tag protobuf, and API response envelope. Verified for byte-equivalence with the canonical Go reference and seven other sibling ports.",
+  "license": "MIT",
+  "author": {
+    "name": "TrendVidia, LLC.",
+    "url": "https://trendvidia.com"
+  },
+  "homepage": "https://protowire.org",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/trendvidia/protowire-typescript.git"
+  },
+  "bugs": {
+    "url": "https://github.com/trendvidia/protowire-typescript/issues"
+  },
+  "keywords": [
+    "pxf",
+    "protowire",
+    "protobuf",
+    "sbe",
+    "wire-format",
+    "encoding",
+    "fix-protocol",
+    "proto3",
+    "envelope",
+    "marshalling"
+  ],
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": { "types": "./dist/index.d.ts",          "default": "./dist/index.js" },
+      "require": { "types": "./dist/index.d.cts",         "default": "./dist/index.cjs" }
+    },
+    "./envelope": {
+      "import": { "types": "./dist/envelope/index.d.ts", "default": "./dist/envelope/index.js" },
+      "require": { "types": "./dist/envelope/index.d.cts","default": "./dist/envelope/index.cjs" }
+    },
+    "./pb": {
+      "import": { "types": "./dist/pb/index.d.ts",       "default": "./dist/pb/index.js" },
+      "require": { "types": "./dist/pb/index.d.cts",     "default": "./dist/pb/index.cjs" }
+    },
+    "./pxf": {
+      "import": { "types": "./dist/pxf/index.d.ts",      "default": "./dist/pxf/index.js" },
+      "require": { "types": "./dist/pxf/index.d.cts",    "default": "./dist/pxf/index.cjs" }
+    },
+    "./sbe": {
+      "import": { "types": "./dist/sbe/index.d.ts",      "default": "./dist/sbe/index.js" },
+      "require": { "types": "./dist/sbe/index.d.cts",    "default": "./dist/sbe/index.cjs" }
+    },
+    "./package.json": "./package.json"
+  },
+  "sideEffects": false,
+  "files": [
+    "dist",
+    "proto",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "scripts": {
+    "build": "tsup",
+    "clean": "rm -rf dist",
+    "gen:testdata": "npm run gen:testdata:shared && npm run gen:testdata:any && npm run gen:testdata:d4 && npm run gen:testdata:sbe",
+    "gen:testdata:shared": "protoc --include_imports --descriptor_set_out=src/pxf/testdata/test.binpb -I ../protowire/testdata ../protowire/testdata/test.proto",
+    "gen:testdata:any": "protoc --include_imports --descriptor_set_out=src/pxf/testdata/any-test.binpb -I src/pxf/testdata src/pxf/testdata/any-test.proto",
+    "gen:testdata:d4": "protoc --include_imports --descriptor_set_out=src/pxf/testdata/d4-test.binpb -I src/pxf/testdata -I ../protowire/proto src/pxf/testdata/d4-test.proto",
+    "gen:testdata:sbe": "protoc --include_imports --descriptor_set_out=src/sbe/testdata/sbe-test.binpb -I src/sbe/testdata -I ../protowire/proto src/sbe/testdata/sbe-test.proto",
+    "gen:testdata:buf": "npm run gen:testdata:shared && npm run gen:testdata:any:buf && npm run gen:testdata:d4:buf && npm run gen:testdata:sbe:buf",
+    "gen:testdata:any:buf": "buf build --as-file-descriptor-set --exclude-source-info --path src/pxf/testdata/any-test.proto -o src/pxf/testdata/any-test.binpb",
+    "gen:testdata:d4:buf": "buf build --as-file-descriptor-set --exclude-source-info --path src/pxf/testdata/d4-test.proto -o src/pxf/testdata/d4-test.binpb",
+    "gen:testdata:sbe:buf": "buf build --as-file-descriptor-set --exclude-source-info --path src/sbe/testdata/sbe-test.proto -o src/sbe/testdata/sbe-test.binpb",
+    "buf:lint": "buf lint",
+    "buf:format": "buf format -w",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run typecheck && npm test && npm run build"
+  },
+  "dependencies": {
+    "@bufbuild/protobuf": "^2.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@vitest/coverage-v8": "^2.1.0",
+    "tsup": "^8.3.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

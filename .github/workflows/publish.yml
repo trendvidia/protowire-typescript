@@ -1,0 +1,65 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 TrendVidia, LLC.
+
+name: Publish
+
+# Triggered by pushing a v* tag (cut by the maintainer after CHANGELOG +
+# version bump land on main). Publishes @trendvidia/protowire to npm with
+# provenance attestation, signed via Sigstore from this workflow's OIDC
+# token. Consumers can verify with `npm audit signatures`.
+#
+# No long-lived npm token is required; the npm registry trusts this
+# workflow via OIDC. The `id-token: write` permission below grants the
+# job an OIDC token claim that npm validates against the package's
+# trusted-publisher configuration.
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: read
+  id-token: write   # required for npm provenance
+
+jobs:
+  publish:
+    name: Publish to npm
+    runs-on: ubuntu-latest
+    environment: npm   # protect with required reviewers in repo settings
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+          cache: npm
+
+      - run: npm ci
+
+      - name: Verify tag matches package.json version
+        run: |
+          tag_version="${GITHUB_REF_NAME#v}"
+          file_version=$(node -p "require('./package.json').version")
+          if [[ "$tag_version" != "$file_version" ]]; then
+            echo "::error::tag $GITHUB_REF_NAME does not match package.json version $file_version"
+            exit 1
+          fi
+          echo "Publishing version $file_version"
+
+      - name: Type-check + test
+        run: |
+          npm run typecheck
+          npm test
+
+      - name: Build (ESM + CJS + .d.ts)
+        run: npm run build
+
+      - name: Publish with provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        # `--provenance` requires `id-token: write` (set above) and an npm
+        # account / org with provenance enabled. `--access public` is
+        # required for scoped packages to be public-by-default.
+        run: npm publish --provenance --access public

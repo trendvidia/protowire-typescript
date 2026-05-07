@@ -1,0 +1,90 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 TrendVidia, LLC.
+
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  test:
+    name: Test (Node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [20, 22]
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+
+      - run: npm ci
+
+      - name: Type-check (strict tsc, no emit)
+        run: npm run typecheck
+
+      - name: Build (ESM + CJS via tsup)
+        run: npm run build
+
+      - name: Vitest with coverage
+        run: npm test -- --coverage
+
+      - name: Verify dual-format output
+        run: |
+          test -f dist/index.js   || (echo "::error::missing ESM build dist/index.js"   ; exit 1)
+          test -f dist/index.cjs  || (echo "::error::missing CJS build dist/index.cjs"  ; exit 1)
+          test -f dist/index.d.ts || (echo "::error::missing types dist/index.d.ts"     ; exit 1)
+          test -f dist/pxf/index.js  && test -f dist/pxf/index.cjs  || (echo "::error::pxf subpath missing dual format"  ; exit 1)
+          test -f dist/pb/index.js   && test -f dist/pb/index.cjs   || (echo "::error::pb subpath missing dual format"   ; exit 1)
+          test -f dist/sbe/index.js  && test -f dist/sbe/index.cjs  || (echo "::error::sbe subpath missing dual format"  ; exit 1)
+          test -f dist/envelope/index.js && test -f dist/envelope/index.cjs || (echo "::error::envelope subpath missing dual format"; exit 1)
+
+      - name: Smoke-test ESM resolution
+        run: node --input-type=module -e "import('./dist/pxf/index.js').then(m => { m.parse('@type a.b.C\n\nname = \"x\"\n'); console.log('esm ok'); })"
+
+      - name: Smoke-test CJS resolution
+        run: node --input-type=commonjs -e "const { parse } = require('./dist/pxf/index.cjs'); parse('@type a.b.C\n\nname = \"x\"\n'); console.log('cjs ok');"
+
+      - name: Upload coverage
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: coverage-${{ matrix.node }}
+          path: coverage/
+
+      - name: Upload test reports on failure
+        if: failure()
+        uses: actions/upload-artifact@v5
+        with:
+          name: test-output-${{ matrix.node }}
+          path: |
+            dist/
+            **/junit.xml
+
+  buf:
+    name: Buf lint + breaking
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0   # buf breaking needs the base ref
+
+      - uses: bufbuild/buf-action@v1
+        with:
+          lint: true
+          # Breaking-change check only fires on PRs; on main it's a no-op.
+          breaking: ${{ github.event_name == 'pull_request' }}
+          breaking_against: "https://github.com/${{ github.repository }}.git#branch=main"
