@@ -4,6 +4,18 @@
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
     "lib": ["ES2022"],
+    // Explicit @types loading — TypeScript 6 stopped auto-acquiring
+    // `@types/node` under `verbatimModuleSyntax` + NodeNext, which
+    // removed ambient `TextEncoder` / `Buffer` / `btoa` / `node:*`
+    // import specifier types. Naming "node" here restores them.
+    "types": ["node"],
+    // tsup's DTS pipeline injects a `baseUrl` into its internal
+    // tsconfig when generating .d.ts files. TypeScript 6 deprecated
+    // `baseUrl` (removal in TS 7), and tsc surfaces a TS5101 error
+    // that fails the build. Silence the deprecation here so tsup's
+    // DTS step succeeds — when tsup drops the `baseUrl` injection
+    // (or we move to a different dts emitter), this option can go.
+    "ignoreDeprecations": "6.0",
     "strict": true,
     "noUncheckedIndexedAccess": true,
     "exactOptionalPropertyTypes": true,
