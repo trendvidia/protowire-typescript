@@ -93,4 +93,4 @@ jobs:
           # job (HTTP 403) under our workflow-level `contents: read`.
           # CI status already surfaces success/failure; comments are
           # noise.
-          comment: false
+          pr_comment: false
