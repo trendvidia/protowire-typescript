@@ -19,6 +19,24 @@ format changes.
 
 ### Added
 
+- **`Result.directives()` and `Result.tables()` accessors.** The
+  direct decoder now populates the document-root directive list and
+  `@table` directive list on `Result` during `unmarshalFull`, so
+  consumers can read them after a decode call.
+  - `Result.directives()` returns the generic
+    `@<name> *(prefix) [{ ... }]` blocks in source order, with raw
+    body bytes preserved verbatim for downstream re-parsing
+    (chameleon's `@header T { ... }` reader, etc.). A single prefix
+    populates the back-compat `type` field; two or more leave it
+    empty and consumers read `prefixes` directly.
+  - `Result.tables()` returns the `@table` directives with full
+    column metadata and parsed cell values per row, faithful to the
+    three-state cell grammar (absent / present-but-null /
+    present-with-value, draft §3.4.4).
+  - `unmarshal` (vs `unmarshalFull`) still passes no `Result` and
+    walks directives without allocating any AST nodes — the direct
+    path retains its zero-allocation contract on the hot path.
+
 - **PXF schema reserved-name validator (draft §3.13).** Rejects
   protobuf schemas that declare a message field, oneof, or enum value
   whose name is case-sensitively equal to a PXF value keyword

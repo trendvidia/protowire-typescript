@@ -28,6 +28,12 @@ import {
 
 import { findNullMaskField, getDefault, isRequired } from "./annotations.js";
 import {
+  type Directive,
+  type TableDirective,
+  type TableRow,
+  type Value,
+} from "./ast.js";
+import {
   findFieldByProtoName,
   isAny,
   isDuration,
@@ -193,11 +199,68 @@ class Decoder {
   }
 
   /**
+   * parseScalarCellValue consumes one scalar token at `this.current`
+   * and builds the corresponding Value. Mirrors the scalar branches of
+   * the AST parser's parseValue. Used by @table row parsing in
+   * consumeDirectives — list / block / unparseable cell tokens are
+   * already rejected by the caller.
+   */
+  private parseScalarCellValue(): Value {
+    const pos = this.current.pos;
+    const tok = this.current;
+    switch (tok.kind) {
+      case TokenKind.STRING: {
+        this.advance();
+        return { kind: "string", pos, value: tok.value };
+      }
+      case TokenKind.INT: {
+        this.advance();
+        return { kind: "int", pos, raw: tok.value };
+      }
+      case TokenKind.FLOAT: {
+        this.advance();
+        return { kind: "float", pos, raw: tok.value };
+      }
+      case TokenKind.BOOL: {
+        this.advance();
+        return { kind: "bool", pos, value: tok.value === "true" };
+      }
+      case TokenKind.BYTES: {
+        this.advance();
+        return { kind: "bytes", pos, value: decodeBase64(tok.value) };
+      }
+      case TokenKind.TIMESTAMP: {
+        this.advance();
+        return { kind: "timestamp", pos, raw: tok.value };
+      }
+      case TokenKind.DURATION: {
+        this.advance();
+        return { kind: "duration", pos, raw: tok.value };
+      }
+      case TokenKind.NULL: {
+        this.advance();
+        return { kind: "null", pos };
+      }
+      case TokenKind.IDENT: {
+        this.advance();
+        return { kind: "ident", pos, name: tok.value };
+      }
+      default:
+        throw this.err(
+          pos,
+          `unsupported @table cell value: ${tokenKindName(tok.kind)}`,
+        );
+    }
+  }
+
+  /**
    * consumeDirectives drains any leading `@type` / `@<name>` / `@table`
-   * directives, leaving `this.current` at the first body token. PR 1
-   * of the v0.72-v0.75 catch-up discards directive contents in the
-   * direct decoder (semantics — Result accessors, TableReader, BindRow
-   * — arrive in later PRs).
+   * directives, leaving `this.current` at the first body token. When
+   * `result` is non-null (unmarshalFull path), populates
+   * `Result.directives()` and `Result.tables()` with parsed Directive /
+   * TableDirective entries. When result is null (unmarshal path),
+   * performs the same syntactic walk for validation but discards the
+   * contents — no AST allocation occurs on the prelude.
    *
    * Enforces the standalone constraint (draft §3.4.4): a document
    * containing any `@table` directive MUST NOT also carry `@type` or
@@ -231,15 +294,28 @@ class Decoder {
           break;
         }
         case TokenKind.AT_DIRECTIVE: {
+          const atPos = this.current.pos;
+          const name = this.current.value;
+          const prefixes: string[] = [];
           this.advance(); // consume @<name>
           // Zero-or-more prefix identifiers with lookahead.
           while (this.peek() === TokenKind.IDENT) {
             const next = this.peekKind();
             if (next === TokenKind.EQUALS || next === TokenKind.COLON) break;
+            prefixes.push(this.current.value);
             this.advance();
           }
-          // Optional inline block — drop its contents at the token level.
+          // Back-compat: a single prefix populates the legacy `type`
+          // field, matching v0.72.0's single-Type shape.
+          const type = prefixes.length === 1 ? prefixes[0]! : "";
+          let body = "";
+          let hasBody = false;
+          // Optional inline block — slice raw bytes between `{` and
+          // `}` by walking brace depth at the token level. Strings /
+          // comments are handled by the lexer, so brace tokens here
+          // are always real braces.
           if ((this.peek() as TokenKind) === TokenKind.LBRACE) {
+            const open = this.current.pos.offset;
             let depth = 1;
             this.advance();
             while (depth > 0 && this.peek() !== TokenKind.EOF) {
@@ -248,6 +324,9 @@ class Decoder {
               } else if ((this.peek() as TokenKind) === TokenKind.RBRACE) {
                 depth--;
                 if (depth === 0) {
+                  const close = this.current.pos.offset;
+                  body = this.lex.inputView().slice(open + 1, close);
+                  hasBody = true;
                   this.advance();
                   break;
                 }
@@ -258,6 +337,18 @@ class Decoder {
               throw this.err(this.current.pos, "unmatched '{' in directive block");
             }
           }
+          if (this.result !== null) {
+            const dir: Directive = {
+              pos: atPos,
+              name,
+              prefixes,
+              type,
+              body,
+              hasBody,
+              leadingComments: [],
+            };
+            this.result.addDirective(dir);
+          }
           break;
         }
         case TokenKind.AT_TABLE: {
@@ -267,8 +358,9 @@ class Decoder {
               "@table directive cannot coexist with @type (draft §3.4.4)",
             );
           }
+          const tablePos = this.current.pos;
           if (!hasTable) {
-            firstTablePos = this.current.pos;
+            firstTablePos = tablePos;
             hasTable = true;
           }
           this.advance(); // consume @table
@@ -278,6 +370,7 @@ class Decoder {
               "expected row message type after @table",
             );
           }
+          const tableType = this.current.value;
           this.advance();
           if ((this.peek() as TokenKind) !== TokenKind.LPAREN) {
             throw this.err(
@@ -292,18 +385,18 @@ class Decoder {
               "@table column list must contain at least one field name",
             );
           }
-          let nCols = 0;
+          const columns: string[] = [];
           for (;;) {
             if (this.peek() !== TokenKind.IDENT) {
               throw this.err(this.current.pos, "expected column field name");
             }
-            nCols++;
             if (this.current.value.includes(".")) {
               throw this.err(
                 this.current.pos,
                 "@table column has dotted path; not supported in v1 (draft §3.4.4)",
               );
             }
+            columns.push(this.current.value);
             this.advance();
             if ((this.peek() as TokenKind) === TokenKind.COMMA) {
               this.advance();
@@ -316,17 +409,38 @@ class Decoder {
             );
           }
           this.advance(); // consume )
-          // Zero or more rows; each cell is a single scalar token.
+          const nCols = columns.length;
+          const rows: TableRow[] = [];
+          // Zero or more rows; each cell is a single scalar token (or empty).
           while ((this.peek() as TokenKind) === TokenKind.LPAREN) {
             const rowPos = this.current.pos;
             this.advance(); // (
-            let cells = 0;
+            const cells: (Value | null)[] = [];
             // First cell.
             if (
-              (this.peek() as TokenKind) !== TokenKind.COMMA &&
-              (this.peek() as TokenKind) !== TokenKind.RPAREN
+              (this.peek() as TokenKind) === TokenKind.COMMA ||
+              (this.peek() as TokenKind) === TokenKind.RPAREN
             ) {
+              cells.push(null);
+            } else if (
+              (this.peek() as TokenKind) === TokenKind.LBRACKET ||
+              (this.peek() as TokenKind) === TokenKind.LBRACE
+            ) {
+              throw this.err(
+                this.current.pos,
+                "@table cells cannot contain list/block values in v1 (draft §3.4.4)",
+              );
+            } else {
+              cells.push(this.parseScalarCellValue());
+            }
+            while ((this.peek() as TokenKind) === TokenKind.COMMA) {
+              this.advance();
               if (
+                (this.peek() as TokenKind) === TokenKind.COMMA ||
+                (this.peek() as TokenKind) === TokenKind.RPAREN
+              ) {
+                cells.push(null);
+              } else if (
                 (this.peek() as TokenKind) === TokenKind.LBRACKET ||
                 (this.peek() as TokenKind) === TokenKind.LBRACE
               ) {
@@ -334,39 +448,31 @@ class Decoder {
                   this.current.pos,
                   "@table cells cannot contain list/block values in v1 (draft §3.4.4)",
                 );
+              } else {
+                cells.push(this.parseScalarCellValue());
               }
-              this.advance();
-            }
-            cells++;
-            while ((this.peek() as TokenKind) === TokenKind.COMMA) {
-              this.advance();
-              if (
-                (this.peek() as TokenKind) !== TokenKind.COMMA &&
-                (this.peek() as TokenKind) !== TokenKind.RPAREN
-              ) {
-                if (
-                  (this.peek() as TokenKind) === TokenKind.LBRACKET ||
-                  (this.peek() as TokenKind) === TokenKind.LBRACE
-                ) {
-                  throw this.err(
-                    this.current.pos,
-                    "@table cells cannot contain list/block values in v1 (draft §3.4.4)",
-                  );
-                }
-                this.advance();
-              }
-              cells++;
             }
             if ((this.peek() as TokenKind) !== TokenKind.RPAREN) {
               throw this.err(this.current.pos, "expected ',' or ')' in @table row");
             }
-            if (cells !== nCols) {
+            if (cells.length !== nCols) {
               throw this.err(
                 rowPos,
-                `@table row has ${cells} cells, expected ${nCols} (column count)`,
+                `@table row has ${cells.length} cells, expected ${nCols} (column count)`,
               );
             }
             this.advance(); // consume )
+            rows.push({ pos: rowPos, cells });
+          }
+          if (this.result !== null) {
+            const table: TableDirective = {
+              pos: tablePos,
+              type: tableType,
+              columns,
+              rows,
+              leadingComments: [],
+            };
+            this.result.addTable(table);
           }
           break;
         }
