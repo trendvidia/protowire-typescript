@@ -28,6 +28,11 @@ export {
   type ViolationKind,
 } from "./schema.js";
 export {
+  TableReader,
+  bindRow,
+  DEFAULT_HEADER_MAX_BYTES,
+} from "./table_reader.js";
+export {
   findFieldByProtoName,
   isWrapperType,
   isTimestamp,
