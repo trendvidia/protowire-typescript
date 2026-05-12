@@ -88,3 +88,9 @@ jobs:
           # Breaking-change check only fires on PRs; on main it's a no-op.
           breaking: ${{ github.event_name == 'pull_request' }}
           breaking_against: "https://github.com/${{ github.repository }}.git#branch=main"
+          # Action defaults to commenting on the PR with lint/breaking
+          # results. That requires `pull-requests: write` and fails the
+          # job (HTTP 403) under our workflow-level `contents: read`.
+          # CI status already surfaces success/failure; comments are
+          # noise.
+          comment: false
