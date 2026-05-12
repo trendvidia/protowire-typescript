@@ -4,6 +4,11 @@
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
     "lib": ["ES2022"],
+    // Explicit @types loading — TypeScript 6 stopped auto-acquiring
+    // `@types/node` under `verbatimModuleSyntax` + NodeNext, which
+    // removed ambient `TextEncoder` / `Buffer` / `btoa` / `node:*`
+    // import specifier types. Naming "node" here restores them.
+    "types": ["node"],
     "strict": true,
     "noUncheckedIndexedAccess": true,
     "exactOptionalPropertyTypes": true,
