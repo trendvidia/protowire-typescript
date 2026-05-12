@@ -19,6 +19,33 @@ format changes.
 
 ### Added
 
+- **`TableReader` streaming `@table` consumption + `bindRow`
+  per-row binding** (draft §3.4.4). `unmarshalFull` materializes
+  every row of an `@table` directive into `Result.tables()`; that
+  works for small datasets and breaks for the CSV-replacement
+  workload `@table` was designed for. New
+  `src/pxf/table_reader.ts` exposes:
+  - `TableReader.fromString(input)` — consumes leading directives
+    and the `@table TYPE ( cols )` header; the reader is positioned
+    at the first row. Header capped at 64 KiB
+    (`DEFAULT_HEADER_MAX_BYTES`) to fail-fast on misuse.
+  - `type` / `columns` / `directives` properties expose the parsed
+    header.
+  - Implements the iterator protocol — `for (const row of reader)`
+    just works; `next()` returns `{ value, done }`. Per-row arity
+    and v1 cell-grammar checks happen at consume time.
+  - `scan(schema, options?)` — `next` + `bindRow` in one call;
+    returns a freshly-bound message or `null` at EOF.
+  - `tail()` — returns the unconsumed bytes of the input for
+    chaining a second `TableReader` on multi-`@table` documents.
+  - `bindRow(schema, columns, row, options?)` — exported helper for
+    callers iterating `Result.tables()[i].rows` from the
+    materializing path. Strategy is format-and-reparse — render
+    cells as a synthetic PXF body and run through `unmarshal`,
+    reusing every branch of the existing decoder. `skipValidate`
+    defaults to `true` to avoid re-running the reserved-name check
+    per row.
+
 - **`Result.directives()` and `Result.tables()` accessors.** The
   direct decoder now populates the document-root directive list and
   `@table` directive list on `Result` during `unmarshalFull`, so
