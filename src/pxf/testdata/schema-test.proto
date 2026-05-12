@@ -1,0 +1,80 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 TrendVidia, LLC.
+//
+// Schemas that exercise the v0.72-v0.75 reserved-name validator
+// (draft §3.13). These descriptors are intentionally non-conformant —
+// they declare message fields, oneofs, and enum values whose names
+// case-sensitively match PXF value keywords (`null` / `true` /
+// `false`). The validator should reject them.
+
+syntax = "proto3";
+
+package schema.test.v1;
+
+// Conformant — no violations.
+message Conformant {
+  int64 price = 1;
+  int64 qty = 2;
+}
+
+// One field collides.
+message FieldNull {
+  int64 a = 1;
+  string null = 2;
+}
+
+// One oneof collides.
+message OneofTrue {
+  oneof true {
+    string s = 1;
+    int64 n = 2;
+  }
+}
+
+// Enum value at file scope.
+enum SideFalse {
+  SIDE_UNSPECIFIED = 0;
+  false = 1;
+}
+
+// Nested enum.
+message OuterWithNestedEnum {
+  enum Side {
+    SIDE_UNSPECIFIED = 0;
+    null = 1;
+  }
+  Side s = 1;
+}
+
+// Nested message with reserved field.
+message OuterWithNestedMsg {
+  message Inner {
+    int64 true = 1;
+  }
+  Inner i = 1;
+}
+
+// Case-sensitive negative — capitalized variants must NOT trip the
+// validator.
+message CaseInsensitiveOK {
+  int64 NULL = 1;
+  string True = 2;
+}
+
+// Multi-violation: catches sort-by-element order.
+message MultiViolations {
+  string null = 1;
+  int64 false = 2;
+}
+enum MultiEnum {
+  MULTI_UNSPECIFIED = 0;
+  true = 1;
+}
+
+// proto3 optional → synthetic oneof named after the field. The
+// synthetic oneof MUST be filtered (bufbuild's DescMessage.oneofs
+// already excludes it), so this should produce only one violation —
+// the field — not two.
+message SyntheticOneof {
+  optional int64 null = 1;
+}
