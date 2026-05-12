@@ -21,6 +21,13 @@ export {
 export { marshal, type MarshalOptions } from "./encode.js";
 export { Result } from "./result.js";
 export {
+  validateDescriptor,
+  validateFile,
+  violationString,
+  type Violation,
+  type ViolationKind,
+} from "./schema.js";
+export {
   findFieldByProtoName,
   isWrapperType,
   isTimestamp,
@@ -35,6 +42,7 @@ export type {
   BoolVal,
   BytesVal,
   Comment,
+  Directive,
   Document,
   DurationVal,
   Entry,
@@ -45,6 +53,8 @@ export type {
   MapEntry,
   NullVal,
   StringVal,
+  TableDirective,
+  TableRow,
   TimestampVal,
   Value,
 } from "./ast.js";

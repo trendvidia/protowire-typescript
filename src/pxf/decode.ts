@@ -37,6 +37,7 @@ import {
 import { PxfError } from "./errors.js";
 import { Lexer } from "./lexer.js";
 import { Result } from "./result.js";
+import { asValidationErrorMessage, validateDescriptor } from "./schema.js";
 import { type Position, type Token, TokenKind, tokenKindName } from "./token.js";
 
 /**
@@ -74,6 +75,13 @@ export interface UnmarshalOptions {
    * `value` fields.
    */
   typeResolver?: TypeResolver;
+  /**
+   * Skip the per-call schema reserved-name check (draft §3.13).
+   * Callers that have already validated their descriptors (typically
+   * via `validateDescriptor` in a one-time codegen or registry-load
+   * pass) can set this to bypass the per-call recheck.
+   */
+  skipValidate?: boolean;
 }
 
 export function unmarshal<Desc extends DescMessage>(
@@ -81,6 +89,7 @@ export function unmarshal<Desc extends DescMessage>(
   schema: Desc,
   options?: UnmarshalOptions,
 ): MessageShape<Desc> {
+  checkSchema(schema, options);
   const msg = create(schema);
   const root = reflect(schema, msg);
   new Decoder(
@@ -90,6 +99,15 @@ export function unmarshal<Desc extends DescMessage>(
     null,
   ).decodeRoot(root);
   return msg;
+}
+
+function checkSchema(desc: DescMessage, options: UnmarshalOptions | undefined): void {
+  if (options?.skipValidate) return;
+  const vs = validateDescriptor(desc);
+  const msg = asValidationErrorMessage(vs);
+  if (msg !== undefined) {
+    throw new PxfError({ line: 0, column: 0, offset: 0 }, msg);
+  }
 }
 
 /**
@@ -106,6 +124,7 @@ export function unmarshalFull<Desc extends DescMessage>(
   schema: Desc,
   options?: UnmarshalOptions,
 ): { message: MessageShape<Desc>; result: Result } {
+  checkSchema(schema, options);
   const msg = create(schema);
   const root = reflect(schema, msg);
   const result = new Result();
