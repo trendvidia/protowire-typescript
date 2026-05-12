@@ -169,17 +169,210 @@ class Decoder {
   decodeRoot(root: ReflectMessage): void {
     this.rootRefl = root;
     this.rootNullMaskFd = findNullMaskField(root.desc);
-    if (this.peek() === TokenKind.AT_TYPE) {
-      this.advance();
-      if (this.peek() !== TokenKind.IDENT) {
-        throw this.err(
-          this.current.pos,
-          `expected type name after @type, got ${tokenKindName(this.peek())}`,
-        );
-      }
-      this.advance();
-    }
+    this.consumeDirectives();
     this.decodeFields(root, false);
+  }
+
+  /**
+   * consumeDirectives drains any leading `@type` / `@<name>` / `@table`
+   * directives, leaving `this.current` at the first body token. PR 1
+   * of the v0.72-v0.75 catch-up discards directive contents in the
+   * direct decoder (semantics — Result accessors, TableReader, BindRow
+   * — arrive in later PRs).
+   *
+   * Enforces the standalone constraint (draft §3.4.4): a document
+   * containing any `@table` directive MUST NOT also carry `@type` or
+   * top-level field entries.
+   */
+  private consumeDirectives(): void {
+    let sawType = false;
+    let hasTable = false;
+    let firstTablePos: Position | null = null;
+    for (;;) {
+      switch (this.peek()) {
+        case TokenKind.AT_TYPE: {
+          if (hasTable) {
+            throw this.err(
+              this.current.pos,
+              "@table directive cannot coexist with @type (draft §3.4.4)",
+            );
+          }
+          sawType = true;
+          this.advance(); // consume @type
+          if (
+            this.peek() !== TokenKind.IDENT &&
+            this.peek() !== TokenKind.STRING
+          ) {
+            throw this.err(
+              this.current.pos,
+              `expected type name after @type, got ${tokenKindName(this.peek())}`,
+            );
+          }
+          this.advance();
+          break;
+        }
+        case TokenKind.AT_DIRECTIVE: {
+          this.advance(); // consume @<name>
+          // Zero-or-more prefix identifiers with lookahead.
+          while (this.peek() === TokenKind.IDENT) {
+            const next = this.peekKind();
+            if (next === TokenKind.EQUALS || next === TokenKind.COLON) break;
+            this.advance();
+          }
+          // Optional inline block — drop its contents at the token level.
+          if ((this.peek() as TokenKind) === TokenKind.LBRACE) {
+            let depth = 1;
+            this.advance();
+            while (depth > 0 && this.peek() !== TokenKind.EOF) {
+              if ((this.peek() as TokenKind) === TokenKind.LBRACE) {
+                depth++;
+              } else if ((this.peek() as TokenKind) === TokenKind.RBRACE) {
+                depth--;
+                if (depth === 0) {
+                  this.advance();
+                  break;
+                }
+              }
+              this.advance();
+            }
+            if (depth !== 0) {
+              throw this.err(this.current.pos, "unmatched '{' in directive block");
+            }
+          }
+          break;
+        }
+        case TokenKind.AT_TABLE: {
+          if (sawType) {
+            throw this.err(
+              this.current.pos,
+              "@table directive cannot coexist with @type (draft §3.4.4)",
+            );
+          }
+          if (!hasTable) {
+            firstTablePos = this.current.pos;
+            hasTable = true;
+          }
+          this.advance(); // consume @table
+          if (this.peek() !== TokenKind.IDENT) {
+            throw this.err(
+              this.current.pos,
+              "expected row message type after @table",
+            );
+          }
+          this.advance();
+          if ((this.peek() as TokenKind) !== TokenKind.LPAREN) {
+            throw this.err(
+              this.current.pos,
+              "expected '(' to start @table column list",
+            );
+          }
+          this.advance();
+          if (this.peek() !== TokenKind.IDENT) {
+            throw this.err(
+              this.current.pos,
+              "@table column list must contain at least one field name",
+            );
+          }
+          let nCols = 0;
+          for (;;) {
+            if (this.peek() !== TokenKind.IDENT) {
+              throw this.err(this.current.pos, "expected column field name");
+            }
+            nCols++;
+            if (this.current.value.includes(".")) {
+              throw this.err(
+                this.current.pos,
+                "@table column has dotted path; not supported in v1 (draft §3.4.4)",
+              );
+            }
+            this.advance();
+            if ((this.peek() as TokenKind) === TokenKind.COMMA) {
+              this.advance();
+              continue;
+            }
+            if ((this.peek() as TokenKind) === TokenKind.RPAREN) break;
+            throw this.err(
+              this.current.pos,
+              "expected ',' or ')' in @table column list",
+            );
+          }
+          this.advance(); // consume )
+          // Zero or more rows; each cell is a single scalar token.
+          while ((this.peek() as TokenKind) === TokenKind.LPAREN) {
+            const rowPos = this.current.pos;
+            this.advance(); // (
+            let cells = 0;
+            // First cell.
+            if (
+              (this.peek() as TokenKind) !== TokenKind.COMMA &&
+              (this.peek() as TokenKind) !== TokenKind.RPAREN
+            ) {
+              if (
+                (this.peek() as TokenKind) === TokenKind.LBRACKET ||
+                (this.peek() as TokenKind) === TokenKind.LBRACE
+              ) {
+                throw this.err(
+                  this.current.pos,
+                  "@table cells cannot contain list/block values in v1 (draft §3.4.4)",
+                );
+              }
+              this.advance();
+            }
+            cells++;
+            while ((this.peek() as TokenKind) === TokenKind.COMMA) {
+              this.advance();
+              if (
+                (this.peek() as TokenKind) !== TokenKind.COMMA &&
+                (this.peek() as TokenKind) !== TokenKind.RPAREN
+              ) {
+                if (
+                  (this.peek() as TokenKind) === TokenKind.LBRACKET ||
+                  (this.peek() as TokenKind) === TokenKind.LBRACE
+                ) {
+                  throw this.err(
+                    this.current.pos,
+                    "@table cells cannot contain list/block values in v1 (draft §3.4.4)",
+                  );
+                }
+                this.advance();
+              }
+              cells++;
+            }
+            if ((this.peek() as TokenKind) !== TokenKind.RPAREN) {
+              throw this.err(this.current.pos, "expected ',' or ')' in @table row");
+            }
+            if (cells !== nCols) {
+              throw this.err(
+                rowPos,
+                `@table row has ${cells} cells, expected ${nCols} (column count)`,
+              );
+            }
+            this.advance(); // consume )
+          }
+          break;
+        }
+        default:
+          if (hasTable && this.peek() !== TokenKind.EOF) {
+            throw this.err(
+              firstTablePos!,
+              "@table directive cannot coexist with top-level field entries (draft §3.4.4)",
+            );
+          }
+          return;
+      }
+    }
+  }
+
+  /** peekKind: one-token lookahead without consumption. Used by the
+   * directive-prefix disambiguator. */
+  private peekKind(): TokenKind {
+    const snap = this.lex.snapshot();
+    const saved = this.current;
+    this.advance();
+    const k = this.current.kind;
+    this.lex.restore(snap);
+    this.current = saved;
+    return k;
   }
 
   private decodeFields(parent: ReflectMessage, inBlock: boolean): void {
@@ -995,7 +1188,7 @@ function postDecode(
     const path = pathPrefix + fd.name;
     if (result.isAbsent(path)) {
       if (isRequired(fd)) {
-        throw new PxfError({ line: 1, column: 1 }, `required field ${JSON.stringify(path)} is absent`);
+        throw new PxfError({ line: 1, column: 1, offset: 0 }, `required field ${JSON.stringify(path)} is absent`);
       }
       const def = getDefault(fd);
       if (def !== undefined) {
@@ -1020,7 +1213,7 @@ function postDecode(
 }
 
 function applyDefault(parent: ReflectMessage, fd: DescField, def: string): void {
-  const errPos: Position = { line: 1, column: 1 };
+  const errPos: Position = { line: 1, column: 1, offset: 0 };
   if (fd.fieldKind === "scalar") {
     parent.set(fd, parseScalarDefault(fd.scalar, def, fd, errPos));
     return;

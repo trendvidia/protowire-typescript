@@ -19,12 +19,30 @@
 
 import { type Position, type Token, TokenKind } from "./token.js";
 
+export interface LexerState {
+  readonly pos: number;
+  readonly line: number;
+  readonly col: number;
+}
+
 export class Lexer {
   private pos = 0;
   private line = 1;
   private col = 1;
 
   constructor(private readonly input: string) {}
+
+  /** Snapshot the lexer's position. Used by the parser to peek the
+   * next token without consuming it. */
+  snapshot(): LexerState {
+    return { pos: this.pos, line: this.line, col: this.col };
+  }
+
+  restore(s: LexerState): void {
+    this.pos = s.pos;
+    this.line = s.line;
+    this.col = s.col;
+  }
 
   /** Returns the next token. Returns an EOF token at end-of-input forever. */
   next(): Token {
@@ -58,6 +76,8 @@ export class Lexer {
       case "}": this.advance(); return { kind: TokenKind.RBRACE, value: "}", pos };
       case "[": this.advance(); return { kind: TokenKind.LBRACKET, value: "[", pos };
       case "]": this.advance(); return { kind: TokenKind.RBRACKET, value: "]", pos };
+      case "(": this.advance(); return { kind: TokenKind.LPAREN, value: "(", pos };
+      case ")": this.advance(); return { kind: TokenKind.RPAREN, value: ")", pos };
       case "=": this.advance(); return { kind: TokenKind.EQUALS, value: "=", pos };
       case ":": this.advance(); return { kind: TokenKind.COLON, value: ":", pos };
       case ",": this.advance(); return { kind: TokenKind.COMMA, value: ",", pos };
@@ -103,7 +123,13 @@ export class Lexer {
   }
 
   private currentPos(): Position {
-    return { line: this.line, column: this.col };
+    return { line: this.line, column: this.col, offset: this.pos };
+  }
+
+  /** Raw input view — used by parseDirective to slice the body bytes
+   * between `{` and `}` once the matching brace has been located. */
+  inputView(): string {
+    return this.input;
   }
 
   private skipSpaces(): void {
@@ -296,10 +322,18 @@ export class Lexer {
       this.advance();
     }
     const name = this.input.slice(start, this.pos);
+    if (name === "") {
+      return { kind: TokenKind.ILLEGAL, value: "@", pos };
+    }
     if (name === "type") {
       return { kind: TokenKind.AT_TYPE, value: "@type", pos };
     }
-    return { kind: TokenKind.ILLEGAL, value: "@" + name, pos };
+    if (name === "table") {
+      return { kind: TokenKind.AT_TABLE, value: "@table", pos };
+    }
+    // AT_DIRECTIVE's Token.value carries the bare name (no `@`); the
+    // parser uses this directly as Directive.name.
+    return { kind: TokenKind.AT_DIRECTIVE, value: name, pos };
   }
 
   private lexNumber(pos: Position): Token {
