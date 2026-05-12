@@ -17,6 +17,16 @@ format changes.
 
 ## [Unreleased]
 
+## [0.75.0] — 2026-05-12
+
+First release after the v0.70.0 baseline that closes the v0.72–v0.75
+gap with the rest of the `protowire-*` stack (Go, Java, cpp, python).
+All four PXF v0.72-series features are now available in the TypeScript
+port, in lockstep with what the sibling ports shipped over their
+v0.72 → v0.74 → v0.75 cuts. The TS port skips intermediate version
+numbers and lands the bundled feature set directly on v0.75.0 to
+match the active wire revision.
+
 ### Added
 
 - **`TableReader` streaming `@table` consumption + `bindRow`
