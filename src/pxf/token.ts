@@ -25,11 +25,19 @@ export const enum TokenKind {
   RBRACE = 14,
   LBRACKET = 15,
   RBRACKET = 16,
-  EQUALS = 17,
-  COLON = 18,
-  COMMA = 19,
+  LPAREN = 17,
+  RPAREN = 18,
+  EQUALS = 19,
+  COLON = 20,
+  COMMA = 21,
 
-  AT_TYPE = 20,
+  AT_TYPE = 22,
+  /** Generic `@<ident>` where ident ≠ "type" and ≠ "table". Token.value
+   * holds the bare name (no leading `@`); the parser uses it as the
+   * directive's name. */
+  AT_DIRECTIVE = 23,
+  /** `@table` — bulk-row directive (draft §3.4.4). */
+  AT_TABLE = 24,
 }
 
 const tokenNames: Record<number, string> = {
@@ -50,10 +58,14 @@ const tokenNames: Record<number, string> = {
   [TokenKind.RBRACE]: "}",
   [TokenKind.LBRACKET]: "[",
   [TokenKind.RBRACKET]: "]",
+  [TokenKind.LPAREN]: "(",
+  [TokenKind.RPAREN]: ")",
   [TokenKind.EQUALS]: "=",
   [TokenKind.COLON]: ":",
   [TokenKind.COMMA]: ",",
   [TokenKind.AT_TYPE]: "@type",
+  [TokenKind.AT_DIRECTIVE]: "@<directive>",
+  [TokenKind.AT_TABLE]: "@table",
 };
 
 export function tokenKindName(k: TokenKind): string {
@@ -63,6 +75,11 @@ export function tokenKindName(k: TokenKind): string {
 export interface Position {
   readonly line: number;
   readonly column: number;
+  /** Byte offset into the lexer's input. Used by directive body
+   * extraction to slice the raw bytes between `{` and `}`; line/column
+   * remain the primary user-facing identifier. Zero is the start of
+   * input. */
+  readonly offset: number;
 }
 
 export function positionString(p: Position): string {

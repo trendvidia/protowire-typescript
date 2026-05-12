@@ -291,8 +291,22 @@ describe("@type directive", () => {
     expect(t[0]?.value).toBe("@type");
   });
 
-  it("unknown @directive is ILLEGAL", () => {
+  it("generic @<name> is AT_DIRECTIVE", () => {
+    // v0.72+: `@bogus` lexes as AT_DIRECTIVE with the bare name (no @)
+    // as value. The parser decides whether the name is registered.
     const t = tokens("@bogus");
+    expect(t[0]?.kind).toBe(TokenKind.AT_DIRECTIVE);
+    expect(t[0]?.value).toBe("bogus");
+  });
+
+  it("@table lexes as AT_TABLE", () => {
+    const t = tokens("@table");
+    expect(t[0]?.kind).toBe(TokenKind.AT_TABLE);
+    expect(t[0]?.value).toBe("@table");
+  });
+
+  it("bare @ with no name is ILLEGAL", () => {
+    const t = tokens("@\n");
     expect(t[0]?.kind).toBe(TokenKind.ILLEGAL);
   });
 });
@@ -302,9 +316,9 @@ describe("position tracking", () => {
     const t = tokens('"a"\n  name');
     // STRING, NEWLINE, IDENT
     expect(t).toHaveLength(3);
-    expect(t[0]?.pos).toEqual({ line: 1, column: 1 });
-    expect(t[1]?.pos).toEqual({ line: 1, column: 4 });
-    expect(t[2]?.pos).toEqual({ line: 2, column: 3 });
+    expect(t[0]?.pos).toEqual({ line: 1, column: 1, offset: 0 });
+    expect(t[1]?.pos).toEqual({ line: 1, column: 4, offset: 3 });
+    expect(t[2]?.pos).toEqual({ line: 2, column: 3, offset: 6 });
   });
 });
 
