@@ -1,6 +1,6 @@
 {
   "name": "@trendvidia/protowire",
-  "version": "0.75.0",
+  "version": "1.0.0",
   "description": "TypeScript port of protowire — PXF text format, SBE binary, struct-tag protobuf, and API response envelope. Verified for byte-equivalence with the canonical Go reference and seven other sibling ports.",
   "license": "MIT",
   "author": {
@@ -33,24 +33,54 @@
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "import": { "types": "./dist/index.d.ts",          "default": "./dist/index.js" },
-      "require": { "types": "./dist/index.d.cts",         "default": "./dist/index.cjs" }
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
     },
     "./envelope": {
-      "import": { "types": "./dist/envelope/index.d.ts", "default": "./dist/envelope/index.js" },
-      "require": { "types": "./dist/envelope/index.d.cts","default": "./dist/envelope/index.cjs" }
+      "import": {
+        "types": "./dist/envelope/index.d.ts",
+        "default": "./dist/envelope/index.js"
+      },
+      "require": {
+        "types": "./dist/envelope/index.d.cts",
+        "default": "./dist/envelope/index.cjs"
+      }
     },
     "./pb": {
-      "import": { "types": "./dist/pb/index.d.ts",       "default": "./dist/pb/index.js" },
-      "require": { "types": "./dist/pb/index.d.cts",     "default": "./dist/pb/index.cjs" }
+      "import": {
+        "types": "./dist/pb/index.d.ts",
+        "default": "./dist/pb/index.js"
+      },
+      "require": {
+        "types": "./dist/pb/index.d.cts",
+        "default": "./dist/pb/index.cjs"
+      }
     },
     "./pxf": {
-      "import": { "types": "./dist/pxf/index.d.ts",      "default": "./dist/pxf/index.js" },
-      "require": { "types": "./dist/pxf/index.d.cts",    "default": "./dist/pxf/index.cjs" }
+      "import": {
+        "types": "./dist/pxf/index.d.ts",
+        "default": "./dist/pxf/index.js"
+      },
+      "require": {
+        "types": "./dist/pxf/index.d.cts",
+        "default": "./dist/pxf/index.cjs"
+      }
     },
     "./sbe": {
-      "import": { "types": "./dist/sbe/index.d.ts",      "default": "./dist/sbe/index.js" },
-      "require": { "types": "./dist/sbe/index.d.cts",    "default": "./dist/sbe/index.cjs" }
+      "import": {
+        "types": "./dist/sbe/index.d.ts",
+        "default": "./dist/sbe/index.js"
+      },
+      "require": {
+        "types": "./dist/sbe/index.d.cts",
+        "default": "./dist/sbe/index.cjs"
+      }
     },
     "./package.json": "./package.json"
   },
