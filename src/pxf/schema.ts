@@ -70,6 +70,26 @@ export function validateFile(fd: DescFile | null | undefined): Violation[] {
 
 const RESERVED = new Set(["null", "true", "false"]);
 
+/**
+ * Directive names the spec reserves for future allocation (draft §3.4.6).
+ * v1 decoders MUST reject these as unknown reserved directives so
+ * applications cannot squat the names before the spec allocates
+ * semantics to them.
+ *
+ * The names with their own production (`type`, `dataset`, `proto`) don't
+ * appear here — they're handled directly by the lexer. The spec-
+ * registered `entry` doesn't appear either — it's a valid named-directive
+ * with documented shape (draft §3.4.3).
+ */
+export const FUTURE_RESERVED_DIRECTIVES: ReadonlySet<string> = new Set([
+  "table",
+  "datasource",
+  "view",
+  "procedure",
+  "function",
+  "permissions",
+]);
+
 function walkMessage(path: string, md: DescMessage, out: Violation[]): void {
   for (const f of md.fields) {
     if (RESERVED.has(f.name)) {

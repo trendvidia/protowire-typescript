@@ -132,6 +132,31 @@ export class Lexer {
     return this.input;
   }
 
+  /**
+   * Reposition the lexer to `target` (a char index into the input),
+   * recomputing line/col by scanning forward from the current position.
+   * Used by parseProtoDirective to skip past an `@proto` brace-body
+   * whose interior is protobuf source rather than PXF.
+   */
+  repositionTo(target: number): void {
+    if (target < this.pos) {
+      // Re-scan from start; needed when target lands behind us (rare).
+      this.pos = 0;
+      this.line = 1;
+      this.col = 1;
+    }
+    while (this.pos < target && this.pos < this.input.length) {
+      const ch = this.input[this.pos]!;
+      this.pos++;
+      if (ch === "\n") {
+        this.line++;
+        this.col = 1;
+      } else {
+        this.col++;
+      }
+    }
+  }
+
   private skipSpaces(): void {
     while (this.pos < this.input.length) {
       const ch = this.input[this.pos]!;
@@ -328,8 +353,11 @@ export class Lexer {
     if (name === "type") {
       return { kind: TokenKind.AT_TYPE, value: "@type", pos };
     }
-    if (name === "table") {
-      return { kind: TokenKind.AT_TABLE, value: "@table", pos };
+    if (name === "dataset") {
+      return { kind: TokenKind.AT_DATASET, value: "@dataset", pos };
+    }
+    if (name === "proto") {
+      return { kind: TokenKind.AT_PROTO, value: "@proto", pos };
     }
     // AT_DIRECTIVE's Token.value carries the bare name (no `@`); the
     // parser uses this directly as Directive.name.

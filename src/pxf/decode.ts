@@ -29,10 +29,11 @@ import {
 import { findNullMaskField, getDefault, isRequired } from "./annotations.js";
 import {
   type Directive,
-  type TableDirective,
-  type TableRow,
+  type DatasetDirective,
+  type DatasetRow,
   type Value,
 } from "./ast.js";
+import { findMatchingBrace } from "./parser.js";
 import {
   findFieldByProtoName,
   isAny,
@@ -43,7 +44,7 @@ import {
 import { PxfError } from "./errors.js";
 import { Lexer } from "./lexer.js";
 import { Result } from "./result.js";
-import { asValidationErrorMessage, validateDescriptor } from "./schema.js";
+import { asValidationErrorMessage, FUTURE_RESERVED_DIRECTIVES, validateDescriptor } from "./schema.js";
 import { type Position, type Token, TokenKind, tokenKindName } from "./token.js";
 
 /**
@@ -191,6 +192,24 @@ class Decoder {
     return new PxfError(pos, msg);
   }
 
+  /**
+   * Slice raw bytes between `{` and the matching `}` (both exclusive)
+   * without decoding the body as PXF entries — used for `@proto`
+   * brace-bounded bodies whose interior is protobuf source. LBRACE is
+   * current on entry. Repositions the lexer past the closing brace.
+   */
+  private captureProtoBraceBody(label: string, atPos: Position): Uint8Array {
+    const open = this.current.pos.offset;
+    const close = findMatchingBrace(this.lex.inputView(), open);
+    if (close < 0) {
+      throw this.err(atPos, `${label}: unmatched '{'`);
+    }
+    const body = new TextEncoder().encode(this.lex.inputView().slice(open + 1, close));
+    this.lex.repositionTo(close + 1);
+    this.advance();
+    return body;
+  }
+
   decodeRoot(root: ReflectMessage): void {
     this.rootRefl = root;
     this.rootNullMaskFd = findNullMaskField(root.desc);
@@ -201,7 +220,7 @@ class Decoder {
   /**
    * parseScalarCellValue consumes one scalar token at `this.current`
    * and builds the corresponding Value. Mirrors the scalar branches of
-   * the AST parser's parseValue. Used by @table row parsing in
+   * the AST parser's parseValue. Used by @dataset row parsing in
    * consumeDirectives — list / block / unparseable cell tokens are
    * already rejected by the caller.
    */
@@ -248,22 +267,22 @@ class Decoder {
       default:
         throw this.err(
           pos,
-          `unsupported @table cell value: ${tokenKindName(tok.kind)}`,
+          `unsupported @dataset cell value: ${tokenKindName(tok.kind)}`,
         );
     }
   }
 
   /**
-   * consumeDirectives drains any leading `@type` / `@<name>` / `@table`
+   * consumeDirectives drains any leading `@type` / `@<name>` / `@dataset`
    * directives, leaving `this.current` at the first body token. When
    * `result` is non-null (unmarshalFull path), populates
-   * `Result.directives()` and `Result.tables()` with parsed Directive /
-   * TableDirective entries. When result is null (unmarshal path),
+   * `Result.directives()` and `Result.datasets()` with parsed Directive /
+   * DatasetDirective entries. When result is null (unmarshal path),
    * performs the same syntactic walk for validation but discards the
    * contents — no AST allocation occurs on the prelude.
    *
    * Enforces the standalone constraint (draft §3.4.4): a document
-   * containing any `@table` directive MUST NOT also carry `@type` or
+   * containing any `@dataset` directive MUST NOT also carry `@type` or
    * top-level field entries.
    */
   private consumeDirectives(): void {
@@ -276,7 +295,7 @@ class Decoder {
           if (hasTable) {
             throw this.err(
               this.current.pos,
-              "@table directive cannot coexist with @type (draft §3.4.4)",
+              "@dataset directive cannot coexist with @type (draft §3.4.4)",
             );
           }
           sawType = true;
@@ -296,6 +315,12 @@ class Decoder {
         case TokenKind.AT_DIRECTIVE: {
           const atPos = this.current.pos;
           const name = this.current.value;
+          if (FUTURE_RESERVED_DIRECTIVES.has(name)) {
+            throw this.err(
+              atPos,
+              `@${name} is a spec-reserved directive name with no v1 semantics (draft §3.4.6)`,
+            );
+          }
           const prefixes: string[] = [];
           this.advance(); // consume @<name>
           // Zero-or-more prefix identifiers with lookahead.
@@ -351,11 +376,11 @@ class Decoder {
           }
           break;
         }
-        case TokenKind.AT_TABLE: {
+        case TokenKind.AT_DATASET: {
           if (sawType) {
             throw this.err(
               this.current.pos,
-              "@table directive cannot coexist with @type (draft §3.4.4)",
+              "@dataset directive cannot coexist with @type (draft §3.4.4)",
             );
           }
           const tablePos = this.current.pos;
@@ -363,26 +388,25 @@ class Decoder {
             firstTablePos = tablePos;
             hasTable = true;
           }
-          this.advance(); // consume @table
-          if (this.peek() !== TokenKind.IDENT) {
-            throw this.err(
-              this.current.pos,
-              "expected row message type after @table",
-            );
+          this.advance(); // consume @dataset
+          // Optional row message type; MAY be omitted when an anonymous
+          // @proto precedes the @dataset (draft §3.4.4 Anonymous binding).
+          let tableType = "";
+          if (this.peek() === TokenKind.IDENT) {
+            tableType = this.current.value;
+            this.advance();
           }
-          const tableType = this.current.value;
-          this.advance();
           if ((this.peek() as TokenKind) !== TokenKind.LPAREN) {
             throw this.err(
               this.current.pos,
-              "expected '(' to start @table column list",
+              "expected '(' to start @dataset column list",
             );
           }
           this.advance();
           if (this.peek() !== TokenKind.IDENT) {
             throw this.err(
               this.current.pos,
-              "@table column list must contain at least one field name",
+              "@dataset column list must contain at least one field name",
             );
           }
           const columns: string[] = [];
@@ -393,7 +417,7 @@ class Decoder {
             if (this.current.value.includes(".")) {
               throw this.err(
                 this.current.pos,
-                "@table column has dotted path; not supported in v1 (draft §3.4.4)",
+                "@dataset column has dotted path; not supported in v1 (draft §3.4.4)",
               );
             }
             columns.push(this.current.value);
@@ -405,12 +429,12 @@ class Decoder {
             if ((this.peek() as TokenKind) === TokenKind.RPAREN) break;
             throw this.err(
               this.current.pos,
-              "expected ',' or ')' in @table column list",
+              "expected ',' or ')' in @dataset column list",
             );
           }
           this.advance(); // consume )
           const nCols = columns.length;
-          const rows: TableRow[] = [];
+          const rows: DatasetRow[] = [];
           // Zero or more rows; each cell is a single scalar token (or empty).
           while ((this.peek() as TokenKind) === TokenKind.LPAREN) {
             const rowPos = this.current.pos;
@@ -428,7 +452,7 @@ class Decoder {
             ) {
               throw this.err(
                 this.current.pos,
-                "@table cells cannot contain list/block values in v1 (draft §3.4.4)",
+                "@dataset cells cannot contain list/block values in v1 (draft §3.4.4)",
               );
             } else {
               cells.push(this.parseScalarCellValue());
@@ -446,33 +470,88 @@ class Decoder {
               ) {
                 throw this.err(
                   this.current.pos,
-                  "@table cells cannot contain list/block values in v1 (draft §3.4.4)",
+                  "@dataset cells cannot contain list/block values in v1 (draft §3.4.4)",
                 );
               } else {
                 cells.push(this.parseScalarCellValue());
               }
             }
             if ((this.peek() as TokenKind) !== TokenKind.RPAREN) {
-              throw this.err(this.current.pos, "expected ',' or ')' in @table row");
+              throw this.err(this.current.pos, "expected ',' or ')' in @dataset row");
             }
             if (cells.length !== nCols) {
               throw this.err(
                 rowPos,
-                `@table row has ${cells.length} cells, expected ${nCols} (column count)`,
+                `@dataset row has ${cells.length} cells, expected ${nCols} (column count)`,
               );
             }
             this.advance(); // consume )
             rows.push({ pos: rowPos, cells });
           }
           if (this.result !== null) {
-            const table: TableDirective = {
+            const table: DatasetDirective = {
               pos: tablePos,
               type: tableType,
               columns,
               rows,
               leadingComments: [],
             };
-            this.result.addTable(table);
+            this.result.addDataset(table);
+          }
+          break;
+        }
+        case TokenKind.AT_PROTO: {
+          const protoPos = this.current.pos;
+          this.advance(); // consume @proto
+          let shape: "anonymous" | "named" | "source" | "descriptor";
+          let typeName = "";
+          let body: Uint8Array;
+          switch (this.peek()) {
+            case TokenKind.LBRACE: {
+              shape = "anonymous";
+              body = this.captureProtoBraceBody("@proto (anonymous form)", protoPos);
+              break;
+            }
+            case TokenKind.IDENT: {
+              shape = "named";
+              typeName = this.current.value;
+              this.advance();
+              if ((this.peek() as TokenKind) !== TokenKind.LBRACE) {
+                throw this.err(
+                  this.current.pos,
+                  `expected '{' after @proto ${typeName}, got ${tokenKindName(this.peek())}`,
+                );
+              }
+              body = this.captureProtoBraceBody(`@proto ${typeName}`, protoPos);
+              break;
+            }
+            case TokenKind.STRING: {
+              shape = "source";
+              body = new TextEncoder().encode(this.current.value);
+              this.advance();
+              break;
+            }
+            case TokenKind.BYTES: {
+              shape = "descriptor";
+              try {
+                body = decodeBase64(this.current.value);
+              } catch (e) {
+                throw this.err(
+                  this.current.pos,
+                  `@proto descriptor body: invalid base64: ${(e as Error).message}`,
+                );
+              }
+              this.advance();
+              break;
+            }
+            default:
+              throw this.err(
+                this.current.pos,
+                `expected '{', dotted identifier, triple-quoted string, or b"..." after @proto, got ${tokenKindName(this.peek())}`,
+              );
+          }
+          if (this.result !== null) {
+            this.result.addProto({ pos: protoPos, shape, typeName, body, leadingComments: [] });
           }
           break;
         }
@@ -480,7 +559,7 @@ class Decoder {
           if (hasTable && this.peek() !== TokenKind.EOF) {
             throw this.err(
               firstTablePos!,
-              "@table directive cannot coexist with top-level field entries (draft §3.4.4)",
+              "@dataset directive cannot coexist with top-level field entries (draft §3.4.4)",
             );
           }
           return;

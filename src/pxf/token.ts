@@ -32,12 +32,14 @@ export const enum TokenKind {
   COMMA = 21,
 
   AT_TYPE = 22,
-  /** Generic `@<ident>` where ident ≠ "type" and ≠ "table". Token.value
-   * holds the bare name (no leading `@`); the parser uses it as the
-   * directive's name. */
+  /** Generic `@<ident>` where ident is none of the spec-reserved
+   * directive names. Token.value holds the bare name (no leading `@`);
+   * the parser uses it as the directive's name. */
   AT_DIRECTIVE = 23,
-  /** `@table` — bulk-row directive (draft §3.4.4). */
-  AT_TABLE = 24,
+  /** `@dataset` — row-oriented bulk-data directive (draft §3.4.4). */
+  AT_DATASET = 24,
+  /** `@proto` — embedded protobuf schema directive (draft §3.4.5). */
+  AT_PROTO = 25,
 }
 
 const tokenNames: Record<number, string> = {
@@ -65,7 +67,8 @@ const tokenNames: Record<number, string> = {
   [TokenKind.COMMA]: ",",
   [TokenKind.AT_TYPE]: "@type",
   [TokenKind.AT_DIRECTIVE]: "@<directive>",
-  [TokenKind.AT_TABLE]: "@table",
+  [TokenKind.AT_DATASET]: "@dataset",
+  [TokenKind.AT_PROTO]: "@proto",
 };
 
 export function tokenKindName(k: TokenKind): string {

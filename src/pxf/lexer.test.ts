@@ -299,10 +299,10 @@ describe("@type directive", () => {
     expect(t[0]?.value).toBe("bogus");
   });
 
-  it("@table lexes as AT_TABLE", () => {
-    const t = tokens("@table");
-    expect(t[0]?.kind).toBe(TokenKind.AT_TABLE);
-    expect(t[0]?.value).toBe("@table");
+  it("@dataset lexes as AT_DATASET", () => {
+    const t = tokens("@dataset");
+    expect(t[0]?.kind).toBe(TokenKind.AT_DATASET);
+    expect(t[0]?.value).toBe("@dataset");
   });
 
   it("bare @ with no name is ILLEGAL", () => {

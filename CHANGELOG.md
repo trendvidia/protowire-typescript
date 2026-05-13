@@ -17,6 +17,40 @@ format changes.
 
 ## [Unreleased]
 
+### v1.0 spec changes
+
+Three one-time spec changes from the protowire v1.0 freeze line
+(STABILITY.md in the spec repo). **Breaking** — there is no alias
+period; v1.0 is itself the major bump.
+
+- `@table` directive renamed to `@dataset` (draft §3.4.4). Public API
+  follows: `TableDirective` → `DatasetDirective`, `TableRow` →
+  `DatasetRow`, `TableReader` → `DatasetReader`, `Document.tables` →
+  `Document.datasets`, `Result.tables()` → `Result.datasets()`.
+  Source files `table_reader.ts` / `table_reader.test.ts` renamed
+  accordingly. Decoder semantics unchanged.
+
+- `@proto` directive added (draft §3.4.5). New `ProtoDirective`
+  interface + `ProtoShape` type (`"anonymous" | "named" | "source" |
+  "descriptor"`). Four body shapes lexically distinguished:
+  `@proto { ... }` (anonymous), `@proto pkg.Type { ... }` (named),
+  `@proto """..."""` (source), `@proto b"..."` (descriptor). Exposed
+  via `Document.protos` and `Result.protos()`. Descriptor form is
+  the MUST-support shape per spec; this port supports all four.
+
+- Reserved directive names expanded from 5 to 13 (draft §3.4.6).
+  Parser + decoder reject `@table`, `@datasource`, `@view`,
+  `@procedure`, `@function`, `@permissions` as spec-reserved.
+  `FUTURE_RESERVED_DIRECTIVES` exported from `schema.ts`.
+
+`@dataset`'s row message type is now optional in the AST — binding
+to an anonymous `@proto` per draft §3.4.4 Anonymous binding.
+
+`Lexer.repositionTo(target: number)` added for skipping `@proto`
+brace bodies whose interior is protobuf source rather than PXF.
+`findMatchingBrace` and `decodeBase64` exported from `parser.ts`
+for reuse by the decoder.
+
 ## [0.75.0] — 2026-05-12
 
 First release after the v0.70.0 baseline that closes the v0.72–v0.75

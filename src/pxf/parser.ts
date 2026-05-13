@@ -22,10 +22,12 @@ import {
   type Entry,
   type ListVal,
   type MapEntry,
-  type TableDirective,
-  type TableRow,
+  type DatasetDirective,
+  type DatasetRow,
+  type ProtoDirective,
   type Value,
 } from "./ast.js";
+import { FUTURE_RESERVED_DIRECTIVES } from "./schema.js";
 import { PxfError } from "./errors.js";
 import { Lexer } from "./lexer.js";
 import { type Position, type Token, TokenKind, tokenKindName } from "./token.js";
@@ -76,12 +78,13 @@ class Parser {
     const leadingComments = this.flushComments();
     let typeUrl = "";
     const directives: Directive[] = [];
-    const tables: TableDirective[] = [];
+    const datasets: DatasetDirective[] = [];
+    const protos: ProtoDirective[] = [];
     let bodyOffset = 0;
 
-    // Top-of-document directive prelude. @type, @<name>, and @table may
+    // Top-of-document directive prelude. @type, @<name>, and @dataset may
     // interleave in any order; @type populates typeUrl, @<name> appends
-    // to directives, @table appends to tables. bodyOffset tracks the
+    // to directives, @dataset appends to tables. bodyOffset tracks the
     // byte immediately after the last directive's last token so
     // consumers (e.g. chameleon) can hash from there; stays 0 when
     // there are no directives.
@@ -93,7 +96,7 @@ class Parser {
           if (firstTablePos !== null) {
             throw new PxfError(
               this.current.pos,
-              "@table directive cannot coexist with @type; the @table header declares the document's type (draft §3.4.4)",
+              "@dataset directive cannot coexist with @type; the @dataset header declares the document's type (draft §3.4.4)",
             );
           }
           sawType = true;
@@ -115,16 +118,22 @@ class Parser {
           bodyOffset = endOffset;
           break;
         }
-        case TokenKind.AT_TABLE: {
+        case TokenKind.AT_DATASET: {
           if (sawType) {
             throw new PxfError(
               this.current.pos,
-              "@table directive cannot coexist with @type; the @table header declares the document's type (draft §3.4.4)",
+              "@dataset directive cannot coexist with @type; the @dataset header declares the document's type (draft §3.4.4)",
             );
           }
-          const { table, endOffset } = this.parseTableDirective();
+          const { table, endOffset } = this.parseDatasetDirective();
           if (firstTablePos === null) firstTablePos = table.pos;
-          tables.push(table);
+          datasets.push(table);
+          bodyOffset = endOffset;
+          break;
+        }
+        case TokenKind.AT_PROTO: {
+          const { proto, endOffset } = this.parseProtoDirective();
+          protos.push(proto);
           bodyOffset = endOffset;
           break;
         }
@@ -134,12 +143,12 @@ class Parser {
     }
 
     // Standalone constraint (draft §3.4.4): a document containing any
-    // @table directive MUST NOT also carry top-level field entries;
-    // the @table header IS the document's type declaration.
+    // @dataset directive MUST NOT also carry top-level field entries;
+    // the @dataset header IS the document's type declaration.
     if (firstTablePos !== null && this.current.kind !== TokenKind.EOF) {
       throw new PxfError(
         firstTablePos,
-        "@table directive cannot coexist with top-level field entries; the document's payload is the @table rows (draft §3.4.4)",
+        "@dataset directive cannot coexist with top-level field entries; the document's payload is the @dataset rows (draft §3.4.4)",
       );
     }
 
@@ -150,7 +159,7 @@ class Parser {
       // for the inside of a `{ ... }` block.
       entries.push(this.parseEntry({ allowMapEntry: false }));
     }
-    return { typeUrl, directives, tables, bodyOffset, entries, leadingComments };
+    return { typeUrl, directives, datasets, protos, bodyOffset, entries, leadingComments };
   }
 
   /**
@@ -186,6 +195,12 @@ class Parser {
     const leadingComments = this.flushComments();
     const atPos = this.current.pos;
     const name = this.current.value;
+    if (FUTURE_RESERVED_DIRECTIVES.has(name)) {
+      throw new PxfError(
+        atPos,
+        `@${name} is a spec-reserved directive name with no v1 semantics (draft §3.4.6)`,
+      );
+    }
     const prefixes: string[] = [];
     let endOffset = atPos.offset + 1 + name.length; // `@` + name
     this.advance();
@@ -230,29 +245,27 @@ class Parser {
   }
 
   /**
-   * parseTableDirective reads `@table <type> ( col1, col2, ... ) row*`.
-   * AT_TABLE is current on entry. See draft §3.4.4.
+   * parseDatasetDirective reads `@dataset <type> ( col1, col2, ... ) row*`.
+   * AT_DATASET is current on entry. See draft §3.4.4.
    */
-  private parseTableDirective(): { table: TableDirective; endOffset: number } {
+  private parseDatasetDirective(): { table: DatasetDirective; endOffset: number } {
     const leadingComments = this.flushComments();
     const atPos = this.current.pos;
-    this.advance(); // consume @table
+    this.advance(); // consume @dataset
 
-    // Required: row message type (dotted identifier).
-    if (this.current.kind !== TokenKind.IDENT) {
-      throw new PxfError(
-        this.current.pos,
-        `expected row message type after @table, got ${tokenKindName(this.current.kind)}`,
-      );
+    // Optional row message type. MAY be omitted when an anonymous @proto
+    // directive precedes the dataset (draft §3.4.4 Anonymous binding).
+    let type = "";
+    if ((this.current.kind as TokenKind) === TokenKind.IDENT) {
+      type = this.current.value;
+      this.advance();
     }
-    const type = this.current.value;
-    this.advance();
 
     // Required: column list in `( ... )`. At least one column.
     if ((this.current.kind as TokenKind) !== TokenKind.LPAREN) {
       throw new PxfError(
         this.current.pos,
-        `expected '(' to start @table column list, got ${tokenKindName(this.current.kind)}`,
+        `expected '(' to start @dataset column list, got ${tokenKindName(this.current.kind)}`,
       );
     }
     this.advance(); // consume (
@@ -260,7 +273,7 @@ class Parser {
     if (this.current.kind !== TokenKind.IDENT) {
       throw new PxfError(
         this.current.pos,
-        `@table column list must contain at least one field name, got ${tokenKindName(this.current.kind)}`,
+        `@dataset column list must contain at least one field name, got ${tokenKindName(this.current.kind)}`,
       );
     }
     const columns: string[] = [];
@@ -277,7 +290,7 @@ class Parser {
       if (col.includes(".")) {
         throw new PxfError(
           this.current.pos,
-          `@table column ${JSON.stringify(col)}: dotted column paths are not supported in v1 (draft §3.4.4)`,
+          `@dataset column ${JSON.stringify(col)}: dotted column paths are not supported in v1 (draft §3.4.4)`,
         );
       }
       columns.push(col);
@@ -289,15 +302,15 @@ class Parser {
       if ((this.current.kind as TokenKind) === TokenKind.RPAREN) break;
       throw new PxfError(
         this.current.pos,
-        `expected ',' or ')' in @table column list, got ${tokenKindName(this.current.kind)}`,
+        `expected ',' or ')' in @dataset column list, got ${tokenKindName(this.current.kind)}`,
       );
     }
     let endOffset = this.current.pos.offset + 1; // past `)`
     this.advance(); // consume )
 
-    const rows: TableRow[] = [];
+    const rows: DatasetRow[] = [];
     while ((this.current.kind as TokenKind) === TokenKind.LPAREN) {
-      const r = this.parseTableRow(columns.length);
+      const r = this.parseDatasetRow(columns.length);
       rows.push(r.row);
       endOffset = r.endOffset;
     }
@@ -308,10 +321,10 @@ class Parser {
   }
 
   /**
-   * parseTableRow reads `( cell ( ',' cell )* )` with an arity check
+   * parseDatasetRow reads `( cell ( ',' cell )* )` with an arity check
    * against `expected`. LPAREN is current on entry.
    */
-  private parseTableRow(expected: number): { row: TableRow; endOffset: number } {
+  private parseDatasetRow(expected: number): { row: DatasetRow; endOffset: number } {
     const pos = this.current.pos;
     this.advance(); // consume (
 
@@ -324,7 +337,7 @@ class Parser {
     if (this.current.kind !== TokenKind.RPAREN) {
       throw new PxfError(
         this.current.pos,
-        `expected ',' or ')' in @table row, got ${tokenKindName(this.current.kind)}`,
+        `expected ',' or ')' in @dataset row, got ${tokenKindName(this.current.kind)}`,
       );
     }
     const endOffset = this.current.pos.offset + 1;
@@ -332,14 +345,108 @@ class Parser {
     if (cells.length !== expected) {
       throw new PxfError(
         pos,
-        `@table row has ${cells.length} cells, expected ${expected} (column count)`,
+        `@dataset row has ${cells.length} cells, expected ${expected} (column count)`,
       );
     }
     return { row: { pos, cells }, endOffset };
   }
 
   /**
-   * parseRowCell consumes one cell of a @table row. Returns null for an
+   * parseProtoDirective reads `@proto <body>` (draft §3.4.5). AT_PROTO
+   * is current on entry. Four body shapes are lexically distinguished:
+   *
+   *   - `@proto { ... }`                 (anonymous)
+   *   - `@proto <dotted-name> { ... }`   (named)
+   *   - `@proto """..."""`               (source-form file)
+   *   - `@proto b"..."`                  (descriptor)
+   *
+   * For brace-bounded shapes the body is sliced as raw bytes between
+   * `{` and the matching `}` (exclusive); the contents are protobuf
+   * source and are NOT decoded as PXF entries.
+   */
+  private parseProtoDirective(): { proto: ProtoDirective; endOffset: number } {
+    const leadingComments = this.flushComments();
+    const atPos = this.current.pos;
+    this.advance(); // consume @proto
+
+    switch (this.current.kind) {
+      case TokenKind.LBRACE: {
+        const { body, endOffset } = this.captureBraceBody("@proto (anonymous form)", atPos);
+        return {
+          proto: { pos: atPos, shape: "anonymous", typeName: "", body, leadingComments },
+          endOffset,
+        };
+      }
+      case TokenKind.IDENT: {
+        const typeName = this.current.value;
+        this.advance();
+        if ((this.current.kind as TokenKind) !== TokenKind.LBRACE) {
+          throw new PxfError(
+            this.current.pos,
+            `expected '{' after @proto ${typeName}, got ${tokenKindName(this.current.kind)}`,
+          );
+        }
+        const { body, endOffset } = this.captureBraceBody(`@proto ${typeName}`, atPos);
+        return {
+          proto: { pos: atPos, shape: "named", typeName, body, leadingComments },
+          endOffset,
+        };
+      }
+      case TokenKind.STRING: {
+        const body = new TextEncoder().encode(this.current.value);
+        const endOffset = this.current.pos.offset + this.current.value.length;
+        this.advance();
+        return {
+          proto: { pos: atPos, shape: "source", typeName: "", body, leadingComments },
+          endOffset,
+        };
+      }
+      case TokenKind.BYTES: {
+        const raw = this.current.value;
+        let decoded: Uint8Array;
+        try {
+          decoded = decodeBase64(raw);
+        } catch (e) {
+          throw new PxfError(
+            this.current.pos,
+            `@proto descriptor body: invalid base64: ${(e as Error).message}`,
+          );
+        }
+        const endOffset = this.current.pos.offset + raw.length + 3; // b" … "
+        this.advance();
+        return {
+          proto: { pos: atPos, shape: "descriptor", typeName: "", body: decoded, leadingComments },
+          endOffset,
+        };
+      }
+      default:
+        throw new PxfError(
+          this.current.pos,
+          `expected '{', dotted identifier, triple-quoted string, or b"..." after @proto, got ${tokenKindName(this.current.kind)}`,
+        );
+    }
+  }
+
+  /**
+   * Slice raw bytes between `{` and the matching `}` (both exclusive)
+   * without decoding the body as PXF. LBRACE is current on entry.
+   * Repositions the lexer past the closing brace.
+   */
+  private captureBraceBody(label: string, atPos: Position): { body: Uint8Array; endOffset: number } {
+    const open = this.current.pos.offset;
+    const close = findMatchingBrace(this.lex.inputView(), open);
+    if (close < 0) {
+      throw new PxfError(atPos, `${label}: unmatched '{'`);
+    }
+    const bodyStr = this.lex.inputView().slice(open + 1, close);
+    const body = new TextEncoder().encode(bodyStr);
+    this.lex.repositionTo(close + 1);
+    this.advance();
+    return { body, endOffset: close + 1 };
+  }
+
+  /**
+   * parseRowCell consumes one cell of a @dataset row. Returns null for an
    * empty cell (no value between two commas, or at row start/end).
    * Rejects list ('[ ... ]') and block ('{ ... }') values per v1
    * cell-grammar (draft §3.4.4).
@@ -352,12 +459,12 @@ class Parser {
       case TokenKind.LBRACKET:
         throw new PxfError(
           this.current.pos,
-          "@table cells cannot contain list values in v1 (draft §3.4.4)",
+          "@dataset cells cannot contain list values in v1 (draft §3.4.4)",
         );
       case TokenKind.LBRACE:
         throw new PxfError(
           this.current.pos,
-          "@table cells cannot contain block values in v1 (draft §3.4.4)",
+          "@dataset cells cannot contain block values in v1 (draft §3.4.4)",
         );
       default:
         return this.parseValue();
@@ -560,7 +667,7 @@ class Parser {
  * unterminated input. Used by parseDirective to slice the raw bytes of
  * a directive's inline block.
  */
-function findMatchingBrace(input: string, openOffset: number): number {
+export function findMatchingBrace(input: string, openOffset: number): number {
   let depth = 1;
   let i = openOffset + 1;
   const n = input.length;
@@ -647,7 +754,7 @@ function findMatchingBrace(input: string, openOffset: number): number {
  * Decode a base64-encoded string (standard or raw — the lexer accepts both).
  * Padding is added back if the input was raw, so atob can decode it.
  */
-function decodeBase64(s: string): Uint8Array {
+export function decodeBase64(s: string): Uint8Array {
   let padded = s;
   const mod = padded.length % 4;
   if (mod === 2) padded += "==";

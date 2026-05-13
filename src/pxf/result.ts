@@ -8,22 +8,26 @@
  *
  * Result also surfaces the document-root directives the decoder saw:
  *   - `directives()` — generic `@<name> *(prefix) [{ ... }]` blocks,
- *     in source order, excluding `@type` and `@table` (which have
- *     their own handling).
- *   - `tables()` — `@table <type> ( cols ) row*` directives, in
- *     source order. A document with any `@table` has no body entries,
+ *     in source order, excluding the spec-defined directives
+ *     (`@type`, `@dataset`, `@proto`, `@entry`).
+ *   - `datasets()` — `@dataset <type> ( cols ) row*` directives, in
+ *     source order. A document with any `@dataset` has no body entries,
  *     so the rows are the document's payload — consumers walk
- *     `TableDirective.rows` and bind each row's cells to a fresh
- *     instance of `TableDirective.type` via their own schema.
+ *     `DatasetDirective.rows` and bind each row's cells to a fresh
+ *     instance of `DatasetDirective.type` via their own schema.
+ *   - `protos()` — `@proto <body>` directives (draft §3.4.5), in
+ *     source order. Each carries one of four body shapes (anonymous,
+ *     named, source, descriptor).
  */
 
-import { type Directive, type TableDirective } from "./ast.js";
+import { type Directive, type DatasetDirective, type ProtoDirective } from "./ast.js";
 
 export class Result {
   private readonly nullFields = new Set<string>();
   private readonly presentFields = new Set<string>();
   private readonly directivesList: Directive[] = [];
-  private readonly tablesList: TableDirective[] = [];
+  private readonly datasetsList: DatasetDirective[] = [];
+  private readonly protosList: ProtoDirective[] = [];
 
   markNull(path: string): void {
     this.nullFields.add(path);
@@ -60,15 +64,23 @@ export class Result {
     return this.directivesList;
   }
 
-  tables(): readonly TableDirective[] {
-    return this.tablesList;
+  datasets(): readonly DatasetDirective[] {
+    return this.datasetsList;
+  }
+
+  protos(): readonly ProtoDirective[] {
+    return this.protosList;
   }
 
   addDirective(d: Directive): void {
     this.directivesList.push(d);
   }
 
-  addTable(t: TableDirective): void {
-    this.tablesList.push(t);
+  addDataset(t: DatasetDirective): void {
+    this.datasetsList.push(t);
+  }
+
+  addProto(p: ProtoDirective): void {
+    this.protosList.push(p);
   }
 }
