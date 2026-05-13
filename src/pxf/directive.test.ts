@@ -4,10 +4,10 @@
  * Parser-tier tests for the v0.72-v0.75 directive grammar:
  *   - @<name> *(<prefix>) [{ ... }]   (draft §3.4.2)
  *   - @entry  *(<prefix>) [{ ... }]   (draft §3.4.3)
- *   - @table  <type> ( cols ) row*    (draft §3.4.4)
+ *   - @dataset  <type> ( cols ) row*    (draft §3.4.4)
  *
  * These exercise `parse(...)` directly and assert on AST shape. Decode-
- * tier wiring (Result accessors, TableReader, bindRow) arrives in later
+ * tier wiring (Result accessors, DatasetReader, bindRow) arrives in later
  * PRs of the v0.72-v0.75 catch-up.
  */
 
@@ -108,12 +108,12 @@ name = "z"
 
 describe("Table", () => {
   it("basic two-column two-row", () => {
-    const doc = parse(`@table trades.v1.Trade ( px, qty )
+    const doc = parse(`@dataset trades.v1.Trade ( px, qty )
 ( 100, 5 )
 ( 101, 7 )
 `);
-    expect(doc.tables).toHaveLength(1);
-    const t = doc.tables[0]!;
+    expect(doc.datasets).toHaveLength(1);
+    const t = doc.datasets[0]!;
     expect(t.type).toBe("trades.v1.Trade");
     expect(t.columns).toEqual(["px", "qty"]);
     expect(t.rows).toHaveLength(2);
@@ -121,91 +121,93 @@ describe("Table", () => {
   });
 
   it("empty cell means absent field", () => {
-    const doc = parse("@table x.Row ( a, b, c )\n( 1, , 3 )\n");
-    const row = doc.tables[0]!.rows[0]!;
+    const doc = parse("@dataset x.Row ( a, b, c )\n( 1, , 3 )\n");
+    const row = doc.datasets[0]!.rows[0]!;
     expect(row.cells[0]).not.toBeNull();
     expect(row.cells[1]).toBeNull(); // absent
     expect(row.cells[2]).not.toBeNull();
   });
 
   it("null cell means present-but-null", () => {
-    const doc = parse("@table x.Row ( a, b )\n( 1, null )\n");
-    const row = doc.tables[0]!.rows[0]!;
+    const doc = parse("@dataset x.Row ( a, b )\n( 1, null )\n");
+    const row = doc.datasets[0]!.rows[0]!;
     expect(row.cells[1]).not.toBeNull();
     expect(row.cells[1]!.kind).toBe("null");
   });
 
   it("zero rows is valid", () => {
-    const doc = parse("@table x.Row ( a, b )\n");
-    expect(doc.tables).toHaveLength(1);
-    expect(doc.tables[0]!.rows).toHaveLength(0);
+    const doc = parse("@dataset x.Row ( a, b )\n");
+    expect(doc.datasets).toHaveLength(1);
+    expect(doc.datasets[0]!.rows).toHaveLength(0);
   });
 
   it("arity mismatch rejected", () => {
-    expect(() => parse("@table x.Row ( a, b )\n( 1, 2, 3 )\n")).toThrow(
+    expect(() => parse("@dataset x.Row ( a, b )\n( 1, 2, 3 )\n")).toThrow(
       /3 cells, expected 2/,
     );
   });
 
   it("dotted column rejected", () => {
-    expect(() => parse("@table x.Row ( a.b )\n")).toThrow(/dotted column/);
+    expect(() => parse("@dataset x.Row ( a.b )\n")).toThrow(/dotted column/);
   });
 
   it("list cell rejected", () => {
-    expect(() => parse("@table x.Row ( a )\n( [1, 2] )\n")).toThrow(/list values/);
+    expect(() => parse("@dataset x.Row ( a )\n( [1, 2] )\n")).toThrow(/list values/);
   });
 
   it("block cell rejected", () => {
-    expect(() => parse("@table x.Row ( a )\n( { x = 1 } )\n")).toThrow(/block values/);
+    expect(() => parse("@dataset x.Row ( a )\n( { x = 1 } )\n")).toThrow(/block values/);
   });
 
   it("standalone constraint: rejects coexisting @type", () => {
-    expect(() => parse("@type other\n@table x.Row ( a )\n( 1 )\n")).toThrow(
+    expect(() => parse("@type other\n@dataset x.Row ( a )\n( 1 )\n")).toThrow(
       /cannot coexist with @type/,
     );
   });
 
-  it("standalone constraint: rejects @type after @table", () => {
-    expect(() => parse("@table x.Row ( a )\n@type other\n")).toThrow(
+  it("standalone constraint: rejects @type after @dataset", () => {
+    expect(() => parse("@dataset x.Row ( a )\n@type other\n")).toThrow(
       /cannot coexist with @type/,
     );
   });
 
   it("standalone constraint: rejects coexisting body entries", () => {
-    expect(() => parse("@table x.Row ( a )\n( 1 )\nextra = 5\n")).toThrow(
+    expect(() => parse("@dataset x.Row ( a )\n( 1 )\nextra = 5\n")).toThrow(
       /cannot coexist with top-level field entries/,
     );
   });
 
-  it("missing type after @table rejected", () => {
-    expect(() => parse("@table ( a )\n")).toThrow(
-      /expected row message type after @table/,
-    );
+  it("missing type is permissive (anonymous binding deferred to a preceding @proto)", () => {
+    // Type is optional in the AST; binding-time validation handles the
+    // "no preceding anonymous @proto" case.
+    const doc = parse("@dataset ( a )\n");
+    expect(doc.datasets).toHaveLength(1);
+    expect(doc.datasets[0]!.type).toBe("");
   });
 
   it("missing '(' rejected", () => {
-    expect(() => parse("@table x.Row a, b\n")).toThrow(/expected '\(' to start/);
+    expect(() => parse("@dataset x.Row a, b\n")).toThrow(/expected '\(' to start/);
   });
 
   it("empty column list rejected", () => {
-    expect(() => parse("@table x.Row ( )\n")).toThrow(/at least one field name/);
+    expect(() => parse("@dataset x.Row ( )\n")).toThrow(/at least one field name/);
   });
 
   it("bad column token rejected", () => {
-    expect(() => parse("@table x.Row ( a, 123 )\n")).toThrow(
+    expect(() => parse("@dataset x.Row ( a, 123 )\n")).toThrow(
       /expected column field name/,
     );
   });
 
   it("missing ',' or ')' in column list rejected", () => {
-    expect(() => parse("@table x.Row ( a b )\n")).toThrow(
-      /expected ',' or '\)' in @table column list/,
+    expect(() => parse("@dataset x.Row ( a b )\n")).toThrow(
+      /expected ',' or '\)' in @dataset column list/,
     );
   });
 
   it("missing ',' or ')' in row rejected", () => {
-    expect(() => parse("@table x.Row ( a, b )\n( 1 2 )\n")).toThrow(
-      /expected ',' or '\)' in @table row/,
+    expect(() => parse("@dataset x.Row ( a, b )\n( 1 2 )\n")).toThrow(
+      /expected ',' or '\)' in @dataset row/,
     );
   });
 });

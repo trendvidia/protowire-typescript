@@ -28,10 +28,10 @@ export {
   type ViolationKind,
 } from "./schema.js";
 export {
-  TableReader,
+  DatasetReader,
   bindRow,
   DEFAULT_HEADER_MAX_BYTES,
-} from "./table_reader.js";
+} from "./dataset_reader.js";
 export {
   findFieldByProtoName,
   isWrapperType,
@@ -58,8 +58,8 @@ export type {
   MapEntry,
   NullVal,
   StringVal,
-  TableDirective,
-  TableRow,
+  DatasetDirective,
+  DatasetRow,
   TimestampVal,
   Value,
 } from "./ast.js";

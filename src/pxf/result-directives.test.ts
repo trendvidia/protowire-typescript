@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 TrendVidia, LLC.
 /**
- * Tests for `Result.directives()` / `Result.tables()` — PR 3 of the
+ * Tests for `Result.directives()` / `Result.datasets()` — PR 3 of the
  * v0.72-v0.75 TypeScript catch-up. The direct decoder now populates
  * the directive vectors on Result during `unmarshalFull`, so
  * consumers (chameleon's @header reader, table binders, etc.) can
@@ -41,7 +41,7 @@ describe("Result.directives", () => {
   it("empty document — both accessors empty", () => {
     const { result } = unmarshalFull('string_field = "x"', AllTypes);
     expect(result.directives()).toEqual([]);
-    expect(result.tables()).toEqual([]);
+    expect(result.datasets()).toEqual([]);
   });
 
   it("bare directive recorded", () => {
@@ -116,17 +116,17 @@ string_field = "x"
   });
 });
 
-describe("Result.tables", () => {
-  it("@table recorded with columns and rows", () => {
+describe("Result.datasets", () => {
+  it("@dataset recorded with columns and rows", () => {
     const { result } = unmarshalFull(
-      `@table trades.v1.Trade ( px, qty )
+      `@dataset trades.v1.Trade ( px, qty )
 ( 100, 5 )
 ( 101, 7 )
 `,
       AllTypes,
     );
-    expect(result.tables()).toHaveLength(1);
-    const t = result.tables()[0]!;
+    expect(result.datasets()).toHaveLength(1);
+    const t = result.datasets()[0]!;
     expect(t.type).toBe("trades.v1.Trade");
     expect(t.columns).toEqual(["px", "qty"]);
     expect(t.rows).toHaveLength(2);
@@ -135,12 +135,12 @@ describe("Result.tables", () => {
 
   it("cells carry actual values", () => {
     const { result } = unmarshalFull(
-      `@table x.Row ( a, b, c )
+      `@dataset x.Row ( a, b, c )
 ( 42, "hello", true )
 `,
       AllTypes,
     );
-    const row = result.tables()[0]!.rows[0]!;
+    const row = result.datasets()[0]!.rows[0]!;
     expect(row.cells[0]).toMatchObject({ kind: "int", raw: "42" });
     expect(row.cells[1]).toMatchObject({ kind: "string", value: "hello" });
     expect(row.cells[2]).toMatchObject({ kind: "bool", value: true });
@@ -148,12 +148,12 @@ describe("Result.tables", () => {
 
   it("three-state cells: absent / null / set", () => {
     const { result } = unmarshalFull(
-      `@table x.Row ( a, b, c )
+      `@dataset x.Row ( a, b, c )
 ( 1, , null )
 `,
       AllTypes,
     );
-    const row = result.tables()[0]!.rows[0]!;
+    const row = result.datasets()[0]!.rows[0]!;
     expect(row.cells[0]).toMatchObject({ kind: "int", raw: "1" });
     expect(row.cells[1]).toBeNull(); // absent
     expect(row.cells[2]).toMatchObject({ kind: "null" });
@@ -161,34 +161,34 @@ describe("Result.tables", () => {
 
   it("multiple tables in source order", () => {
     const { result } = unmarshalFull(
-      `@table a.Row ( x )
+      `@dataset a.Row ( x )
 ( 1 )
-@table b.Row ( y, z )
+@dataset b.Row ( y, z )
 ( "p", "q" )
 `,
       AllTypes,
     );
-    expect(result.tables().map((t) => t.type)).toEqual(["a.Row", "b.Row"]);
+    expect(result.datasets().map((t) => t.type)).toEqual(["a.Row", "b.Row"]);
   });
 
-  it("@table populates only tables(), not directives()", () => {
-    const { result } = unmarshalFull("@table x.Row ( a )\n( 1 )\n", AllTypes);
-    expect(result.tables()).toHaveLength(1);
+  it("@dataset populates only tables(), not directives()", () => {
+    const { result } = unmarshalFull("@dataset x.Row ( a )\n( 1 )\n", AllTypes);
+    expect(result.datasets()).toHaveLength(1);
     expect(result.directives()).toEqual([]);
   });
 
-  it("directives and tables coexist before body-less @table", () => {
+  it("directives and tables coexist before body-less @dataset", () => {
     const { result } = unmarshalFull(
       `@header pkg.Hdr { id = "h" }
-@table x.Row ( a )
+@dataset x.Row ( a )
 ( 1 )
 `,
       AllTypes,
     );
     expect(result.directives()).toHaveLength(1);
-    expect(result.tables()).toHaveLength(1);
+    expect(result.datasets()).toHaveLength(1);
     expect(result.directives()[0]!.name).toBe("header");
-    expect(result.tables()[0]!.type).toBe("x.Row");
+    expect(result.datasets()[0]!.type).toBe("x.Row");
   });
 });
 

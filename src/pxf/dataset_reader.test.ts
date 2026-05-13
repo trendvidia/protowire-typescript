@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 TrendVidia, LLC.
 /**
- * Tests for TableReader (streaming @table consumption) and bindRow
+ * Tests for DatasetReader (streaming @dataset consumption) and bindRow
  * (per-row proto binding). PR 4 of the v0.72-v0.75 TypeScript catch-up.
  */
 
@@ -18,7 +18,7 @@ import {
 import { FileDescriptorSetSchema } from "@bufbuild/protobuf/wkt";
 import { describe, expect, it } from "vitest";
 
-import { TableReader, bindRow } from "./table_reader.js";
+import { DatasetReader, bindRow } from "./dataset_reader.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const fdsBytes = readFileSync(resolve(here, "testdata/test.binpb"));
@@ -34,31 +34,31 @@ function getMessage(typeName: string): DescMessage {
 
 const AllTypes = getMessage("test.v1.AllTypes");
 
-describe("TableReader.fromString — header parsing", () => {
+describe("DatasetReader.fromString — header parsing", () => {
   it("reads header and exposes type and columns", () => {
-    const tr = TableReader.fromString(
-      "@table trades.v1.Trade ( px, qty )\n( 100, 5 )\n( 101, 7 )\n",
+    const tr = DatasetReader.fromString(
+      "@dataset trades.v1.Trade ( px, qty )\n( 100, 5 )\n( 101, 7 )\n",
     );
     expect(tr.type).toBe("trades.v1.Trade");
     expect(tr.columns).toEqual(["px", "qty"]);
     expect(tr.directives).toEqual([]);
   });
 
-  it("rejects input with no @table", () => {
-    expect(() => TableReader.fromString('@type foo.Msg\nname = "x"\n')).toThrow(
-      /no @table directive/,
+  it("rejects input with no @dataset", () => {
+    expect(() => DatasetReader.fromString('@type foo.Msg\nname = "x"\n')).toThrow(
+      /no @dataset directive/,
     );
   });
 
   it("rejects empty input", () => {
-    expect(() => TableReader.fromString("")).toThrow(/no @table/);
+    expect(() => DatasetReader.fromString("")).toThrow(/no @dataset/);
   });
 
   it("leading directives preserved", () => {
-    const tr = TableReader.fromString(
+    const tr = DatasetReader.fromString(
       `@header pkg.Hdr { id = "h" }
 @frob alpha
-@table trades.v1.Trade ( px, qty )
+@dataset trades.v1.Trade ( px, qty )
 ( 1, 2 )
 `,
     );
@@ -68,15 +68,15 @@ describe("TableReader.fromString — header parsing", () => {
   });
 
   it("oversize header rejected", () => {
-    const big = "@frob " + "x ".repeat(35000) + "\n@table x.Row ( a )\n";
-    expect(() => TableReader.fromString(big)).toThrow(/header exceeds/);
+    const big = "@frob " + "x ".repeat(35000) + "\n@dataset x.Row ( a )\n";
+    expect(() => DatasetReader.fromString(big)).toThrow(/header exceeds/);
   });
 });
 
-describe("TableReader — iteration", () => {
+describe("DatasetReader — iteration", () => {
   it("yields rows in order via for-of", () => {
-    const tr = TableReader.fromString(
-      "@table x.Row ( a, b )\n( 1, 2 )\n( 3, 4 )\n( 5, 6 )\n",
+    const tr = DatasetReader.fromString(
+      "@dataset x.Row ( a, b )\n( 1, 2 )\n( 3, 4 )\n( 5, 6 )\n",
     );
     const rows = [...tr];
     expect(rows).toHaveLength(3);
@@ -84,15 +84,15 @@ describe("TableReader — iteration", () => {
   });
 
   it("zero rows reports done immediately", () => {
-    const tr = TableReader.fromString("@table x.Row ( a )\n");
+    const tr = DatasetReader.fromString("@dataset x.Row ( a )\n");
     const rows = [...tr];
     expect(rows).toEqual([]);
     expect(tr.done).toBe(true);
   });
 
   it("cell shapes match the three-state grammar", () => {
-    const tr = TableReader.fromString(
-      `@table x.Row ( a, b, c, d, e )
+    const tr = DatasetReader.fromString(
+      `@dataset x.Row ( a, b, c, d, e )
 ( 42, "hi", true, null, )
 `,
     );
@@ -105,15 +105,15 @@ describe("TableReader — iteration", () => {
   });
 
   it("arity mismatch surfaces and is sticky-ish", () => {
-    const tr = TableReader.fromString(
-      "@table x.Row ( a, b )\n( 1, 2, 3 )\n( 4, 5 )\n",
+    const tr = DatasetReader.fromString(
+      "@dataset x.Row ( a, b )\n( 1, 2, 3 )\n( 4, 5 )\n",
     );
     expect(() => tr.next()).toThrow(/3 cells, expected 2/);
   });
 
   it("parens inside strings not mistaken for row boundary", () => {
-    const tr = TableReader.fromString(
-      '@table x.Row ( a )\n( "hi ) there" )\n( "next" )\n',
+    const tr = DatasetReader.fromString(
+      '@dataset x.Row ( a )\n( "hi ) there" )\n( "next" )\n',
     );
     const rows = [...tr];
     expect(rows).toHaveLength(2);
@@ -122,8 +122,8 @@ describe("TableReader — iteration", () => {
   });
 
   it("comments between rows ignored", () => {
-    const tr = TableReader.fromString(
-      `@table x.Row ( a )
+    const tr = DatasetReader.fromString(
+      `@dataset x.Row ( a )
 # leading
 ( 1 )
 // mid
@@ -137,20 +137,20 @@ describe("TableReader — iteration", () => {
   });
 });
 
-describe("TableReader.tail", () => {
+describe("DatasetReader.tail", () => {
   it("chains to a second table", () => {
-    const src = `@table a.Row ( x )
+    const src = `@dataset a.Row ( x )
 ( 1 )
 ( 2 )
-@table b.Row ( y )
+@dataset b.Row ( y )
 ( "p" )
 ( "q" )
 `;
-    const tr1 = TableReader.fromString(src);
+    const tr1 = DatasetReader.fromString(src);
     expect(tr1.type).toBe("a.Row");
     expect([...tr1]).toHaveLength(2);
 
-    const tr2 = TableReader.fromString(tr1.tail());
+    const tr2 = DatasetReader.fromString(tr1.tail());
     expect(tr2.type).toBe("b.Row");
     expect([...tr2]).toHaveLength(2);
   });
@@ -158,8 +158,8 @@ describe("TableReader.tail", () => {
 
 describe("bindRow + scan", () => {
   it("binds fields by column name", () => {
-    const tr = TableReader.fromString(
-      '@table test.v1.AllTypes ( string_field, int32_field )\n( "alpha", 42 )\n',
+    const tr = DatasetReader.fromString(
+      '@dataset test.v1.AllTypes ( string_field, int32_field )\n( "alpha", 42 )\n',
     );
     const [row] = [...tr];
     const msg = bindRow(AllTypes, tr.columns, row!);
@@ -168,8 +168,8 @@ describe("bindRow + scan", () => {
   });
 
   it("scan() is equivalent to next + bindRow", () => {
-    const tr = TableReader.fromString(
-      '@table test.v1.AllTypes ( string_field )\n( "row1" )\n( "row2" )\n',
+    const tr = DatasetReader.fromString(
+      '@dataset test.v1.AllTypes ( string_field )\n( "row1" )\n( "row2" )\n',
     );
     const seen: string[] = [];
     for (;;) {
@@ -181,8 +181,8 @@ describe("bindRow + scan", () => {
   });
 
   it("absent cell leaves field at default", () => {
-    const tr = TableReader.fromString(
-      `@table test.v1.AllTypes ( string_field, int32_field )
+    const tr = DatasetReader.fromString(
+      `@dataset test.v1.AllTypes ( string_field, int32_field )
 ( , 7 )
 `,
     );
@@ -194,8 +194,8 @@ describe("bindRow + scan", () => {
 
   it("null cell clears wrapper field", () => {
     // `null` on a StringValue wrapper field clears it (draft §3.9).
-    const tr = TableReader.fromString(
-      "@table test.v1.AllTypes ( nullable_string )\n( null )\n",
+    const tr = DatasetReader.fromString(
+      "@dataset test.v1.AllTypes ( nullable_string )\n( null )\n",
     );
     const [row] = [...tr];
     const msg = bindRow(AllTypes, tr.columns, row!);
@@ -203,8 +203,8 @@ describe("bindRow + scan", () => {
   });
 
   it("bytes cell round-trip", () => {
-    const tr = TableReader.fromString(
-      '@table test.v1.AllTypes ( bytes_field )\n( b"YWJj" )\n', // "abc"
+    const tr = DatasetReader.fromString(
+      '@dataset test.v1.AllTypes ( bytes_field )\n( b"YWJj" )\n', // "abc"
     );
     const [row] = [...tr];
     const msg = bindRow(AllTypes, tr.columns, row!);
@@ -222,15 +222,15 @@ describe("bindRow + scan", () => {
   });
 
   it("unknown column errors", () => {
-    const tr = TableReader.fromString(
-      '@table test.v1.AllTypes ( not_a_field )\n( "x" )\n',
+    const tr = DatasetReader.fromString(
+      '@dataset test.v1.AllTypes ( not_a_field )\n( "x" )\n',
     );
     expect(() => tr.scan(AllTypes)).toThrow();
   });
 
   it("string escape round-trips", () => {
-    const tr = TableReader.fromString(
-      '@table test.v1.AllTypes ( string_field )\n( "she said \\"hi\\"" )\n',
+    const tr = DatasetReader.fromString(
+      '@dataset test.v1.AllTypes ( string_field )\n( "she said \\"hi\\"" )\n',
     );
     const [row] = [...tr];
     const msg = bindRow(AllTypes, tr.columns, row!);

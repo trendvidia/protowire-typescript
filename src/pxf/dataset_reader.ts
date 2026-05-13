@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 TrendVidia, LLC.
 /**
- * Streaming consumption for the `@table` directive (draft §3.4.4).
+ * Streaming consumption for the `@dataset` directive (draft §3.4.4).
  *
- * `unmarshalFull` materializes every row of an `@table` directive into
- * `Result.tables()`. That works for small datasets and breaks for the
- * CSV-replacement workload `@table` was designed for. `TableReader`
+ * `unmarshalFull` materializes every row of an `@dataset` directive into
+ * `Result.datasets()`. That works for small datasets and breaks for the
+ * CSV-replacement workload `@dataset` was designed for. `DatasetReader`
  * pulls one row at a time from the input string; per-row arity and the
  * v1 cell-grammar rule are enforced at consume time (not deferred to
  * end-of-input), and rows are yielded in source order — both
@@ -13,10 +13,10 @@
  *
  * Convenience: `scan(schema)` reads the next row and binds its cells
  * to a fresh message of `schema`; `bindRow(schema, columns, row)` is
- * exported for callers iterating `Result.tables()[i].rows` from the
+ * exported for callers iterating `Result.datasets()[i].rows` from the
  * materializing path.
  *
- * Mirrors the cpp port at `protowire-cpp/src/pxf/table_reader.cc`.
+ * Mirrors the cpp port at `protowire-cpp/src/pxf/dataset_reader.cc`.
  */
 
 import {
@@ -24,32 +24,32 @@ import {
   type MessageShape,
 } from "@bufbuild/protobuf";
 
-import { type Directive, type TableRow } from "./ast.js";
+import { type Directive, type DatasetRow } from "./ast.js";
 import { unmarshal } from "./decode.js";
 import { PxfError } from "./errors.js";
 import { parse } from "./parser.js";
 import { type Position } from "./token.js";
 
 /**
- * Default cap on the @table header (leading directives plus the
- * `@table TYPE ( cols )` declaration). Real headers are tiny — a few
+ * Default cap on the @dataset header (leading directives plus the
+ * `@dataset TYPE ( cols )` declaration). Real headers are tiny — a few
  * hundred bytes at most. The cap exists to fail-fast on misuse: a
- * TableReader pointed at a multi-megabyte non-`@table` input
+ * DatasetReader pointed at a multi-megabyte non-`@dataset` input
  * shouldn't run through the whole buffer looking for one.
  */
 export const DEFAULT_HEADER_MAX_BYTES = 64 * 1024;
 
 /**
- * Streaming row reader for a single `@table` directive.
+ * Streaming row reader for a single `@dataset` directive.
  *
- * A TableReader is positioned at the first row after `fromString()`
+ * A DatasetReader is positioned at the first row after `fromString()`
  * returns. Iterate via standard `for ... of` (the reader implements
  * the iterator protocol) or call `next()` until it returns `null`.
  *
- * For documents containing multiple `@table` directives, call
+ * For documents containing multiple `@dataset` directives, call
  * `fromString()` again on the result of `tail()`.
  */
-export class TableReader implements IterableIterator<TableRow> {
+export class DatasetReader implements IterableIterator<DatasetRow> {
   readonly type: string;
   readonly columns: readonly string[];
   readonly directives: readonly Directive[];
@@ -75,50 +75,50 @@ export class TableReader implements IterableIterator<TableRow> {
   }
 
   /**
-   * Consume the leading directives and the `@table TYPE ( cols )`
+   * Consume the leading directives and the `@dataset TYPE ( cols )`
    * header. Returns a reader positioned at the first row.
    *
-   * Throws if the input contains no `@table` directive before EOF, on
+   * Throws if the input contains no `@dataset` directive before EOF, on
    * a header parse error, or if the header byte budget is exceeded.
    */
-  static fromString(input: string): TableReader {
+  static fromString(input: string): DatasetReader {
     if (input.length > DEFAULT_HEADER_MAX_BYTES) {
-      // Quick fail-fast — if there's no `@table` keyword anywhere in
+      // Quick fail-fast — if there's no `@dataset` keyword anywhere in
       // the first 64 KiB of input, refuse to scan further. The
       // bytewise scan below would otherwise blast through the entire
-      // buffer for a non-`@table` document.
+      // buffer for a non-`@dataset` document.
       const at = findAtTableWithin(input, DEFAULT_HEADER_MAX_BYTES);
       if (at < 0) {
         throw new PxfError(
           { line: 1, column: 1, offset: 0 },
-          `pxf: @table header exceeds ${DEFAULT_HEADER_MAX_BYTES} bytes; raise the budget or check that the input begins with \`@table TYPE (cols)\``,
+          `pxf: @dataset header exceeds ${DEFAULT_HEADER_MAX_BYTES} bytes; raise the budget or check that the input begins with \`@dataset TYPE (cols)\``,
         );
       }
     }
     // The header parse uses the AST parser. We only need the prelude
-    // (leading directives + the @table header up through its closing
+    // (leading directives + the @dataset header up through its closing
     // `)`); rows are parsed one at a time. Calling parse() on the
     // whole input would also materialize every row — wasteful — so
     // we slice up to the column-list `)` instead.
     const headerEnd = scanHeaderEnd(input);
     if (headerEnd < 0) {
-      // No `@table` in input.
+      // No `@dataset` in input.
       throw new PxfError(
         { line: 1, column: 1, offset: 0 },
-        "pxf: no @table directive in stream",
+        "pxf: no @dataset directive in stream",
       );
     }
     const headerSlice = input.slice(0, headerEnd + 1);
     const doc = parse(headerSlice);
-    if (doc.tables.length === 0) {
-      // Defensive — scanHeaderEnd found `@table` but parse() disagreed.
+    if (doc.datasets.length === 0) {
+      // Defensive — scanHeaderEnd found `@dataset` but parse() disagreed.
       throw new PxfError(
         { line: 1, column: 1, offset: 0 },
-        "pxf: no @table directive in stream",
+        "pxf: no @dataset directive in stream",
       );
     }
-    const tbl = doc.tables[0]!;
-    return new TableReader(
+    const tbl = doc.datasets[0]!;
+    return new DatasetReader(
       input,
       tbl.type,
       [...tbl.columns],
@@ -132,7 +132,7 @@ export class TableReader implements IterableIterator<TableRow> {
    * is exhausted; once null is returned, subsequent calls return the
    * same null (`done` is set).
    */
-  next(): IteratorResult<TableRow> {
+  next(): IteratorResult<DatasetRow> {
     if (this.done) return { value: undefined, done: true };
     // Skip whitespace + comments to the next `(` or end-of-rows.
     let i = this.offset;
@@ -163,23 +163,23 @@ export class TableReader implements IterableIterator<TableRow> {
     // Find the matching `)` to delimit the row body. String-aware.
     const end = findMatchingParen(this.input, i);
     if (end < 0) {
-      throw new PxfError(positionAt(this.input, i), "pxf: unterminated @table row");
+      throw new PxfError(positionAt(this.input, i), "pxf: unterminated @dataset row");
     }
-    // Parse the row by handing a synthetic `@table _.Row (c1,...)
-    // <rowBytes>` to the AST parser, reusing parseTableRow's arity
+    // Parse the row by handing a synthetic `@dataset _.Row (c1,...)
+    // <rowBytes>` to the AST parser, reusing parseDatasetRow's arity
     // check and v1 cell-grammar enforcement.
     const rowBytes = this.input.slice(i, end + 1);
     const synthetic = buildSyntheticRow(this.columns, rowBytes);
-    let row: TableRow;
+    let row: DatasetRow;
     try {
       const tdoc = parse(synthetic);
-      if (tdoc.tables.length === 0 || tdoc.tables[0]!.rows.length === 0) {
+      if (tdoc.datasets.length === 0 || tdoc.datasets[0]!.rows.length === 0) {
         throw new PxfError(
           positionAt(this.input, i),
-          "pxf: TableReader: synthetic row parse produced no row",
+          "pxf: DatasetReader: synthetic row parse produced no row",
         );
       }
-      row = tdoc.tables[0]!.rows[0]!;
+      row = tdoc.datasets[0]!.rows[0]!;
     } catch (e) {
       // Advance past the bad row anyway so a re-call doesn't loop.
       this.offset = end + 1;
@@ -189,7 +189,7 @@ export class TableReader implements IterableIterator<TableRow> {
     return { value: row, done: false };
   }
 
-  [Symbol.iterator](): IterableIterator<TableRow> {
+  [Symbol.iterator](): IterableIterator<DatasetRow> {
     return this;
   }
 
@@ -209,12 +209,12 @@ export class TableReader implements IterableIterator<TableRow> {
 
   /**
    * Returns the unconsumed bytes of the input, so callers can chain a
-   * second `TableReader` for documents with multiple `@table`
+   * second `DatasetReader` for documents with multiple `@dataset`
    * directives:
    *
-   *     const tr1 = TableReader.fromString(src);
+   *     const tr1 = DatasetReader.fromString(src);
    *     for (const row of tr1) { ... }
-   *     const tr2 = TableReader.fromString(tr1.tail());
+   *     const tr2 = DatasetReader.fromString(tr1.tail());
    *
    * Should only be called after iteration has exhausted (i.e.
    * `done === true`). Calling earlier returns bytes the current
@@ -249,7 +249,7 @@ export class TableReader implements IterableIterator<TableRow> {
 export function bindRow<Desc extends DescMessage>(
   schema: Desc,
   columns: readonly string[],
-  row: TableRow,
+  row: DatasetRow,
   options?: { skipValidate?: boolean },
 ): MessageShape<Desc> {
   if (columns.length !== row.cells.length) {
@@ -271,7 +271,7 @@ export function bindRow<Desc extends DescMessage>(
 
 // ---- internal helpers ----------------------------------------------------
 
-function cellToPxf(cell: NonNullable<TableRow["cells"][number]>, pos: Position): string {
+function cellToPxf(cell: NonNullable<DatasetRow["cells"][number]>, pos: Position): string {
   switch (cell.kind) {
     case "null":
       return "null";
@@ -315,12 +315,12 @@ function encodeBase64(bytes: Uint8Array): string {
 
 function buildSyntheticRow(columns: readonly string[], rowBytes: string): string {
   // Use a placeholder type — the AST parser doesn't bind it to a
-  // schema, just records it in TableDirective.type which we discard.
-  return `@table _.Row (${columns.join(",")})\n${rowBytes}\n`;
+  // schema, just records it in DatasetDirective.type which we discard.
+  return `@dataset _.Row (${columns.join(",")})\n${rowBytes}\n`;
 }
 
 /**
- * Find the byte offset of the next `@table` keyword outside strings /
+ * Find the byte offset of the next `@dataset` keyword outside strings /
  * comments, restricted to the first `maxBytes` of input. Returns the
  * offset on success, or -1 if not found.
  */
@@ -336,10 +336,10 @@ function findAtTableWithin(input: string, maxBytes: number): number {
     }
     if (
       input[i] === "@" &&
-      i + 6 <= limit &&
-      input.slice(i, i + 6) === "@table"
+      i + 8 <= limit &&
+      input.slice(i, i + 8) === "@dataset"
     ) {
-      const after = i + 6;
+      const after = i + 8;
       if (after === input.length) return -1; // could be longer ident
       if (!isIdentPart(input[after]!)) return i;
     }
@@ -349,14 +349,14 @@ function findAtTableWithin(input: string, maxBytes: number): number {
 }
 
 /**
- * Locates the end of the @table header — the closing `)` of the
+ * Locates the end of the @dataset header — the closing `)` of the
  * column list. Returns the byte offset of that `)`, or -1 if no
- * `@table` is found.
+ * `@dataset` is found.
  */
 function scanHeaderEnd(input: string): number {
   const at = findAtTable(input);
   if (at < 0) return -1;
-  const lparen = findNextChar(input, at + "@table".length, "(");
+  const lparen = findNextChar(input, at + "@dataset".length, "(");
   if (lparen < 0) return -1;
   return findMatchingParen(input, lparen);
 }
@@ -372,10 +372,10 @@ function findAtTable(input: string): number {
     }
     if (
       input[i] === "@" &&
-      i + 6 <= input.length &&
-      input.slice(i, i + 6) === "@table"
+      i + 8 <= input.length &&
+      input.slice(i, i + 8) === "@dataset"
     ) {
-      const after = i + 6;
+      const after = i + 8;
       if (after === input.length) return -1;
       if (!isIdentPart(input[after]!)) return i;
     }

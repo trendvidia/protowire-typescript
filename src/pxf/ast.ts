@@ -21,13 +21,16 @@ export interface Comment {
 export interface Document {
   /** Empty when there is no `@type` directive. */
   readonly typeUrl: string;
-  /** `@<name> *(prefix) [{ ... }]` blocks in source order; excludes
-   * `@type` and `@table` (which have their own fields). */
+  /** `@<name> *(prefix) [{ ... }]` blocks in source order; excludes the
+   * spec-defined directives (`@type`, `@dataset`, `@proto`, `@entry`),
+   * which have their own accessors. */
   readonly directives: Directive[];
-  /** `@table TYPE ( cols ) row*` directives in source order. Per draft
-   * §3.4.4 a document with any `@table` MUST NOT also have `@type` or
+  /** `@dataset TYPE ( cols ) row*` directives in source order. Per draft
+   * §3.4.4 a document with any `@dataset` MUST NOT also have `@type` or
    * top-level field entries — the parser enforces this. */
-  readonly tables: TableDirective[];
+  readonly datasets: DatasetDirective[];
+  /** `@proto <body>` directives in source order (draft §3.4.5). */
+  readonly protos: ProtoDirective[];
   /** Byte offset where the schema-typed body begins (after all leading
    * directives). Zero when there are no directives, so chameleon hashes
    * from byte 0. */
@@ -73,39 +76,74 @@ export interface Directive {
 }
 
 /**
- * `@table <type> ( col1, col2, ... ) row*` directive at document root
+ * `@dataset <type> ( col1, col2, ... ) row*` directive at document root
  * (draft §3.4.4). Carries many instances of one message type in a single
- * document — the protowire-native CSV.
+ * document — the protowire-native CSV replacement.
  *
  * Cells are scalar-shaped in v1 (no list, no block). A nullish cell
- * (see `TableRow.cells`) denotes an absent field; a `NullVal` cell
+ * (see `DatasetRow.cells`) denotes an absent field; a `NullVal` cell
  * denotes a present-but-null field; any other cell denotes a present
  * field with that value.
  *
- * A document with any `TableDirective` MUST NOT have a `@type` directive
- * or any top-level field entries: the `@table` header IS the document's
+ * A document with any `DatasetDirective` MUST NOT have a `@type` directive
+ * or any top-level field entries: the `@dataset` header IS the document's
  * type declaration. The parser enforces this.
+ *
+ * `type` MAY be empty when an anonymous `@proto` directive (draft §3.4.5)
+ * precedes the dataset in document order; the anonymous schema is consumed
+ * as the row message type.
  */
-export interface TableDirective {
+export interface DatasetDirective {
   readonly pos: Position;
-  /** Row message type, e.g. "trades.v1.Trade". */
+  /** Row message type, e.g. "trades.v1.Trade"; empty if bound to a
+   * preceding anonymous `@proto`. */
   readonly type: string;
   /** Top-level field names on `type`; length >= 1. */
   readonly columns: string[];
-  readonly rows: TableRow[];
+  readonly rows: DatasetRow[];
   readonly leadingComments: Comment[];
 }
 
 /**
- * One parenthesized cell tuple in a `@table` directive. `cells` has the
- * same length as the containing `TableDirective.columns`. A `null` cell
+ * One parenthesized cell tuple in a `@dataset` directive. `cells` has the
+ * same length as the containing `DatasetDirective.columns`. A `null` cell
  * denotes an absent field (the empty cell between two commas); a
  * `NullVal` denotes a present-but-null field; any other Value denotes a
  * present field with that value.
  */
-export interface TableRow {
+export interface DatasetRow {
   readonly pos: Position;
   readonly cells: (Value | null)[];
+}
+
+/** Shape of a `ProtoDirective` body (draft §3.4.5). */
+export type ProtoShape = "anonymous" | "named" | "source" | "descriptor";
+
+/**
+ * `@proto <body>` directive at document root (draft §3.4.5). Carries an
+ * embedded protobuf schema, making the PXF document self-describing.
+ *
+ * Four body shapes distinguished lexically:
+ *
+ *   - `anonymous`: `@proto { <message-body> }` — defines an unnamed
+ *     message used by the next typed directive in document order.
+ *   - `named`:     `@proto <dotted-name> { <message-body> }` — sugar
+ *     for a single named message; `typeName` carries the dotted name.
+ *   - `source`:    `@proto """<proto-source>"""` — complete `.proto`
+ *     source file; `body` is the UTF-8 string contents.
+ *   - `descriptor`: `@proto b"<base64-FileDescriptorSet>"` — base64-
+ *     decoded `google.protobuf.FileDescriptorSet` bytes.
+ *
+ * `body` is raw bytes per shape. For the brace-bounded shapes, this
+ * is the protobuf message-body source between `{` and `}` (exclusive).
+ */
+export interface ProtoDirective {
+  readonly pos: Position;
+  readonly shape: ProtoShape;
+  /** Non-empty only when `shape === "named"`. */
+  readonly typeName: string;
+  readonly body: Uint8Array;
+  readonly leadingComments: Comment[];
 }
 
 // ---------------------------------------------------------------------------
