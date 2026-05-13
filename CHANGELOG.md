@@ -17,6 +17,14 @@ format changes.
 
 ## [Unreleased]
 
+## [1.0.0] — 2026-05-13
+
+First major-version cut. Implements the three one-time spec changes
+from the protowire v1.0 freeze line in lockstep with `protowire`,
+`protowire-go`, and `protowire-java`. **Breaking** — there is no
+alias period; v1.0 is itself the major bump. Published to npm as
+`@trendvidia/protowire@1.0.0` via OIDC on tag push.
+
 ### v1.0 spec changes
 
 Three one-time spec changes from the protowire v1.0 freeze line
