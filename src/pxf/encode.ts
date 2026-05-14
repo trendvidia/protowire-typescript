@@ -32,6 +32,7 @@ import {
   isTimestamp,
   isWrapperType,
 } from "./descriptor.js";
+import { formatGoDuration } from "./duration.js";
 import { Result } from "./result.js";
 
 export interface MarshalOptions {
@@ -195,9 +196,7 @@ class Encoder {
     }
     if (isDuration(mdesc)) {
       this.writeFieldPrefix(level, fd.name);
-      this.buf += this.compactDuration
-        ? compactTrailingZeroUnits(formatGoDuration(sub))
-        : formatGoDuration(sub);
+      this.buf += formatGoDurationFromReflect(sub, this.compactDuration);
       this.buf += "\n";
       return;
     }
@@ -245,9 +244,7 @@ class Encoder {
           this.buf += formatRfc3339Nano(sub);
         } else if (isDuration(mdesc)) {
           this.writeIndent(level + 1);
-          this.buf += this.compactDuration
-        ? compactTrailingZeroUnits(formatGoDuration(sub))
-        : formatGoDuration(sub);
+          this.buf += formatGoDurationFromReflect(sub, this.compactDuration);
         } else if (isWrapperType(mdesc)) {
           const innerFd = findFieldByProtoName(mdesc, "value");
           if (!innerFd || innerFd.fieldKind !== "scalar") {
@@ -530,111 +527,20 @@ function pad4(n: number): string {
   return String(n).padStart(4, "0");
 }
 
-const NANOS_PER_SECOND = 1_000_000_000n;
-const NANOS_PER_MICRO = 1_000n;
-const NANOS_PER_MILLI = 1_000_000n;
-
 /**
- * Format a Duration ReflectMessage as a Go-style duration string. Mirrors
- * `time.Duration.String()`: leading-zero h/m units omitted, sub-second
- * durations use the smallest unit (ns / µs / ms) that gives a non-zero
- * leading digit, and `0s` is the canonical zero.
+ * Adapter for the encoder's two Duration emit sites. Pulls
+ * seconds + nanos off a Duration ReflectMessage and delegates to
+ * the public `formatGoDuration` from ./duration. Compact-flag
+ * routing is handled here so the call sites stay one line.
  */
-function formatGoDuration(d: ReflectMessage): string {
+function formatGoDurationFromReflect(d: ReflectMessage, compact: boolean): string {
   const sf = findFieldByProtoName(d.desc, "seconds");
   const nf = findFieldByProtoName(d.desc, "nanos");
-  const seconds = sf ? (d.get(sf) as bigint) : 0n;
-  const nanos = nf ? (d.get(nf) as number) : 0;
-
-  let total = seconds * NANOS_PER_SECOND + BigInt(nanos);
-  if (total === 0n) return "0s";
-
-  const neg = total < 0n;
-  if (neg) total = -total;
-
-  let out: string;
-  if (total < NANOS_PER_SECOND) {
-    if (total < NANOS_PER_MICRO) {
-      out = `${total.toString()}ns`;
-    } else if (total < NANOS_PER_MILLI) {
-      out = `${trimFraction(total, NANOS_PER_MICRO)}µs`;
-    } else {
-      out = `${trimFraction(total, NANOS_PER_MILLI)}ms`;
-    }
-  } else {
-    const secsPart = total / NANOS_PER_SECOND;
-    const fracNanos = total % NANOS_PER_SECOND;
-    const sec = secsPart % 60n;
-    const minTotal = secsPart / 60n;
-    const minute = minTotal % 60n;
-    const hour = minTotal / 60n;
-
-    const secStr = trimFraction(sec * NANOS_PER_SECOND + fracNanos, NANOS_PER_SECOND);
-
-    if (hour > 0n) {
-      out = `${hour.toString()}h${minute.toString()}m${secStr}s`;
-    } else if (minute > 0n) {
-      out = `${minute.toString()}m${secStr}s`;
-    } else {
-      out = `${secStr}s`;
-    }
-  }
-  return neg ? `-${out}` : out;
-}
-
-/**
- * Trim trailing zero-valued h/m/s units from a Go-style duration string
- * produced by `formatGoDuration`. Powers the `compactDuration` MarshalOption.
- *
- * Rules:
- *   - sub-second forms (`<n>ns`, `<n>µs`, `<n>ms`) pass through unchanged
- *     since they already use a single unit;
- *   - `0s` passes through unchanged (canonical zero);
- *   - `720h0m0s` → `720h`, `1h30m0s` → `1h30m`, `30m0s` → `30m`;
- *   - `1h0m30s` is left alone — the internal `0m` sits between non-zero
- *     h and s, so it is structural rather than trailing.
- *
- * The trim runs repeatedly so a chain of trailing zero units collapses in
- * one pass through the loop. Leading `-` on negative durations is
- * preserved by stripping it for the inner trim and re-prepending.
- */
-function compactTrailingZeroUnits(s: string): string {
-  if (s === "0s" || s === "-0s") return s;
-  const neg = s.startsWith("-");
-  let body = neg ? s.slice(1) : s;
-  // Repeatedly strip a trailing `0(h|m|s)` ONLY when the `0` is a
-  // standalone unit-value-zero — i.e., preceded by a unit letter
-  // (h/m/s/µ/n), not by a digit. This rules out trimming the trailing
-  // `0` of a multi-digit number like the `0` in `720h`. Go's duration
-  // emit never produces consecutive `<num><unit><num><unit>` without
-  // a unit letter between them, so requiring the prefix to end in one
-  // of [hmsµn] correctly distinguishes the two cases.
-  let prev = "";
-  while (prev !== body) {
-    prev = body;
-    const m = body.match(/^(.+?[hmsµn])0(h|m|s)$/);
-    if (m !== null) {
-      const trimmed = m[1];
-      if (trimmed !== undefined && trimmed !== "") {
-        body = trimmed;
-      }
-    }
-  }
-  return neg ? `-${body}` : body;
-}
-
-/**
- * Format `value / unit` with up to (digits-of-unit) fractional places, with
- * trailing zeros trimmed. Returns "5" not "5.000". Used by `formatGoDuration`
- * to print "1.5" out of `1500ms` ÷ `1000ms`.
- */
-function trimFraction(value: bigint, unit: bigint): string {
-  const whole = value / unit;
-  const remainder = value % unit;
-  if (remainder === 0n) return whole.toString();
-  // Compute fractional digits: pad remainder to width(unit)-1 zeros, trim.
-  const unitStr = unit.toString();
-  const fracDigits = unitStr.length - 1;
-  const remStr = remainder.toString().padStart(fracDigits, "0").replace(/0+$/, "");
-  return `${whole.toString()}.${remStr}`;
+  return formatGoDuration(
+    {
+      seconds: sf ? (d.get(sf) as bigint) : 0n,
+      nanos: nf ? (d.get(nf) as number) : 0,
+    },
+    { compact },
+  );
 }

@@ -33,6 +33,7 @@ import {
   type DatasetRow,
   type Value,
 } from "./ast.js";
+import { parseGoDuration } from "./duration.js";
 import { findMatchingBrace } from "./parser.js";
 import {
   findFieldByProtoName,
@@ -1271,59 +1272,6 @@ function parseRfc3339(s: string): { seconds: bigint; nanos: number } {
   // Floor toward -∞ so `nanos` stays in [0, 1e9), matching proto Timestamp.
   const seconds = BigInt(Math.floor(ms / 1000));
   return { seconds, nanos };
-}
-
-const GO_DURATION_PART_RE = /^(\d+)(\.\d+)?(ns|us|µs|ms|s|m|h)/;
-
-const GO_DURATION_UNIT_NANOS: Record<string, bigint> = {
-  ns: 1n,
-  us: 1_000n,
-  "µs": 1_000n,
-  ms: 1_000_000n,
-  s: 1_000_000_000n,
-  m: 60_000_000_000n,
-  h: 3_600_000_000_000n,
-};
-
-/**
- * Parse a Go-style duration (e.g. `1h30m`, `-2.5s`, `100ms`) into proto
- * Duration seconds + nanos. Both parts share the overall sign.
- */
-function parseGoDuration(s: string): { seconds: bigint; nanos: number } {
-  if (s === "0") return { seconds: 0n, nanos: 0 };
-  let neg = false;
-  if (s.startsWith("-") || s.startsWith("+")) {
-    neg = s[0] === "-";
-    s = s.slice(1);
-  }
-  if (s === "") throw new Error("invalid duration");
-  let totalNanos = 0n;
-  while (s.length > 0) {
-    const m = GO_DURATION_PART_RE.exec(s);
-    if (!m) throw new Error(`invalid duration: ${s}`);
-    const intPart = m[1]!;
-    const fracPart = m[2] ?? "";
-    const unit = m[3]!;
-    const unitNanos = GO_DURATION_UNIT_NANOS[unit];
-    if (unitNanos === undefined) throw new Error(`unknown duration unit: ${unit}`);
-    totalNanos += BigInt(intPart) * unitNanos;
-    if (fracPart) {
-      const fracDigits = fracPart.slice(1);
-      const fracInt = BigInt(fracDigits);
-      const denom = 10n ** BigInt(fracDigits.length);
-      totalNanos += (fracInt * unitNanos) / denom;
-    }
-    s = s.slice(m[0].length);
-  }
-  if (neg) totalNanos = -totalNanos;
-  const sign = totalNanos < 0n ? -1n : 1n;
-  const abs = sign * totalNanos;
-  const secondsAbs = abs / 1_000_000_000n;
-  const nanosAbs = abs % 1_000_000_000n;
-  return {
-    seconds: sign * secondsAbs,
-    nanos: Number(sign * nanosAbs),
-  };
 }
 
 function setSecondsNanos(target: ReflectMessage, seconds: bigint, nanos: number): void {
