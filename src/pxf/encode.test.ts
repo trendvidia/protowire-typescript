@@ -214,6 +214,66 @@ describe("pxf.marshal — well-known types", () => {
     expect(marshal(m, AllTypes)).toBe(`dur_field = 0s\n`);
   });
 
+  // compactDuration option: opt-in trim of trailing zero h/m/s units.
+  // Default behavior (covered above) stays byte-equivalent with Go's
+  // time.Duration.String(); these cases exercise the opt-in path.
+  it("compactDuration: 720h0m0s → 720h", () => {
+    const m = unmarshal(`dur_field = 720h`, AllTypes);
+    expect(marshal(m, AllTypes, { compactDuration: true })).toBe(
+      `dur_field = 720h\n`,
+    );
+  });
+
+  it("compactDuration: 1h30m0s → 1h30m", () => {
+    const m = unmarshal(`dur_field = 1h30m`, AllTypes);
+    expect(marshal(m, AllTypes, { compactDuration: true })).toBe(
+      `dur_field = 1h30m\n`,
+    );
+  });
+
+  it("compactDuration: 30m0s → 30m", () => {
+    const m = unmarshal(`dur_field = 30m`, AllTypes);
+    expect(marshal(m, AllTypes, { compactDuration: true })).toBe(
+      `dur_field = 30m\n`,
+    );
+  });
+
+  it("compactDuration: internal 0m between non-zero h and s is preserved", () => {
+    // 1 hour + 30 seconds = 3630s. Go canonical is "1h0m30s"; compact
+    // form must keep the 0m because it sits between non-zero units.
+    const m = unmarshal(`dur_field = 1h0m30s`, AllTypes);
+    expect(marshal(m, AllTypes, { compactDuration: true })).toBe(
+      `dur_field = 1h0m30s\n`,
+    );
+  });
+
+  it("compactDuration: sub-second µs passes through", () => {
+    const m = unmarshal(`dur_field = 500us`, AllTypes);
+    expect(marshal(m, AllTypes, { compactDuration: true })).toBe(
+      `dur_field = 500µs\n`,
+    );
+  });
+
+  it("compactDuration: explicit 0s stays as 0s", () => {
+    const m = unmarshal(`dur_field = 0s`, AllTypes);
+    expect(marshal(m, AllTypes, { compactDuration: true })).toBe(
+      `dur_field = 0s\n`,
+    );
+  });
+
+  it("compactDuration: negative duration preserves the sign", () => {
+    const m = unmarshal(`dur_field = -720h`, AllTypes);
+    expect(marshal(m, AllTypes, { compactDuration: true })).toBe(
+      `dur_field = -720h\n`,
+    );
+  });
+
+  it("compactDuration: default false keeps Go-canonical output", () => {
+    // Sanity: omitting the option keeps the byte-equivalence guarantee.
+    const m = unmarshal(`dur_field = 720h`, AllTypes);
+    expect(marshal(m, AllTypes)).toBe(`dur_field = 720h0m0s\n`);
+  });
+
   it("StringValue wrapper emits as bare scalar", () => {
     const m = unmarshal(`nullable_string = "hi"`, AllTypes);
     expect(marshal(m, AllTypes)).toBe(`nullable_string = "hi"\n`);

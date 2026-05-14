@@ -49,6 +49,25 @@ export interface MarshalOptions {
    * `null` literals.
    */
   nullFields?: Result;
+  /**
+   * Strip trailing zero-valued h/m/s units from emitted Go-style
+   * Duration literals (e.g. `720h0m0s` → `720h`, `1h30m0s` → `1h30m`).
+   *
+   * Default `false` preserves byte-equivalence with the canonical
+   * Go reference's `time.Duration.String()` output. Set to `true`
+   * when round-trip readability of the source file matters more
+   * than wire-compatibility with the Go reference — typical for
+   * config files maintained by humans (e.g. an `*.pxf` config a
+   * maintainer edits via a UI, where seeing `720h` on disk is more
+   * idiomatic than `720h0m0s`).
+   *
+   * Only emit-side: the parser accepts both forms regardless.
+   * Sub-second durations (ns / µs / ms) already use a single unit
+   * and are unaffected. Internal zero units between non-zero ones
+   * (e.g. `1h0m30s` where the middle `0m` sits between non-zero h
+   * and s) are preserved — the Go format requires them.
+   */
+  compactDuration?: boolean;
 }
 
 export function marshal<Desc extends DescMessage>(
@@ -62,6 +81,7 @@ export function marshal<Desc extends DescMessage>(
     indent,
     options?.emitDefaults ?? false,
     options?.typeResolver,
+    options?.compactDuration ?? false,
   );
   enc.primeNullSet(root, options?.nullFields);
   if (options?.typeURL) {
@@ -81,6 +101,7 @@ class Encoder {
     private readonly indent: string,
     private readonly emitDefaults: boolean,
     private readonly resolver: TypeResolver | undefined,
+    private readonly compactDuration: boolean,
   ) {}
 
   /**
@@ -174,7 +195,9 @@ class Encoder {
     }
     if (isDuration(mdesc)) {
       this.writeFieldPrefix(level, fd.name);
-      this.buf += formatGoDuration(sub);
+      this.buf += this.compactDuration
+        ? compactTrailingZeroUnits(formatGoDuration(sub))
+        : formatGoDuration(sub);
       this.buf += "\n";
       return;
     }
@@ -222,7 +245,9 @@ class Encoder {
           this.buf += formatRfc3339Nano(sub);
         } else if (isDuration(mdesc)) {
           this.writeIndent(level + 1);
-          this.buf += formatGoDuration(sub);
+          this.buf += this.compactDuration
+        ? compactTrailingZeroUnits(formatGoDuration(sub))
+        : formatGoDuration(sub);
         } else if (isWrapperType(mdesc)) {
           const innerFd = findFieldByProtoName(mdesc, "value");
           if (!innerFd || innerFd.fieldKind !== "scalar") {
@@ -555,6 +580,47 @@ function formatGoDuration(d: ReflectMessage): string {
     }
   }
   return neg ? `-${out}` : out;
+}
+
+/**
+ * Trim trailing zero-valued h/m/s units from a Go-style duration string
+ * produced by `formatGoDuration`. Powers the `compactDuration` MarshalOption.
+ *
+ * Rules:
+ *   - sub-second forms (`<n>ns`, `<n>µs`, `<n>ms`) pass through unchanged
+ *     since they already use a single unit;
+ *   - `0s` passes through unchanged (canonical zero);
+ *   - `720h0m0s` → `720h`, `1h30m0s` → `1h30m`, `30m0s` → `30m`;
+ *   - `1h0m30s` is left alone — the internal `0m` sits between non-zero
+ *     h and s, so it is structural rather than trailing.
+ *
+ * The trim runs repeatedly so a chain of trailing zero units collapses in
+ * one pass through the loop. Leading `-` on negative durations is
+ * preserved by stripping it for the inner trim and re-prepending.
+ */
+function compactTrailingZeroUnits(s: string): string {
+  if (s === "0s" || s === "-0s") return s;
+  const neg = s.startsWith("-");
+  let body = neg ? s.slice(1) : s;
+  // Repeatedly strip a trailing `0(h|m|s)` ONLY when the `0` is a
+  // standalone unit-value-zero — i.e., preceded by a unit letter
+  // (h/m/s/µ/n), not by a digit. This rules out trimming the trailing
+  // `0` of a multi-digit number like the `0` in `720h`. Go's duration
+  // emit never produces consecutive `<num><unit><num><unit>` without
+  // a unit letter between them, so requiring the prefix to end in one
+  // of [hmsµn] correctly distinguishes the two cases.
+  let prev = "";
+  while (prev !== body) {
+    prev = body;
+    const m = body.match(/^(.+?[hmsµn])0(h|m|s)$/);
+    if (m !== null) {
+      const trimmed = m[1];
+      if (trimmed !== undefined && trimmed !== "") {
+        body = trimmed;
+      }
+    }
+  }
+  return neg ? `-${body}` : body;
 }
 
 /**
