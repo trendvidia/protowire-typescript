@@ -1,6 +1,6 @@
 {
   "name": "@trendvidia/protowire",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "TypeScript port of protowire — PXF text format, SBE binary, struct-tag protobuf, and API response envelope. Verified for byte-equivalence with the canonical Go reference and seven other sibling ports.",
   "license": "MIT",
   "author": {

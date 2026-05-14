@@ -17,6 +17,44 @@ format changes.
 
 ## [Unreleased]
 
+## [1.2.0] — 2026-05-14
+
+Additive minor — no breaking changes, no wire-format change.
+Internal duration codecs promoted to the public PXF surface so
+consumers can convert between proto Duration `{seconds, nanos}`
+and Go-style string literals (`"720h"`, `"1h30m"`, `"500µs"`)
+without round-tripping through a wrapping message.
+
+### Added
+
+- **`parseGoDuration(s)`** — parse a Go-style duration literal
+  (`"1h30m"`, `"-2.5s"`, `"100ms"`, …) into proto Duration parts.
+  Throws on syntax errors; accepts leading `+`/`-`; treats the
+  single-character `"0"` as zero.
+- **`formatGoDuration(d, options?)`** — emit `{seconds, nanos}` as
+  a Go-style duration literal. Mirrors `time.Duration.String()` by
+  default; pass `{ compact: true }` to strip trailing zero h/m/s
+  units (the same behavior as `MarshalOptions.compactDuration`
+  from #18, now exposed at helper granularity).
+- **`type DurationParts = { seconds: bigint; nanos: number }`** —
+  protocol shape both functions share; compatible with
+  `@bufbuild/protobuf`'s `create(DurationSchema, ...)` init shape.
+- **`type FormatGoDurationOptions`** — options bag for the
+  formatter.
+
+### Refactor (no behavior change)
+
+- Extracted shared duration logic from `decode.ts` + `encode.ts`
+  into a new `src/pxf/duration.ts` module that both internal
+  call sites consume. `MarshalOptions.compactDuration` still
+  routes through this module — the v1.1.0 default-false byte-
+  equivalence guarantee is preserved. All 403 v1.1.0 tests pass
+  unchanged; 33 new tests in `src/pxf/duration.test.ts` cover
+  the new public surface plus a round-trip property across
+  representative inputs.
+
+(#20)
+
 ## [1.1.0] — 2026-05-14
 
 Additive minor — no breaking changes, no wire-format change. Byte-
