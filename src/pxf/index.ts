@@ -19,6 +19,12 @@ export {
   type UnmarshalOptions,
 } from "./decode.js";
 export { marshal, type MarshalOptions } from "./encode.js";
+export {
+  formatGoDuration,
+  parseGoDuration,
+  type DurationParts,
+  type FormatGoDurationOptions,
+} from "./duration.js";
 export { Result } from "./result.js";
 export {
   validateDescriptor,
