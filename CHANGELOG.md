@@ -17,6 +17,34 @@ format changes.
 
 ## [Unreleased]
 
+## [1.1.0] — 2026-05-14
+
+Additive minor — no breaking changes, no wire-format change. Byte-
+equivalence with the canonical Go reference is preserved on the
+default code path.
+
+### Added
+
+- **`MarshalOptions.compactDuration`** (default `false`). When set to
+  `true`, the emitter strips trailing zero-valued h/m/s units from
+  Go-style Duration literals — `720h0m0s` → `720h`, `1h30m0s` →
+  `1h30m`, `30m0s` → `30m`. Internal zero units between non-zero ones
+  (`1h0m30s`) are preserved per Go's structural emit rule; sub-second
+  forms (`<n>ns`, `<n>µs`, `<n>ms`) and the canonical zero (`0s`) pass
+  through unchanged.
+
+  Trim-safety: the `0` being stripped must be preceded by a unit
+  letter (h/m/s/µ/n), never by a digit, so `720h` is never trimmed
+  to `72`.
+
+  Default-false preserves the Go-reference byte-equivalence the
+  v1.0.0 line guarantees. Use this option in consumer apps that
+  hand-edit PXF config files and value compact on-disk literals
+  over wire-format strictness — typical for editor UIs that
+  round-trip a config through `unmarshal` → user edit → `marshal`.
+
+  (#18)
+
 ## [1.0.0] — 2026-05-13
 
 First major-version cut. Implements the three one-time spec changes
