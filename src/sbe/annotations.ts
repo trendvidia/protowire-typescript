@@ -12,11 +12,11 @@
 
 import { type DescField, type DescFile, type DescMessage } from "@bufbuild/protobuf";
 
-export const EXT_SCHEMA_ID = 50_100;
-export const EXT_VERSION = 50_101;
-export const EXT_TEMPLATE_ID = 50_200;
-export const EXT_LENGTH = 50_300;
-export const EXT_ENCODING = 50_301;
+export const EXT_SCHEMA_ID = 1319;
+export const EXT_VERSION = 1320;
+export const EXT_TEMPLATE_ID = 1321;
+export const EXT_LENGTH = 1322;
+export const EXT_ENCODING = 1323;
 
 interface UnknownField {
   no: number;
