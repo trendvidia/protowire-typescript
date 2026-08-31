@@ -11,8 +11,8 @@
 
 import { type DescField, type DescMessage } from "@bufbuild/protobuf";
 
-const EXT_REQUIRED = 50_000;
-const EXT_DEFAULT = 50_001;
+const EXT_REQUIRED = 1314;
+const EXT_DEFAULT = 1315;
 
 export function isRequired(fd: DescField): boolean {
   const ufs = fd.proto.options?.$unknown;

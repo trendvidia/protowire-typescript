@@ -7,7 +7,7 @@
 
 import { type DescFile, type DescMessage, type MessageShape } from "@bufbuild/protobuf";
 
-import { EXT_SCHEMA_ID, EXT_VERSION, getFileUint32 } from "./annotations.js";
+import { EXT_SCHEMA_ID, EXT_TEMPLATE_ID, EXT_VERSION, getFileUint32 } from "./annotations.js";
 import { buildTemplate, type MessageTemplate } from "./template.js";
 import { View } from "./view.js";
 
@@ -68,7 +68,7 @@ export class Codec {
 function hasTemplateId(desc: DescMessage): boolean {
   const ufs = (desc.proto.options as { $unknown?: { no: number }[] } | undefined)?.$unknown;
   if (!ufs) return false;
-  return ufs.some((u) => u.no === 50_200);
+  return ufs.some((u) => u.no === EXT_TEMPLATE_ID);
 }
 
 // Re-export MessageShape so consumers can type their own marshal callsites.
