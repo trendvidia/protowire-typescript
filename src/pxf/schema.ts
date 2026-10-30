@@ -110,8 +110,9 @@ function keyViolations(file: DescFile): readonly Violation[] {
   let out = keyViolationCache.get(file) as Violation[] | undefined;
   if (out) return out;
   out = [];
-  for (const ext of file.extensions) checkKeyOption(file.name, ext, out);
-  for (const msg of file.messages) walkKeyOptions(file.name, msg, out);
+  const path = file.proto.name; // DescFile.name drops the ".proto"
+  for (const ext of file.extensions) checkKeyOption(path, ext, out);
+  for (const msg of file.messages) walkKeyOptions(path, msg, out);
   keyViolationCache.set(file, out);
   return out;
 }
