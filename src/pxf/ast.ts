@@ -156,7 +156,12 @@ export type Entry = Assignment | MapEntry | Block;
 export interface Assignment {
   readonly kind: "assignment";
   readonly pos: Position;
+  /** The denoted name: unquoted, even when written as a string literal. */
   readonly key: string;
+  /** True when `key` was written as a string literal (`"name" = { ... }`,
+   * a quoted entry name, draft -01 §3.13). Only meaningful inside a keyed
+   * repeated field's block; the schema layer rejects it elsewhere. */
+  readonly keyQuoted?: boolean;
   readonly value: Value;
   readonly leadingComments: Comment[];
   /** Inline comment after the value on the same source line, if any. */
@@ -177,7 +182,12 @@ export interface MapEntry {
 export interface Block {
   readonly kind: "block";
   readonly pos: Position;
+  /** The denoted name: unquoted, even when written as a string literal. */
   readonly name: string;
+  /** True when `name` was written as a string literal (`"us-east-1" { ... }`,
+   * a quoted entry name, draft -01 §3.13). Only meaningful inside a keyed
+   * repeated field's block; the schema layer rejects it elsewhere. */
+  readonly nameQuoted?: boolean;
   readonly entries: Entry[];
   readonly leadingComments: Comment[];
 }
