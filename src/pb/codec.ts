@@ -23,6 +23,14 @@
 
 import { Reader, Writer, WireType } from "./wire.js";
 
+/**
+ * How deep a message may nest. The root is depth 0, and every submessage and
+ * map entry is one descent, whatever the entry's value type: a message whose
+ * deepest point is exactly this many descents is accepted, and one more is
+ * rejected (HARDENING.md § Recursion).
+ */
+export const MAX_NESTING_DEPTH = 100;
+
 export type ScalarKind =
   | "bool"
   | "int32"
@@ -431,12 +439,20 @@ function readScalarValue(r: Reader, kind: ScalarKind): unknown {
   }
 }
 
+function descend(r: Reader): void {
+  if (++r.depth > MAX_NESTING_DEPTH) {
+    throw new Error(`nesting depth exceeds MaxNestingDepth=${MAX_NESTING_DEPTH}`);
+  }
+}
+
 function readNestedMessage(r: Reader, codec: CodecBase): unknown {
   const len = r.varint();
   const end = r.pos + len;
   if (end > r.data.length) throw new Error("nested message exceeds buffer");
+  descend(r);
   const obj = codec.create();
   codec.unmarshalFrom(r, end, obj);
+  r.depth--;
   return obj;
 }
 
@@ -448,6 +464,7 @@ function readMapEntry(
   const len = r.varint();
   const end = r.pos + len;
   if (end > r.data.length) throw new Error("map entry exceeds buffer");
+  descend(r);
 
   const keyKind = f.mapKey!;
   let key: unknown = mapKeyZero(keyKind);
@@ -470,6 +487,7 @@ function readMapEntry(
   if (r.pos !== end) {
     throw new Error(`map entry overran (pos=${r.pos}, end=${end})`);
   }
+  r.depth--;
 
   let target = obj[f.name] as Record<string, unknown> | undefined;
   if (target === undefined) {

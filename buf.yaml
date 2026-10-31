@@ -24,3 +24,10 @@ lint:
 breaking:
   use:
     - FILE
+  except:
+    # Language options this port generates nothing from. The shared schemas
+    # take them from trendvidia/protos.
+    - FILE_SAME_CSHARP_NAMESPACE
+    - FILE_SAME_GO_PACKAGE
+    - FILE_SAME_JAVA_MULTIPLE_FILES
+    - FILE_SAME_JAVA_PACKAGE
