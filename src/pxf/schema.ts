@@ -1,11 +1,17 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 TrendVidia, LLC.
 /**
- * PXF schema-level conformance check per draft §3.13. A protobuf schema
- * bound for PXF use MUST NOT declare a message field, oneof, or enum
- * value whose name is case-sensitively equal to a PXF value keyword
- * (`null` / `true` / `false`) — such a name lexes as the keyword, so
- * the declared element is unreachable from PXF surface syntax.
+ * PXF schema-level conformance checks. Two families, both reported as
+ * {@link Violation}:
+ *
+ *   - Reserved names (draft §3.13). A protobuf schema bound for PXF use
+ *     MUST NOT declare a message field, oneof, or enum value whose name
+ *     is case-sensitively equal to a PXF value keyword (`null` / `true`
+ *     / `false`) — such a name lexes as the keyword, so the declared
+ *     element is unreachable from PXF surface syntax.
+ *   - `(pxf.required)` with `(pxf.default)` on one field (draft -01
+ *     "Required and Default"). A document omitting the field would have
+ *     no single meaning.
  *
  * Enforcement runs at descriptor-bind time inside `unmarshal` /
  * `unmarshalFull`. Callers that have already validated their
@@ -18,36 +24,49 @@
 
 import { type DescEnum, type DescFile, type DescMessage } from "@bufbuild/protobuf";
 
-/** Which kind of schema element collides with a reserved PXF value keyword. */
-export type ViolationKind = "field" | "oneof" | "enumValue";
+import { getDefault, isRequired } from "./annotations.js";
 
-/** A schema element whose name collides with a reserved PXF keyword. */
+/**
+ * What a schema element breaks: a reserved PXF value keyword as its name
+ * (`field`, `oneof`, `enumValue`), or an invalid `(pxf.required)`
+ * (`requiredOption`).
+ */
+export type ViolationKind = "field" | "oneof" | "enumValue" | "requiredOption";
+
+/** A schema element that breaks a bind-time check. */
 export interface Violation {
   /** .proto file path the offending element is declared in. */
   readonly file: string;
   /** Fully-qualified protobuf name (e.g. "trades.v1.Side.null"). */
   readonly element: string;
-  /** Bare reserved identifier ("null" / "true" / "false"). */
+  /** Bare reserved identifier ("null" / "true" / "false"), or the field's name. */
   readonly name: string;
   readonly kind: ViolationKind;
+  /** Explanation; set for `requiredOption`, absent for the reserved-name kinds. */
+  readonly detail?: string;
 }
 
 /** Human-readable one-line description of `v`. */
 export function violationString(v: Violation): string {
+  if (v.kind === "requiredOption") {
+    return `${v.file}: field "${v.element}": invalid (pxf.required): ${v.detail} (draft -01 §annotation-extensions)`;
+  }
   const kindLabel =
     v.kind === "field" ? "message field" : v.kind === "oneof" ? "oneof" : "enum value";
   return `${v.file}: ${kindLabel} "${v.element}" uses PXF-reserved name "${v.name}" (draft §3.13)`;
 }
 
 /**
- * Walks the file containing `desc` and returns every reserved-name
- * collision among messages, oneofs, and enum values reachable from
- * that file. The returned array is sorted by element fully-qualified
- * name for stable output. An empty array means the schema is
- * conformant.
+ * Walks the file containing `desc` and returns every bind-time
+ * violation in it: reserved-name collisions among messages, oneofs, and
+ * enum values, and `(pxf.required)` with `(pxf.default)` on one field.
+ * The returned array is sorted by element fully-qualified name for
+ * stable output. An empty array means the schema is conformant.
  *
- * The check is case-sensitive: identifiers such as "NULL" or "True"
- * lex as ordinary identifiers and are accepted.
+ * The reserved-name check is case-sensitive: identifiers such as "NULL"
+ * or "True" lex as ordinary identifiers and are accepted.
+ * `(pxf.required) = false` requires nothing, so a default beside it
+ * stands.
  */
 export function validateDescriptor(desc: DescMessage | null | undefined): Violation[] {
   if (!desc) return [];
@@ -55,7 +74,7 @@ export function validateDescriptor(desc: DescMessage | null | undefined): Violat
 }
 
 /**
- * Walks `fd` and returns every reserved-name collision in the file.
+ * Walks `fd` and returns every bind-time violation in the file.
  * See {@link validateDescriptor} for the rule and semantics.
  */
 export function validateFile(fd: DescFile | null | undefined): Violation[] {
@@ -102,6 +121,17 @@ function walkMessage(path: string, md: DescMessage, out: Violation[]): void {
         kind: "field",
       });
     }
+    // An empty default is still a default, so this tests for presence.
+    if (isRequired(f) && getDefault(f) !== undefined) {
+      out.push({
+        file: path,
+        element: `${md.typeName}.${f.name}`,
+        name: f.name,
+        kind: "requiredOption",
+        detail:
+          "(pxf.required) and (pxf.default) are exclusive on one field: the first rejects a document where the field is absent, and the second treats it as supplied",
+      });
+    }
   }
   // bufbuild's DescMessage.oneofs already filters synthetic oneofs
   // emitted for proto3 `optional` fields — matching Go's IsSynthetic()
@@ -140,5 +170,5 @@ function walkEnum(path: string, en: DescEnum, out: Violation[]): void {
 export function asValidationErrorMessage(vs: Violation[]): string | undefined {
   if (vs.length === 0) return undefined;
   const lines = vs.map((v) => "  " + violationString(v));
-  return "PXF schema reserved-name violations:\n" + lines.join("\n");
+  return "PXF schema violations:\n" + lines.join("\n");
 }
