@@ -17,6 +17,24 @@ format changes.
 
 ## [Unreleased]
 
+### Added
+
+- **`pxf.MAX_NESTING_DEPTH` and `pb.MAX_NESTING_DEPTH`**, both 100, and
+  `Reader.depth`, which carries the count through nested PB decoders.
+
+### Fixed
+
+- **PXF and PB decoding enforce `MaxNestingDepth`** (protowire#449,
+  HARDENING.md § Recursion). This port had no limit. Documents and
+  messages nested past 100 levels used to decode, and a very deep PXF
+  document failed with a stack-overflow `RangeError`. Now `parse`,
+  `unmarshal`, `unmarshalFull` and `defineMessage` codecs all fail with
+  `nesting depth exceeds MaxNestingDepth=100`. Every PXF `{` or `[`
+  counts, including a map's own `{`, a directive block and the skipped
+  text of an unknown field. Every PB submessage and map entry counts,
+  whatever the entry's value type. This narrows what the decoders
+  accept.
+
 ## [1.2.0] — 2026-05-14
 
 Additive minor — no breaking changes, no wire-format change.
