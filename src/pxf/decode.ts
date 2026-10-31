@@ -34,7 +34,7 @@ import {
   type Value,
 } from "./ast.js";
 import { parseGoDuration } from "./duration.js";
-import { findMatchingBrace } from "./parser.js";
+import { findMatchingBrace, MAX_NESTING_DEPTH } from "./parser.js";
 import {
   findFieldByProtoName,
   isAny,
@@ -153,6 +153,7 @@ class Decoder {
   private rootRefl: ReflectMessage | null = null;
   private rootNullMaskFd: DescField | undefined = undefined;
   private pathPrefix = "";
+  private depth = 0;
 
   constructor(
     input: string,
@@ -191,6 +192,21 @@ class Decoder {
 
   private err(pos: Position, msg: string): PxfError {
     return new PxfError(pos, msg);
+  }
+
+  /**
+   * Count a `{` or `[`, a map's own `{` included (HARDENING.md § Recursion).
+   * The caller decrements after its close. An error abandons the decode, so
+   * only the normal path has to balance.
+   */
+  private descend(): void {
+    if (++this.depth > MAX_NESTING_DEPTH) {
+      throw this.nestingError();
+    }
+  }
+
+  private nestingError(): PxfError {
+    return this.err(this.current.pos, `nesting depth exceeds MaxNestingDepth=${MAX_NESTING_DEPTH}`);
   }
 
   /**
@@ -342,26 +358,13 @@ class Decoder {
           // are always real braces.
           if ((this.peek() as TokenKind) === TokenKind.LBRACE) {
             const open = this.current.pos.offset;
-            let depth = 1;
             this.advance();
-            while (depth > 0 && this.peek() !== TokenKind.EOF) {
-              if ((this.peek() as TokenKind) === TokenKind.LBRACE) {
-                depth++;
-              } else if ((this.peek() as TokenKind) === TokenKind.RBRACE) {
-                depth--;
-                if (depth === 0) {
-                  const close = this.current.pos.offset;
-                  body = this.lex.inputView().slice(open + 1, close);
-                  hasBody = true;
-                  this.advance();
-                  break;
-                }
-              }
-              this.advance();
-            }
-            if (depth !== 0) {
+            const close = this.skipNested(TokenKind.LBRACE, TokenKind.RBRACE);
+            if (close < 0) {
               throw this.err(this.current.pos, "unmatched '{' in directive block");
             }
+            body = this.lex.inputView().slice(open + 1, close);
+            hasBody = true;
           }
           if (this.result !== null) {
             const dir: Directive = {
@@ -583,10 +586,13 @@ class Decoder {
   private decodeFields(parent: ReflectMessage, inBlock: boolean): void {
     const desc = parent.desc;
     const setOneofs = new Map<string, string>();
+    // inBlock means the caller consumed a `{`, whichever kind of value it opens.
+    if (inBlock) this.descend();
 
     for (;;) {
       if (inBlock && this.peek() === TokenKind.RBRACE) {
         this.advance();
+        this.depth--;
         return;
       }
       if (this.peek() === TokenKind.EOF) {
@@ -912,6 +918,7 @@ class Decoder {
         `expected '[' for repeated field ${JSON.stringify(fd.name)}`,
       );
     }
+    this.descend();
     this.advance();
 
     const list = parent.get(fd) as ReflectList;
@@ -949,6 +956,7 @@ class Decoder {
       );
     }
     this.advance();
+    this.depth--;
   }
 
   private decodeMapInline(parent: ReflectMessage, fd: DescField): void {
@@ -961,6 +969,7 @@ class Decoder {
         `expected '{' for map field ${JSON.stringify(fd.name)}`,
       );
     }
+    this.descend();
     this.advance();
 
     const map = parent.get(fd) as ReflectMap;
@@ -1033,6 +1042,7 @@ class Decoder {
       );
     }
     this.advance();
+    this.depth--;
   }
 
   private consumeScalar(fd: DescField, kind: ScalarType): unknown {
@@ -1186,23 +1196,40 @@ class Decoder {
   }
 
   private skipBraced(): void {
-    let depth = 1;
-    while (depth > 0 && this.peek() !== TokenKind.EOF) {
-      const tk = this.peek();
-      if (tk === TokenKind.LBRACE) depth++;
-      else if (tk === TokenKind.RBRACE) depth--;
-      this.advance();
-    }
+    this.skipNested(TokenKind.LBRACE, TokenKind.RBRACE);
   }
 
   private skipBracketed(): void {
-    let depth = 1;
-    while (depth > 0 && this.peek() !== TokenKind.EOF) {
+    this.skipNested(TokenKind.LBRACKET, TokenKind.RBRACKET);
+  }
+
+  /**
+   * Skip to the `close` matching an `open` already consumed, returning its
+   * offset, or -1 at EOF. Skipped text nests like any other, so its `{` and
+   * `[` count toward the limit too, counted from where the skip began.
+   */
+  private skipNested(open: TokenKind, close: TokenKind): number {
+    let matching = 1; // `open`s not yet closed: decides where the skip ends
+    let nesting = 1; // `{` and `[` not yet closed: what the limit counts
+    if (this.depth + nesting > MAX_NESTING_DEPTH) throw this.nestingError();
+    while (this.peek() !== TokenKind.EOF) {
       const tk = this.peek();
-      if (tk === TokenKind.LBRACKET) depth++;
-      else if (tk === TokenKind.RBRACKET) depth--;
+      if (tk === TokenKind.LBRACE || tk === TokenKind.LBRACKET) {
+        nesting++;
+        if (this.depth + nesting > MAX_NESTING_DEPTH) throw this.nestingError();
+      } else if (tk === TokenKind.RBRACE || tk === TokenKind.RBRACKET) {
+        nesting--;
+      }
+      if (tk === open) {
+        matching++;
+      } else if (tk === close && --matching === 0) {
+        const offset = this.current.pos.offset;
+        this.advance();
+        return offset;
+      }
       this.advance();
     }
+    return -1;
   }
 }
 
