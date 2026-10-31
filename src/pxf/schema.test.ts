@@ -213,6 +213,7 @@ describe("(pxf.required) with (pxf.default)", () => {
       ["requireddefault.test.v1.M.Inner.g", "requiredOption"],
       ["requireddefault.test.v1.M.f", "requiredOption"],
     ]);
+    expect(vs.map((v) => v.name)).toEqual(["x", "x"]);
     expect(violationString(vs[1]!)).toContain(
       'field "requireddefault.test.v1.M.f": invalid (pxf.required): ' +
         "(pxf.required) and (pxf.default) are exclusive on one field: the first rejects a document " +
@@ -221,7 +222,8 @@ describe("(pxf.required) with (pxf.default)", () => {
   });
 
   it("is refused when the default is the empty string", () => {
-    expect(validateDescriptor(annotatedMessage(true, ""))).toHaveLength(2);
+    const vs = validateDescriptor(annotatedMessage(true, ""));
+    expect(vs.map((v) => v.name)).toEqual(["", ""]);
   });
 
   it("is accepted with (pxf.required) = false beside a default", () => {
