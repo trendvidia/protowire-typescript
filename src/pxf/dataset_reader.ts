@@ -244,7 +244,7 @@ export class DatasetReader implements IterableIterator<DatasetRow> {
  *
  * `skipValidate` defaults to `true`: descriptors were validated once
  * when the caller constructed the schema/registry, and re-running
- * the reserved-name check per row is wasteful in tight loops.
+ * the bind-time checks per row is wasteful in tight loops.
  */
 export function bindRow<Desc extends DescMessage>(
   schema: Desc,

@@ -21,6 +21,23 @@ format changes.
 
 - **The vendored shared schemas are re-synced with [trendvidia/protos](https://github.com/trendvidia/protos) v0.1.2** ([trendvidia/protowire#447](https://github.com/trendvidia/protowire/issues/447)). They gain protos' file options. Declarations and field numbers are unchanged, and so is this port's public API.
 
+- **`asValidationErrorMessage`-built errors now start `PXF schema
+  violations:`**, not `PXF schema reserved-name violations:`, because
+  they are no longer only about names.
+
+### Fixed
+
+- **`(pxf.required)` with `(pxf.default)` on one field fails when the
+  schema is bound** ((#59)), as draft -01 "Required and Default"
+  requires (protowire#453). Such a schema used to bind, and the
+  outcome for a document omitting the field depended on the engine.
+  `unmarshal` and `unmarshalFull` now throw, and `validateDescriptor`
+  and `validateFile` report it with the new `requiredOption` kind and
+  a new optional `Violation.detail`. `(pxf.required) = false` beside a
+  default stays accepted. This port reads only the bracket options,
+  and checks one file, as its reserved-name check does; widening that
+  to the import closure is #33.
+  
 ### Added
 
 - **`pxf.MAX_NESTING_DEPTH` and `pb.MAX_NESTING_DEPTH`**, both 100, and

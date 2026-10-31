@@ -84,7 +84,7 @@ export interface UnmarshalOptions {
    */
   typeResolver?: TypeResolver;
   /**
-   * Skip the per-call schema reserved-name check (draft §3.13).
+   * Skip the per-call schema bind-time checks (see `validateDescriptor`).
    * Callers that have already validated their descriptors (typically
    * via `validateDescriptor` in a one-time codegen or registry-load
    * pass) can set this to bypass the per-call recheck.
