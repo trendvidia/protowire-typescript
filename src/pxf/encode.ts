@@ -23,7 +23,7 @@ import {
   reflect,
 } from "@bufbuild/protobuf/reflect";
 
-import { findNullMaskField } from "./annotations.js";
+import { findNullMaskField, keyField } from "./annotations.js";
 import { type TypeResolver } from "./decode.js";
 import {
   findFieldByProtoName,
@@ -33,6 +33,7 @@ import {
   isWrapperType,
 } from "./descriptor.js";
 import { formatGoDuration } from "./duration.js";
+import { identSafeEntryName } from "./keyed.js";
 import { Result } from "./result.js";
 
 export interface MarshalOptions {
@@ -138,8 +139,14 @@ class Encoder {
     this.buf += `${name} = `;
   }
 
-  encodeMessage(parent: ReflectMessage, level: number): void {
+  /**
+   * `skipKey` is the key field of a keyed-block entry: the entry name already
+   * carries it, so it is not emitted inside the block (draft -01 §3.13).
+   */
+  encodeMessage(parent: ReflectMessage, level: number, skipKey?: DescField): void {
     for (const fd of parent.desc.fields) {
+      if (skipKey && fd.number === skipKey.number) continue;
+
       // Skip the `_null` FieldMask itself at the top level — it's metadata.
       if (
         this.nullMaskFd &&
@@ -231,6 +238,14 @@ class Encoder {
     const list = parent.get(fd) as ReflectList;
     if (list.size === 0 && !this.emitDefaults) return;
 
+    // Keyed repeated field (draft -01 §3.13): the keyed block form whenever
+    // every key is present, non-empty and distinct; otherwise anonymous.
+    const keyFd = keyField(fd);
+    if (keyFd && list.size > 0 && keyedFormEligible(list, keyFd)) {
+      this.encodeKeyedList(fd, list, keyFd, level);
+      return;
+    }
+
     this.writeFieldPrefix(level, fd.name);
     this.buf += "[\n";
 
@@ -255,7 +270,10 @@ class Encoder {
         } else {
           this.writeIndent(level + 1);
           this.buf += "{\n";
+          const saved = this.pathPrefix;
+          if (keyFd) this.pathPrefix = `${saved}${fd.name}[${i}].`;
           this.encodeMessage(sub, level + 2);
+          this.pathPrefix = saved;
           this.writeIndent(level + 1);
           this.buf += "}";
         }
@@ -274,6 +292,36 @@ class Encoder {
 
     this.writeIndent(level);
     this.buf += "]\n";
+  }
+
+  /**
+   * The keyed block form: one named block per element, in list order, the
+   * name unquoted when identifier-safe and the key field not repeated inside.
+   */
+  private encodeKeyedList(
+    fd: DescField,
+    list: ReflectList,
+    keyFd: DescField,
+    level: number,
+  ): void {
+    this.writeIndent(level);
+    this.buf += `${fd.name} {\n`;
+    let i = 0;
+    for (const elem of list) {
+      const sub = elem as ReflectMessage;
+      const key = sub.get(keyFd) as string;
+      this.writeIndent(level + 1);
+      this.buf += `${identSafeEntryName(key) ? key : writeQuotedString(key)} {\n`;
+      const saved = this.pathPrefix;
+      this.pathPrefix = `${saved}${fd.name}[${i}].`;
+      this.encodeMessage(sub, level + 2, keyFd);
+      this.pathPrefix = saved;
+      this.writeIndent(level + 1);
+      this.buf += "}\n";
+      i++;
+    }
+    this.writeIndent(level);
+    this.buf += "}\n";
   }
 
   private encodeMapField(parent: ReflectMessage, fd: DescField, level: number): void {
@@ -443,6 +491,17 @@ function writeQuotedString(s: string): string {
   }
   out += '"';
   return out;
+}
+
+/** Every element of `list` has a non-empty key, distinct within `list`. */
+function keyedFormEligible(list: ReflectList, keyFd: DescField): boolean {
+  const seen = new Set<string>();
+  for (const elem of list) {
+    const key = (elem as ReflectMessage).get(keyFd) as string;
+    if (key === "" || seen.has(key)) return false;
+    seen.add(key);
+  }
+  return true;
 }
 
 function formatFloat(f: number): string {

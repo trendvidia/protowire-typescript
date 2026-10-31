@@ -26,7 +26,7 @@ import {
   reflect,
 } from "@bufbuild/protobuf/reflect";
 
-import { findNullMaskField, getDefault, isRequired } from "./annotations.js";
+import { findNullMaskField, getDefault, isRequired, keyField } from "./annotations.js";
 import {
   type Directive,
   type DatasetDirective,
@@ -43,6 +43,13 @@ import {
   isWrapperType,
 } from "./descriptor.js";
 import { PxfError } from "./errors.js";
+import {
+  type KeyedElemState,
+  checkExplicitKey,
+  keyedDuplicateKeyError,
+  keyedEmptyNameError,
+  quotedNameUnkeyedError,
+} from "./keyed.js";
 import { Lexer } from "./lexer.js";
 import { Result } from "./result.js";
 import { asValidationErrorMessage, FUTURE_RESERVED_DIRECTIVES, validateDescriptor } from "./schema.js";
@@ -153,6 +160,8 @@ class Decoder {
   private rootRefl: ReflectMessage | null = null;
   private rootNullMaskFd: DescField | undefined = undefined;
   private pathPrefix = "";
+  /** How many keyed-field elements enclose the current body. */
+  private elemDepth = 0;
   private depth = 0;
 
   constructor(
@@ -583,7 +592,15 @@ class Decoder {
     return k;
   }
 
-  private decodeFields(parent: ReflectMessage, inBlock: boolean): void {
+  /**
+   * `ke` applies to exactly this body, the immediate entries of one element
+   * of a keyed repeated field; nested submessages don't inherit it.
+   */
+  private decodeFields(
+    parent: ReflectMessage,
+    inBlock: boolean,
+    ke?: KeyedElemState,
+  ): void {
     const desc = parent.desc;
     const setOneofs = new Map<string, string>();
     // inBlock means the caller consumed a `{`, whichever kind of value it opens.
@@ -617,6 +634,10 @@ class Decoder {
 
       switch (this.peek()) {
         case TokenKind.EQUALS: {
+          // The grammar accepts a string at entry-name position everywhere;
+          // in message context it never names a field (draft -01 §3.13).
+          // Keyed blocks have their own loop, decodeKeyedBlockBody.
+          if (keyKind === TokenKind.STRING) throw quotedNameUnkeyedError(pos, key);
           this.advance();
           const fd = findFieldByProtoName(desc, key);
           if (!fd) {
@@ -632,6 +653,9 @@ class Decoder {
             this.advance();
             continue;
           }
+          if (ke && fd.name === ke.keyName && this.peek() === TokenKind.STRING) {
+            checkExplicitKey(ke, this.current.value, this.current.pos);
+          }
           this.markPresent(fd);
           if (fd.fieldKind === "message" && this.result) {
             this.decodeMessageWithPath(parent, fd);
@@ -641,6 +665,7 @@ class Decoder {
           break;
         }
         case TokenKind.LBRACE: {
+          if (keyKind === TokenKind.STRING) throw quotedNameUnkeyedError(pos, key);
           this.advance();
           const fd = findFieldByProtoName(desc, key);
           if (!fd) {
@@ -652,6 +677,17 @@ class Decoder {
           }
           if (fd.fieldKind !== "message") {
             if (fd.fieldKind === "list") {
+              const keyFd = keyField(fd);
+              if (keyFd) {
+                this.markPresent(fd);
+                this.decodeKeyedBlockBody(parent, fd, keyFd);
+                continue;
+              }
+              // The block spells the keyed form on a field with no
+              // (pxf.key): the quoted name is the more specific violation.
+              if (this.peek() === TokenKind.STRING) {
+                throw quotedNameUnkeyedError(this.current.pos, this.current.value);
+              }
               throw this.err(
                 pos,
                 `repeated field ${JSON.stringify(key)} must use list syntax: ${key} = [...]`,
@@ -710,7 +746,8 @@ class Decoder {
     if (!this.result) return;
     const path = this.pathPrefix + fd.name;
     this.result.markNull(path);
-    if (this.rootRefl && this.rootNullMaskFd) {
+    // A FieldMask path names fields, not list elements.
+    if (this.rootRefl && this.rootNullMaskFd && this.elemDepth === 0) {
       const fmRefl = this.rootRefl.get(this.rootNullMaskFd) as ReflectMessage;
       const pathsFd = findFieldByProtoName(fmRefl.desc, "paths");
       if (pathsFd) {
@@ -782,6 +819,14 @@ class Decoder {
 
   private decodeFieldValue(parent: ReflectMessage, fd: DescField): void {
     if (fd.fieldKind === "list") {
+      // Keyed repeated field written `name = { ... }`: a block-tail is an
+      // abbreviation of `= { ... }` (draft -01 §3.13).
+      const keyFd = this.peek() === TokenKind.LBRACE ? keyField(fd) : undefined;
+      if (keyFd) {
+        this.advance();
+        this.decodeKeyedBlockBody(parent, fd, keyFd);
+        return;
+      }
       this.decodeListInline(parent, fd);
       return;
     }
@@ -922,6 +967,7 @@ class Decoder {
     this.advance();
 
     const list = parent.get(fd) as ReflectList;
+    const keyFd = keyField(fd); // set: the anonymous form of a keyed field
 
     while (this.peek() !== TokenKind.RBRACKET && this.peek() !== TokenKind.EOF) {
       if (this.peek() === TokenKind.NULL) {
@@ -938,7 +984,12 @@ class Decoder {
             throw this.err(this.current.pos, "expected '{' for repeated message element");
           }
           this.advance();
-          this.decodeFields(elemRefl, true);
+          if (keyFd) {
+            const ke = { field: fd.name, keyName: keyFd.name };
+            this.decodeKeyedElement(elemRefl, fd, list.size, ke);
+          } else {
+            this.decodeFields(elemRefl, true);
+          }
         }
         list.add(elemRefl);
       } else if (fd.listKind === "enum") {
@@ -957,6 +1008,94 @@ class Decoder {
     }
     this.advance();
     this.depth--;
+  }
+
+  /**
+   * Decode the block form of a keyed repeated field (draft -01 §3.13): named
+   * entries, `name { ... }` or equivalently `name = { ... }`, where the entry
+   * name (unquoted value, for string literals) populates the element's key
+   * field and entry order is list order. The opening `{` has been consumed;
+   * the closing `}` is consumed before returning.
+   */
+  private decodeKeyedBlockBody(
+    parent: ReflectMessage,
+    fd: DescField,
+    keyFd: DescField,
+  ): void {
+    if (fd.fieldKind !== "list" || fd.listKind !== "message") {
+      throw this.err(this.current.pos, "internal: decodeKeyedBlockBody on non-message list");
+    }
+    const list = parent.get(fd) as ReflectList;
+    const seen = new Set<string>();
+    // The block's own `{` is a descent, as a map's is; each entry adds its own.
+    this.descend();
+    for (;;) {
+      const tk = this.peek();
+      if (tk === TokenKind.RBRACE) {
+        this.advance();
+        this.depth--;
+        return;
+      }
+      if (tk === TokenKind.EOF) {
+        throw this.err(
+          this.current.pos,
+          `expected '}' to close keyed field ${JSON.stringify(fd.name)}, got EOF`,
+        );
+      }
+      if (tk !== TokenKind.IDENT && tk !== TokenKind.STRING) {
+        throw this.err(
+          this.current.pos,
+          `expected entry name (identifier or string) in keyed field ${JSON.stringify(fd.name)}, got ${tokenKindName(tk)}`,
+        );
+      }
+      const namePos = this.current.pos;
+      const name = this.current.value;
+      if (name === "") throw keyedEmptyNameError(namePos, fd.name);
+      if (seen.has(name)) throw keyedDuplicateKeyError(namePos, fd.name, name);
+      seen.add(name);
+      this.advance();
+
+      if (this.peek() === TokenKind.EQUALS) {
+        this.advance();
+        if (this.peek() !== TokenKind.LBRACE) {
+          throw this.err(
+            this.current.pos,
+            `keyed entry ${JSON.stringify(name)} of field ${JSON.stringify(fd.name)} must have a block value ('{ ... }'): the element type is a message`,
+          );
+        }
+      } else if (this.peek() !== TokenKind.LBRACE) {
+        throw this.err(
+          this.current.pos,
+          `expected '{' or '=' after entry name ${JSON.stringify(name)} in keyed field ${JSON.stringify(fd.name)}, got ${tokenKindName(this.peek())}`,
+        );
+      }
+      this.advance();
+
+      const elem = reflect(fd.message, create(fd.message));
+      elem.set(keyFd, name);
+      const ke = { field: fd.name, keyName: keyFd.name, entryName: name };
+      this.decodeKeyedElement(elem, fd, list.size, ke);
+      list.add(elem);
+    }
+  }
+
+  /**
+   * Decode the body of element `index` of a keyed field, with Result paths
+   * of the form `name[index].field`, so that an element's fields are not
+   * recorded as fields of the enclosing message.
+   */
+  private decodeKeyedElement(
+    elem: ReflectMessage,
+    fd: DescField,
+    index: number,
+    ke: KeyedElemState,
+  ): void {
+    const saved = this.pathPrefix;
+    if (this.result) this.pathPrefix = `${saved}${fd.name}[${index}].`;
+    this.elemDepth++;
+    this.decodeFields(elem, true, ke);
+    this.elemDepth--;
+    this.pathPrefix = saved;
   }
 
   private decodeMapInline(parent: ReflectMessage, fd: DescField): void {

@@ -504,13 +504,15 @@ class Parser {
 
     switch (this.current.kind) {
       case TokenKind.EQUALS: {
-        // `=` denotes a field assignment on a proto message; the key must be
-        // an identifier (= proto field name). Map-style keys (string/integer)
+        // `=` denotes a field assignment on a proto message; the key is an
+        // identifier (= proto field name) or a string literal (quoted entry
+        // name, draft -01 §3.13: the grammar accepts it everywhere and the
+        // schema layer restricts it to keyed repeated fields). Integer keys
         // are only valid with `:`. See docs/grammar.ebnf → field_entry.
-        if (keyKind !== TokenKind.IDENT) {
+        if (keyKind === TokenKind.INT) {
           throw new PxfError(
             pos,
-            `field assignment with '=' requires an identifier key, got ${tokenKindName(keyKind)} (${JSON.stringify(key)}); use ':' for map entries`,
+            `field assignment with '=' requires an identifier or string key, got ${tokenKindName(keyKind)} (${JSON.stringify(key)}); use ':' for map entries`,
           );
         }
         this.advance();
@@ -519,6 +521,7 @@ class Parser {
           kind: "assignment",
           pos,
           key,
+          keyQuoted: keyKind === TokenKind.STRING,
           value,
           leadingComments,
           trailingComment: "",
@@ -547,12 +550,12 @@ class Parser {
         return m;
       }
       case TokenKind.LBRACE: {
-        // `{ ... }` denotes a submessage field; same identifier-only rule
-        // as `=` applies. See docs/grammar.ebnf → field_entry.
-        if (keyKind !== TokenKind.IDENT) {
+        // `{ ... }` denotes a submessage field; same key rule as `=`
+        // applies. See docs/grammar.ebnf → field_entry.
+        if (keyKind === TokenKind.INT) {
           throw new PxfError(
             pos,
-            `submessage block requires an identifier key, got ${tokenKindName(keyKind)} (${JSON.stringify(key)})`,
+            `submessage block requires an identifier or string key, got ${tokenKindName(keyKind)} (${JSON.stringify(key)})`,
           );
         }
         this.descend(this.current.pos);
@@ -563,6 +566,7 @@ class Parser {
           kind: "block",
           pos,
           name: key,
+          nameQuoted: keyKind === TokenKind.STRING,
           entries,
           leadingComments,
         };
