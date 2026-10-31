@@ -1,18 +1,19 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 TrendVidia, LLC.
 /**
- * Read PXF field annotations (`pxf.required`, `pxf.default`) and discover the
- * `_null` FieldMask. Mirrors `protowire/encoding/pxf/annotations.go`.
+ * Read PXF field annotations (`pxf.required`, `pxf.default`, `pxf.key`) and
+ * discover the `_null` FieldMask. Mirrors `protowire/encoding/pxf/annotations.go`.
  *
  * The `pxf/annotations.proto` extensions are NOT registered with protobuf-es
  * here; the values land in `FieldOptions.$unknown`. We parse those raw
  * varint / length-delimited bytes directly, matching the Go fallback path.
  */
 
-import { type DescField, type DescMessage } from "@bufbuild/protobuf";
+import { type DescField, type DescMessage, ScalarType } from "@bufbuild/protobuf";
 
 const EXT_REQUIRED = 1314;
 const EXT_DEFAULT = 1315;
+const EXT_KEY = 1316;
 
 export function isRequired(fd: DescField): boolean {
   const ufs = fd.proto.options?.$unknown;
@@ -27,10 +28,37 @@ export function isRequired(fd: DescField): boolean {
 }
 
 export function getDefault(fd: DescField): string | undefined {
+  return getStringOption(fd, EXT_DEFAULT);
+}
+
+/**
+ * The raw `(pxf.key)` annotation value if set, even when its placement is
+ * invalid: `validateDescriptor` reports bad placements, and {@link keyField}
+ * resolves the annotation only when it is well-placed.
+ */
+export function getKeyName(fd: DescField): string | undefined {
+  return getStringOption(fd, EXT_KEY);
+}
+
+/**
+ * The key field of a keyed repeated field: the singular string field of
+ * `fd`'s element message that `fd`'s `(pxf.key)` names (draft -01 §3.13).
+ * Undefined when `fd` has no `(pxf.key)` or its placement is invalid.
+ */
+export function keyField(fd: DescField): DescField | undefined {
+  if (fd.fieldKind !== "list" || fd.listKind !== "message") return undefined;
+  const name = getKeyName(fd);
+  if (!name) return undefined;
+  const kf = fd.message.fields.find((f) => f.name === name);
+  if (kf?.fieldKind !== "scalar" || kf.scalar !== ScalarType.STRING) return undefined;
+  return kf;
+}
+
+function getStringOption(fd: DescField, ext: number): string | undefined {
   const ufs = fd.proto.options?.$unknown;
   if (!ufs) return undefined;
   for (const uf of ufs) {
-    if (uf.no === EXT_DEFAULT && uf.wireType === 2) {
+    if (uf.no === ext && uf.wireType === 2) {
       // LengthDelimited payload: data starts with a length varint, then the
       // string bytes. protobuf-es records the full prefixed payload here.
       const [len, off] = readVarintWithLength(uf.data);

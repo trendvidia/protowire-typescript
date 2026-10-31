@@ -17,6 +17,23 @@ format changes.
 
 ## [Unreleased]
 
+### Added
+
+- **Keyed repeated fields** (draft `-01` §3.13; [#29](https://github.com/trendvidia/protowire-typescript/issues/29), [trendvidia/protowire#116](https://github.com/trendvidia/protowire/issues/116)). A `repeated <Message>` field with `(pxf.key)` can be written as a block of named blocks, with the entry name as the key and entry order as list order.
+  - The grammar accepts a string as an entry name (`"us-east-1" { ... }`). `Assignment.keyQuoted` and `Block.nameQuoted` record the quoting, and `format` reproduces it.
+  - `(pxf.key)`, extension 1316, is back in `proto/pxf/annotations.proto`, which now matches protos v0.1.2. `validateDescriptor` reports a misplaced annotation as a `keyOption` violation, across the bound file's import closure, and `unmarshal` rejects it at bind time.
+  - The decoder reads the block form, its `name = { ... }` spelling and the anonymous list form. It rejects duplicate names (compared unquoted), empty keys, a key assignment that disagrees with its entry name, and a quoted name outside a keyed block.
+  - The encoder writes the keyed form whenever every key is present, non-empty and distinct, and the anonymous form otherwise.
+  - `canonicalizeKeyed(doc, desc)` is the schema-aware half of fmt: follow it with `format`. `keyField` and `identSafeEntryName` are exported.
+  - Elements of a keyed field get indexed `Result` paths (`children[0].type`), in the reference's form.
+  - The spec repo's `testdata/keyed/` corpus is vendored under `src/pxf/testdata/keyed/` and driven by `src/pxf/keyed.test.ts`.
+
+### Changed
+
+- **A quoted name in message context is now an error.** `"id" = "x"` used to decode as the field `id`. Draft `-01` §3.13 requires the schema layer to reject it, because a string entry name never names a field.
+
+- **The vendored shared schemas are re-synced with [trendvidia/protos](https://github.com/trendvidia/protos) v0.1.2** ([trendvidia/protowire#447](https://github.com/trendvidia/protowire/issues/447)). They gain protos' file options. Declarations and field numbers are unchanged, and so is this port's public API.
+
 ### Changed
 
 - **The vendored shared schemas are re-synced with [trendvidia/protos](https://github.com/trendvidia/protos) v0.1.2** ([trendvidia/protowire#447](https://github.com/trendvidia/protowire/issues/447)). They gain protos' file options. Declarations and field numbers are unchanged, and so is this port's public API.

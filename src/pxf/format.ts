@@ -72,7 +72,7 @@ class Formatter {
         case "assignment": {
           this.writeComments(e.leadingComments, level);
           this.writeIndent(level);
-          this.write(e.key);
+          this.write(e.keyQuoted ? quoteString(e.key) : e.key);
           this.write(" = ");
           this.formatValue(e.value, level);
           if (e.trailingComment !== "") {
@@ -98,7 +98,7 @@ class Formatter {
         case "block": {
           this.writeComments(e.leadingComments, level);
           this.writeIndent(level);
-          this.write(e.name);
+          this.write(e.nameQuoted ? quoteString(e.name) : e.name);
           this.write(" {\n");
           this.formatEntries(e.entries, level + 1);
           this.writeIndent(level);

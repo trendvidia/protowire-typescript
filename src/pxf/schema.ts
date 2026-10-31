@@ -19,19 +19,30 @@
  * codegen or registry-load pass) may set
  * `UnmarshalOptions.skipValidate` to bypass the per-call recheck.
  *
+ * `(pxf.key)` placement (draft -01 §3.13) is checked here too, over the
+ * import closure of the bound file (draft -01 "Scope of Bind-Time Checks").
+ * The reserved-name check still covers the declaring file only.
+ *
  * Mirrors `protowire/encoding/pxf/schema.go`.
  */
 
-import { type DescEnum, type DescFile, type DescMessage } from "@bufbuild/protobuf";
+import {
+  type DescEnum,
+  type DescExtension,
+  type DescField,
+  type DescFile,
+  type DescMessage,
+  ScalarType,
+} from "@bufbuild/protobuf";
 
-import { getDefault, isRequired } from "./annotations.js";
+import { getDefault, getKeyName, isRequired } from "./annotations.js";
 
 /**
  * What a schema element breaks: a reserved PXF value keyword as its name
- * (`field`, `oneof`, `enumValue`), or an invalid `(pxf.required)`
- * (`requiredOption`).
+ * (`field`, `oneof`, `enumValue`), an invalid `(pxf.required)`
+ * (`requiredOption`), or a misplaced `(pxf.key)` (`keyOption`).
  */
-export type ViolationKind = "field" | "oneof" | "enumValue" | "requiredOption";
+export type ViolationKind = "field" | "oneof" | "enumValue" | "requiredOption" | "keyOption";
 
 /** A schema element that breaks a bind-time check. */
 export interface Violation {
@@ -39,15 +50,20 @@ export interface Violation {
   readonly file: string;
   /** Fully-qualified protobuf name (e.g. "trades.v1.Side.null"). */
   readonly element: string;
-  /** Bare reserved identifier ("null" / "true" / "false"), or the field's name. */
+  /** Bare reserved identifier ("null" / "true" / "false"), the field's name,
+   * or the `(pxf.key)` annotation value for a `keyOption` violation. */
   readonly name: string;
   readonly kind: ViolationKind;
-  /** Explanation; set for `requiredOption`, absent for the reserved-name kinds. */
+  /** Explanation; set for `requiredOption` and `keyOption`, absent for the
+   * reserved-name kinds. */
   readonly detail?: string;
 }
 
 /** Human-readable one-line description of `v`. */
 export function violationString(v: Violation): string {
+  if (v.kind === "keyOption") {
+    return `${v.file}: field "${v.element}": invalid (pxf.key) = "${v.name}": ${v.detail ?? ""} (draft -01 §3.13)`;
+  }
   if (v.kind === "requiredOption") {
     return `${v.file}: field "${v.element}": invalid (pxf.required): ${v.detail} (draft -01 §annotation-extensions)`;
   }
@@ -58,10 +74,11 @@ export function violationString(v: Violation): string {
 
 /**
  * Walks the file containing `desc` and returns every bind-time
- * violation in it: reserved-name collisions among messages, oneofs, and
- * enum values, and `(pxf.required)` with `(pxf.default)` on one field.
- * The returned array is sorted by element fully-qualified name for
- * stable output. An empty array means the schema is conformant.
+ * violation: reserved-name collisions among messages, oneofs, and enum
+ * values and `(pxf.required)` with `(pxf.default)` on one field, in that
+ * file, plus every misplaced `(pxf.key)` in its import closure. The
+ * returned array is sorted by element fully-qualified name for stable
+ * output. An empty array means the schema is conformant.
  *
  * The reserved-name check is case-sensitive: identifiers such as "NULL"
  * or "True" lex as ordinary identifiers and are accepted.
@@ -74,8 +91,9 @@ export function validateDescriptor(desc: DescMessage | null | undefined): Violat
 }
 
 /**
- * Walks `fd` and returns every bind-time violation in the file.
- * See {@link validateDescriptor} for the rule and semantics.
+ * Walks `fd` and returns every bind-time violation in the file, plus
+ * every misplaced `(pxf.key)` in its import closure. See
+ * {@link validateDescriptor} for the rule and semantics.
  */
 export function validateFile(fd: DescFile | null | undefined): Violation[] {
   if (!fd) return [];
@@ -83,8 +101,68 @@ export function validateFile(fd: DescFile | null | undefined): Violation[] {
   const out: Violation[] = [];
   for (const msg of fd.messages) walkMessage(path, msg, out);
   for (const en of fd.enums) walkEnum(path, en, out);
+  for (const file of importClosure(fd)) out.push(...keyViolations(file));
   out.sort((a, b) => (a.element < b.element ? -1 : a.element > b.element ? 1 : 0));
   return out;
+}
+
+/** `fd` and its transitive imports, each file once. */
+function importClosure(fd: DescFile): DescFile[] {
+  const seen = new Set<DescFile>();
+  const visit = (file: DescFile): void => {
+    if (seen.has(file)) return;
+    seen.add(file);
+    file.dependencies.forEach(visit);
+  };
+  visit(fd);
+  return [...seen];
+}
+
+/** Per-file results: `unmarshal` re-validates on every call, and the
+ * closure always reaches descriptor.proto. */
+const keyViolationCache = new WeakMap<DescFile, readonly Violation[]>();
+
+function keyViolations(file: DescFile): readonly Violation[] {
+  let out = keyViolationCache.get(file) as Violation[] | undefined;
+  if (out) return out;
+  out = [];
+  const path = file.proto.name; // DescFile.name drops the ".proto"
+  for (const ext of file.extensions) checkKeyOption(path, ext, out);
+  for (const msg of file.messages) walkKeyOptions(path, msg, out);
+  keyViolationCache.set(file, out);
+  return out;
+}
+
+function walkKeyOptions(path: string, md: DescMessage, out: Violation[]): void {
+  for (const f of md.fields) checkKeyOption(path, f, out);
+  for (const ext of md.nestedExtensions) checkKeyOption(path, ext, out);
+  for (const inner of md.nestedMessages) walkKeyOptions(path, inner, out);
+}
+
+/**
+ * Placement of a `(pxf.key)` annotation (draft -01 §3.13): the annotated
+ * field is a repeated message-typed field, and the value names a singular
+ * string field of the element message.
+ */
+function checkKeyOption(path: string, f: DescField | DescExtension, out: Violation[]): void {
+  const name = getKeyName(f as DescField);
+  if (name === undefined) return;
+  const violation = (detail: string): void => {
+    const element = f.kind === "extension" ? f.typeName : `${f.parent.typeName}.${f.name}`;
+    out.push({ file: path, element, name, kind: "keyOption", detail });
+  };
+  if (f.fieldKind !== "list" || f.listKind !== "message") {
+    violation("(pxf.key) is valid only on repeated message-typed fields");
+    return;
+  }
+  const kf = f.message.fields.find((x) => x.name === name);
+  if (!kf) {
+    violation(`element message ${f.message.typeName} has no field "${name}"`);
+    return;
+  }
+  if (kf.fieldKind !== "scalar" || kf.scalar !== ScalarType.STRING) {
+    violation(`key field ${f.message.typeName}.${kf.name} must be a singular string field`);
+  }
 }
 
 const RESERVED = new Set(["null", "true", "false"]);

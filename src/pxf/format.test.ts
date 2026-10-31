@@ -218,3 +218,12 @@ labels = {
     expect(twice).toBe(once);
   });
 });
+
+describe("quoted entry names (draft -01 §3.13)", () => {
+  it("the schema-less formatter reproduces the quoting", () => {
+    const blockForm = 'regions {\n  "us-east-1" {\n    replicas = 3\n  }\n  "bare" {\n  }\n}\n';
+    expect(roundTrip(blockForm)).toBe(blockForm);
+    const assignForm = 'regions {\n  "a\\"b" = {\n    replicas = 3\n  }\n}\n';
+    expect(roundTrip(assignForm)).toBe(assignForm);
+  });
+});
