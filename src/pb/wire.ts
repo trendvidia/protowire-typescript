@@ -177,6 +177,8 @@ export class Writer {
 
 export class Reader {
   public pos = 0;
+  /** Descents so far, kept here so every nested decoder shares one count. */
+  public depth = 0;
   private dv: DataView;
 
   constructor(public readonly data: Uint8Array, start = 0, end?: number) {
