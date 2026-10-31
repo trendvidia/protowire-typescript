@@ -1,7 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 TrendVidia, LLC.
 import { describe, it, expect } from "vitest";
-import { defineMessage, marshal, unmarshal, type MessageCodec } from "./codec.js";
+import {
+  defineMessage,
+  marshal,
+  MAX_NESTING_DEPTH,
+  unmarshal,
+  type MessageCodec,
+} from "./codec.js";
 
 interface Inner {
   name: string;
@@ -207,5 +213,78 @@ describe("schema validation", () => {
         ],
       }),
     ).toThrow(/repeated and a map/);
+  });
+});
+
+interface Tree {
+  child?: Tree;
+  label?: string;
+  branches?: Record<string, Tree>;
+  tags?: Record<string, string>;
+}
+
+// Field 3, adversarial.v1.Tree's `children`, isn't needed here. The getters
+// let the codec name itself.
+const TreePb: MessageCodec<Tree> = defineMessage<Tree>({
+  fields: [
+    {
+      number: 1,
+      name: "child",
+      get kind() {
+        return { message: TreePb };
+      },
+    },
+    { number: 2, name: "label", kind: "string" },
+    {
+      number: 4,
+      name: "branches",
+      mapKey: "string",
+      get kind() {
+        return { message: TreePb };
+      },
+    },
+    { number: 5, name: "tags", kind: "string", mapKey: "string" },
+  ],
+});
+
+const wrap = (n: number, inner: Tree): Tree => {
+  let t = inner;
+  for (let i = 0; i < n; i++) t = { child: t };
+  return t;
+};
+
+const wrapBranches = (n: number, inner: Tree): Tree => {
+  let t = inner;
+  for (let i = 0; i < n; i++) t = { branches: { k: t } };
+  return t;
+};
+
+describe("MAX_NESTING_DEPTH", () => {
+  const half = MAX_NESTING_DEPTH / 2;
+  const rows: [string, Tree, Tree][] = [
+    ["submessages", wrap(MAX_NESTING_DEPTH, {}), wrap(MAX_NESTING_DEPTH + 1, {})],
+    ["message-valued map entries", wrapBranches(half, {}), wrapBranches(half, wrap(1, {}))],
+    [
+      "a scalar-valued map entry",
+      wrap(MAX_NESTING_DEPTH - 1, { tags: { k: "v" } }),
+      wrap(MAX_NESTING_DEPTH, { tags: { k: "v" } }),
+    ],
+  ];
+
+  for (const [name, atBound, onePast] of rows) {
+    it(`${name}: accepts the bound and rejects one past`, () => {
+      expect(() => unmarshal(marshal(atBound, TreePb), TreePb)).not.toThrow();
+      expect(() => unmarshal(marshal(onePast, TreePb), TreePb)).toThrow(
+        "nesting depth exceeds MaxNestingDepth=100",
+      );
+    });
+  }
+
+  it("counts depth, not the number of entries", () => {
+    const tags: Record<string, string> = {};
+    for (let i = 0; i < 300; i++) tags[`k${i}`] = "v";
+    const t = wrap(MAX_NESTING_DEPTH - 1, { tags });
+    const got = unmarshal(marshal(t, TreePb), TreePb);
+    expect(got.child).toBeDefined();
   });
 });
