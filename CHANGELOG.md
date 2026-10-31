@@ -17,6 +17,8 @@ format changes.
 
 ## [Unreleased]
 
+## [1.3.0] — 2026-10-31
+
 ### Added
 
 - **Keyed repeated fields** (draft `-01` §3.13; [#29](https://github.com/trendvidia/protowire-typescript/issues/29), [trendvidia/protowire#116](https://github.com/trendvidia/protowire/issues/116)). A `repeated <Message>` field with `(pxf.key)` can be written as a block of named blocks, with the entry name as the key and entry order as list order.
