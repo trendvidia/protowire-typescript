@@ -246,7 +246,7 @@ describe("(pxf.key) placement", () => {
   });
 
   it("is rejected at bind time, unless the caller skips validation", () => {
-    expect(() => unmarshal('name = "x"', Clean)).toThrow(/PXF schema \(pxf\.key\) violations/);
+    expect(() => unmarshal('name = "x"', Clean)).toThrow(/PXF schema violations:\n.*invalid \(pxf\.key\)/);
     expect(() => unmarshal('name = "x"', Clean, { skipValidate: true })).not.toThrow();
   });
 
@@ -367,6 +367,19 @@ describe("encode", () => {
     expect(marshal(root(node("a")), Node, { nullFields: nulls })).toBe(
       'type = null\nchildren {\n  a {\n    type = "T"\n  }\n}\n',
     );
+  });
+});
+
+
+describe("keyed blocks and MaxNestingDepth", () => {
+  const Node = message(registry, "keyed.v1.Node");
+  // Each level is the block's `{` and the entry's `{`, so two descents.
+  const chain = (levels: number, inner: string): string =>
+    "children { a { ".repeat(levels) + inner + " } }".repeat(levels);
+
+  it("counts the block's own { (HARDENING.md § Recursion)", () => {
+    expect(() => unmarshal(chain(50, ""), Node)).not.toThrow();
+    expect(() => unmarshal(chain(50, "children { }"), Node)).toThrow(/MaxNesting/);
   });
 });
 

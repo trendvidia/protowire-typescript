@@ -34,6 +34,45 @@ format changes.
 
 - **The vendored shared schemas are re-synced with [trendvidia/protos](https://github.com/trendvidia/protos) v0.1.2** ([trendvidia/protowire#447](https://github.com/trendvidia/protowire/issues/447)). They gain protos' file options. Declarations and field numbers are unchanged, and so is this port's public API.
 
+### Changed
+
+- **The vendored shared schemas are re-synced with [trendvidia/protos](https://github.com/trendvidia/protos) v0.1.2** ([trendvidia/protowire#447](https://github.com/trendvidia/protowire/issues/447)). They gain protos' file options. Declarations and field numbers are unchanged, and so is this port's public API.
+
+- **`asValidationErrorMessage`-built errors now start `PXF schema
+  violations:`**, not `PXF schema reserved-name violations:`, because
+  they are no longer only about names.
+
+### Fixed
+
+- **`(pxf.required)` with `(pxf.default)` on one field fails when the
+  schema is bound** ((#59)), as draft -01 "Required and Default"
+  requires (protowire#453). Such a schema used to bind, and the
+  outcome for a document omitting the field depended on the engine.
+  `unmarshal` and `unmarshalFull` now throw, and `validateDescriptor`
+  and `validateFile` report it with the new `requiredOption` kind and
+  a new optional `Violation.detail`. `(pxf.required) = false` beside a
+  default stays accepted. This port reads only the bracket options,
+  and checks one file, as its reserved-name check does; widening that
+  to the import closure is #33.
+  
+### Added
+
+- **`pxf.MAX_NESTING_DEPTH` and `pb.MAX_NESTING_DEPTH`**, both 100, and
+  `Reader.depth`, which carries the count through nested PB decoders.
+
+### Fixed
+
+- **PXF and PB decoding enforce `MaxNestingDepth`** (protowire#449,
+  HARDENING.md § Recursion). This port had no limit. Documents and
+  messages nested past 100 levels used to decode, and a very deep PXF
+  document failed with a stack-overflow `RangeError`. Now `parse`,
+  `unmarshal`, `unmarshalFull` and `defineMessage` codecs all fail with
+  `nesting depth exceeds MaxNestingDepth=100`. Every PXF `{` or `[`
+  counts, including a map's own `{`, a directive block and the skipped
+  text of an unknown field. Every PB submessage and map entry counts,
+  whatever the entry's value type. This narrows what the decoders
+  accept.
+
 ## [1.2.0] — 2026-05-14
 
 Additive minor — no breaking changes, no wire-format change.

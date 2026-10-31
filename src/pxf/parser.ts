@@ -32,6 +32,14 @@ import { PxfError } from "./errors.js";
 import { Lexer } from "./lexer.js";
 import { type Position, type Token, TokenKind, tokenKindName } from "./token.js";
 
+/**
+ * How many `{` and `[` a document may nest. The root message is depth 0, and
+ * every `{` or `[` is one descent, a map's own `{` included: a document whose
+ * deepest point is exactly this many descents is accepted, and one more is
+ * rejected, by the parser and the decoder alike (HARDENING.md § Recursion).
+ */
+export const MAX_NESTING_DEPTH = 100;
+
 export function parse(input: string): Document {
   return new Parser(input).parseDocument();
 }
@@ -40,6 +48,7 @@ class Parser {
   private readonly lex: Lexer;
   private current!: Token;
   private pendingComments: Comment[] = [];
+  private depth = 0;
 
   constructor(input: string) {
     this.lex = new Lexer(input);
@@ -64,6 +73,13 @@ class Parser {
         continue;
       }
       return this.current;
+    }
+  }
+
+  /** Count the `{` or `[` at `pos`. The caller decrements after its close. */
+  private descend(pos: Position): void {
+    if (++this.depth > MAX_NESTING_DEPTH) {
+      throw new PxfError(pos, `nesting depth exceeds MaxNestingDepth=${MAX_NESTING_DEPTH}`);
     }
   }
 
@@ -542,8 +558,10 @@ class Parser {
             `submessage block requires an identifier or string key, got ${tokenKindName(keyKind)} (${JSON.stringify(key)})`,
           );
         }
+        this.descend(this.current.pos);
         this.advance(); // consume {
         const entries = this.parseBody();
+        this.depth--;
         const b: Block = {
           kind: "block",
           pos,
@@ -618,6 +636,7 @@ class Parser {
 
   private parseList(): ListVal {
     const pos = this.current.pos;
+    this.descend(pos);
     this.advance(); // consume [
 
     const elements: Value[] = [];
@@ -635,13 +654,16 @@ class Parser {
       );
     }
     this.advance();
+    this.depth--;
     return { kind: "list", pos, elements };
   }
 
   private parseBlockVal(): BlockVal {
     const pos = this.current.pos;
+    this.descend(pos);
     this.advance(); // consume {
     const entries = this.parseBody();
+    this.depth--;
     return { kind: "blockVal", pos, entries };
   }
 

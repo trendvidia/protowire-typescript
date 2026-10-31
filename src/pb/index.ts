@@ -4,6 +4,7 @@ export { Reader, Writer, WireType } from "./wire.js";
 export {
   defineMessage,
   marshal,
+  MAX_NESTING_DEPTH,
   unmarshal,
 } from "./codec.js";
 export type {
