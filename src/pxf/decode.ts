@@ -1092,6 +1092,9 @@ class Decoder {
   ): void {
     const saved = this.pathPrefix;
     if (this.result) this.pathPrefix = `${saved}${fd.name}[${index}].`;
+    // The entry name supplies the key field, so presence must say so: a reader
+    // that sees it absent would apply a default over the name (protowire-go#214).
+    if (ke.entryName !== undefined) this.result?.markPresent(this.pathPrefix + ke.keyName);
     this.elemDepth++;
     this.decodeFields(elem, true, ke);
     this.elemDepth--;
