@@ -51,7 +51,8 @@ export interface Violation {
   /** Fully-qualified protobuf name (e.g. "trades.v1.Side.null"). */
   readonly element: string;
   /** Bare reserved identifier ("null" / "true" / "false"), the field's name,
-   * or the `(pxf.key)` annotation value for a `keyOption` violation. */
+   * the `(pxf.key)` annotation value for a `keyOption` violation, or the
+   * `(pxf.default)` literal for a `requiredOption` violation. */
   readonly name: string;
   readonly kind: ViolationKind;
   /** Explanation; set for `requiredOption` and `keyOption`, absent for the
@@ -200,11 +201,12 @@ function walkMessage(path: string, md: DescMessage, out: Violation[]): void {
       });
     }
     // An empty default is still a default, so this tests for presence.
-    if (isRequired(f) && getDefault(f) !== undefined) {
+    const def = getDefault(f);
+    if (isRequired(f) && def !== undefined) {
       out.push({
         file: path,
         element: `${md.typeName}.${f.name}`,
-        name: f.name,
+        name: def,
         kind: "requiredOption",
         detail:
           "(pxf.required) and (pxf.default) are exclusive on one field: the first rejects a document where the field is absent, and the second treats it as supplied",
