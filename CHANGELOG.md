@@ -17,6 +17,10 @@ format changes.
 
 ## [Unreleased]
 
+### Changed
+
+- **`Violation.name` holds the `(pxf.default)` literal for `(pxf.required)` with `(pxf.default)` on one field** (protowire-go#211). It was the bare field name, which `element` already gives.
+
 ## [1.3.0] — 2026-10-31
 
 ### Added
