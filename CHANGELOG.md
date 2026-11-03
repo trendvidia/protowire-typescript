@@ -19,6 +19,8 @@ format changes.
 
 ### Added
 
+- **`@type` as the first entry of an `Any` block** ([#48](https://github.com/trendvidia/protowire-typescript/issues/48), protowire#354). `parse` accepts it in any block and rejects it anywhere else, the decoder takes it in a list element or a map value too, and `format` keeps it. `Entry` gains `TypeEntry`.
+
 - **v1.11 bind-time checks over the import closure** ([#33](https://github.com/trendvidia/protowire-typescript/issues/33)). `validateDescriptor` and `unmarshal` report a misplaced `(pxf.default)` as the new `defaultOption` kind, two defaults in one oneof, `(pxf.required)` on a oneof member, and reserved names, in the bound file and everything it imports. Results are cached per descriptor. This narrows accepted schemas: one bad placement fails every file that imports it.
 
 - **`@required` and `@default` are read** ([#62](https://github.com/trendvidia/protowire-typescript/issues/62)), from the annotation carrier at extension 1327, alongside the bracket spelling. Different defaults in the two spellings are a `defaultOption` violation. `@default` on a big-number field is reported as a violation for now rather than dropped.
@@ -26,6 +28,8 @@ format changes.
 - **Conformance test against protowire-go.** `src/pxf/corpus.test.ts` holds this port to the reference on the spec repo's `any`, `blocks`, `dataset`, `duplicates`, `duration`, `map-keys`, `nulls`, `repeated` and `strings` fixtures: the same verdict on each leg, and the same bound message. `scripts/go-reference` records the reference's results for a pinned protowire-go, and CI regenerates them. Fixtures this port does not meet yet are listed with their issue. A `,` or `;` between block entries was already rejected ([#54](https://github.com/trendvidia/protowire-typescript/issues/54)).
 
 ### Fixed
+
+- **`discardUnknown` no longer accepts what `parse` rejects** ([#61](https://github.com/trendvidia/protowire-typescript/issues/61)). An unterminated or mismatched unknown value decoded without error.
 
 - **`(pxf.required)` and `(pxf.default)` apply inside list elements, map values and `Any` bodies** ([#58](https://github.com/trendvidia/protowire-typescript/issues/58), [#68](https://github.com/trendvidia/protowire-typescript/issues/68)). `Result` records those fields under their own paths (`items[0].a`, `by_key["k"].a`, `payload.a`), so a field inside one no longer makes a same-named field of the enclosing message look present.
 

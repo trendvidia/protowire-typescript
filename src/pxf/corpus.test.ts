@@ -36,6 +36,7 @@ interface FixtureRecord {
   format?: string;
   decode: Leg;
   full: Leg;
+  discard: boolean;
   marshal?: string;
   stream?: Leg;
 }
@@ -48,14 +49,6 @@ const record = JSON.parse(readFileSync(resolve(root, "reference.json"), "utf8"))
 const reference = record.fixtures;
 
 const GAPS: Record<string, number> = {
-  "postdecode/any-default.pxf": 48,
-  "postdecode/err-any-does-not-satisfy-outer.pxf": 48,
-  "postdecode/err-any-required.pxf": 48,
-  "any/assignment.pxf": 48,
-  "any/block.pxf": 48,
-  "any/list-element.pxf": 48,
-  "any/map-value.pxf": 48,
-  "any/url-verbatim.pxf": 48,
   "dataset/block-cell.pxf": 47,
   "dataset/cell-framing.pxf": 47,
   "dataset/dotted-bad-header-no-rows.pxf": 49,
@@ -70,8 +63,6 @@ const GAPS: Record<string, number> = {
   "dataset/duplicate-column.pxf": 49,
   "dataset/list-cell.pxf": 47,
   "dataset/nested-cells.pxf": 47,
-  "any/err-not-any.pxf": 48,
-  "any/err-unresolved.pxf": 48,
   "dataset/block-on-scalar.pxf": 47,
   "dataset/dotted-bad-header-empty-row.pxf": 49,
   "dataset/dotted-into-bignum.pxf": 49,
@@ -164,6 +155,13 @@ for (const dir of dirs) {
           failures.push("marshal: text differs from the reference");
         }
         if (!want.stream) {
+          let skipped = true;
+          try {
+            unmarshal(text, desc, { typeResolver, discardUnknown: true });
+          } catch {
+            skipped = false;
+          }
+          if (skipped !== want.discard) failures.push(`discardUnknown: ${skipped ? "accepted" : "rejected"}, the reference did not`);
           const full = compare("full", want.full, desc, () => [unmarshalFull(text, desc, { typeResolver }).message]);
           if (full) failures.push(full);
         }
