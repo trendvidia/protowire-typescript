@@ -7,7 +7,11 @@ modules:
   # The former 50000-series was an unregistered squat and is retired.
   - path: proto
   # Test fixtures.
+  # The corpus is vendored per directory, so its files redefine each other's
+  # symbols. scripts/gen-corpus.sh builds each directory on its own.
   - path: src/pxf/testdata
+    excludes:
+      - src/pxf/testdata/corpus
   - path: src/sbe/testdata
 lint:
   use:
