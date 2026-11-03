@@ -191,6 +191,46 @@ export const BigFloatCodec: MessageCodec<BigFloatValue> = {
   },
 };
 
+/** The shape of a `pxf.Decimal` on the wire. */
+export interface DecimalValue {
+  unscaled?: Uint8Array;
+  scale?: number;
+  negative?: boolean;
+}
+
+function checkDecimal(v: DecimalValue): void {
+  const scale = v.scale ?? 0;
+  if (scale > 4096 || scale < -4096) {
+    throw new Error(`pxf.Decimal scale ${scale} exceeds MaxNumericLiteralDigits=4096`);
+  }
+}
+
+const decimalFields = defineMessage<DecimalValue>({
+  fields: [
+    { number: 1, name: "unscaled", kind: "bytes" },
+    { number: 2, name: "scale", kind: "int32" },
+    { number: 3, name: "negative", kind: "bool" },
+  ],
+});
+
+/**
+ * The codec of a `pxf.Decimal`, for a field's `{ message: DecimalCodec }`. It
+ * rejects a scale past MaxNumericLiteralDigits, nested or not, before anything
+ * is materialised from it.
+ */
+export const DecimalCodec: MessageCodec<DecimalValue> = {
+  ...decimalFields,
+  unmarshalFrom(r, end, into) {
+    decimalFields.unmarshalFrom(r, end, into);
+    checkDecimal(into as DecimalValue);
+  },
+  unmarshal(data) {
+    const v = decimalFields.unmarshal(data);
+    checkDecimal(v);
+    return v;
+  },
+};
+
 export function marshal<T>(value: T, codec: MessageCodec<T>): Uint8Array {
   return codec.marshal(value);
 }

@@ -74,3 +74,18 @@ export function isBigFloat(desc: DescMessage): boolean {
     return fd?.fieldKind === "scalar" && fd.number === number && fd.scalar === scalar;
   });
 }
+
+/** `pxf.BigInt`, by its shape as well as its name. */
+export function isBigInt(desc: DescMessage): boolean {
+  return desc.typeName === "pxf.BigInt" && findFieldByProtoName(desc, "abs")?.fieldKind === "scalar";
+}
+
+/** `pxf.Decimal`, by its shape as well as its name. */
+export function isDecimal(desc: DescMessage): boolean {
+  return desc.typeName === "pxf.Decimal" && findFieldByProtoName(desc, "unscaled")?.fieldKind === "scalar";
+}
+
+/** A type written as a number literal. */
+export function isBigNumber(desc: DescMessage): boolean {
+  return isBigInt(desc) || isDecimal(desc) || isBigFloat(desc);
+}
