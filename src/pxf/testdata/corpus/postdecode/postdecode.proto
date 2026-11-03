@@ -1,0 +1,23 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 TrendVidia, LLC.
+// Written for this port, not vendored: the post-decode pass in message bodies
+// (#58, #68). Its fixtures go through the same protowire-go comparison.
+syntax = "proto3";
+package postdecode.v1;
+
+import "google/protobuf/any.proto";
+import "pxf/annotations.proto";
+
+message Leaf {
+  string name = 1 [(pxf.required) = true];
+  string tag = 2 [(pxf.default) = "dflt"];
+}
+
+message Root {
+  string name = 1 [(pxf.required) = true];
+  repeated Leaf list = 2;
+  map<string, Leaf> by_key = 3;
+  map<int32, Leaf> by_num = 4;
+  google.protobuf.Any payload = 5;
+  Leaf single = 6;
+}

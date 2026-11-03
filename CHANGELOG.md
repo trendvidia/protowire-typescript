@@ -27,6 +27,10 @@ format changes.
 
 ### Fixed
 
+- **`(pxf.required)` and `(pxf.default)` apply inside list elements, map values and `Any` bodies** ([#58](https://github.com/trendvidia/protowire-typescript/issues/58), [#68](https://github.com/trendvidia/protowire-typescript/issues/68)). `Result` records those fields under their own paths (`items[0].a`, `by_key["k"].a`, `payload.a`), so a field inside one no longer makes a same-named field of the enclosing message look present.
+
+- **A keyed entry body may not undo its entry name** ([#69](https://github.com/trendvidia/protowire-typescript/issues/69), protowire#480): `null` on the key, and another member of the key's oneof, are rejected inside a named entry.
+
 - **A `(pxf.default)` on a oneof member no longer destroys the arm the document chose** ([#31](https://github.com/trendvidia/protowire-typescript/issues/31)). It applies only when no member is present, and a null member counts as present.
 
 - **`Violation.file` is the descriptor's path, extension included** ([#32](https://github.com/trendvidia/protowire-typescript/issues/32)), as in the other ports.

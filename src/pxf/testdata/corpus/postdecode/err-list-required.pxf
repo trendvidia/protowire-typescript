@@ -1,0 +1,4 @@
+@type postdecode.v1.Root
+
+name = "r"
+list = [{ name = "a" }, { tag = "x" }]
