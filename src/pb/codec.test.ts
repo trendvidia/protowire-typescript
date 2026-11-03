@@ -3,6 +3,7 @@
 import { Envelope, EnvelopePb, newAppError } from "../envelope/index.js";
 import { describe, it, expect } from "vitest";
 import {
+  BigFloatCodec,
   defineMessage,
   marshal,
   MAX_NESTING_DEPTH,
@@ -320,5 +321,58 @@ describe("packed repeated scalars", () => {
   it("counts elements against MaxRepeatedCount", () => {
     expect(() => unmarshal(packed, Ints, { maxRepeatedCount: 2 })).toThrow(/MaxRepeatedCount=2/);
     expect(unmarshal(packed, Ints, { maxRepeatedCount: 3 }).values).toHaveLength(3);
+  });
+});
+
+describe("32-bit varint kinds keep the low 32 bits of a 10-byte varint (#95)", () => {
+  const varint = (v: bigint): number[] => {
+    const out: number[] = [];
+    do {
+      let b = Number(v & 0x7fn);
+      v >>= 7n;
+      if (v > 0n) b |= 0x80;
+      out.push(b);
+    } while (v > 0n);
+    return out;
+  };
+  const one = <T,>(kind: "uint32" | "bool" | "sint32", v: bigint): T => {
+    const M = defineMessage<{ x: T }>({ fields: [{ number: 1, name: "x", kind }], create: () => ({}) as { x: T } });
+    return unmarshal(Uint8Array.from([0x08, ...varint(v)]), M).x;
+  };
+  const big = (n: number) => 2n ** BigInt(n);
+
+  it.each([
+    ["uint32", big(32) + 5n, 5],
+    ["uint32", big(63) + 5n, 5],
+    ["bool", big(63) + 5n, true],
+    ["bool", big(32), true],
+    ["sint32", big(63) + 5n, -3],
+  ] as const)("%s %s", (kind, v, want) => {
+    expect(one(kind, v)).toBe(want);
+  });
+
+  it("rejects a varint past 10 bytes", () => {
+    const M = defineMessage<{ x: number }>({ fields: [{ number: 1, name: "x", kind: "uint32" }], create: () => ({ x: 0 }) });
+    expect(() => unmarshal(Uint8Array.from([0x08, ...Array(10).fill(0xff), 0x01]), M)).toThrow(/longer than 10 bytes/);
+  });
+
+  it.each([
+    [big(32), "0, a zero"],
+    [big(32) + 53n, "53"],
+    [big(64) - 1n, "4294967295, past the bound"],
+  ])("BigFloatCodec prec %s reads as %s", (prec, _) => {
+    const wire = Uint8Array.from([0x0a, 0x01, 0x01, 0x18, ...varint(prec)]);
+    if (prec === big(64) - 1n) {
+      expect(() => unmarshal(wire, BigFloatCodec)).toThrow(/prec 4294967295/);
+    } else {
+      expect(unmarshal(wire, BigFloatCodec).prec).toBe(Number(prec % big(32)));
+    }
+  });
+
+  it("BigFloatCodec bounds prec as a precision suffix is bounded", () => {
+    const at = Uint8Array.from([0x0a, 0x01, 0x01, 0x18, ...varint(13603n)]);
+    const past = Uint8Array.from([0x0a, 0x01, 0x01, 0x18, ...varint(13604n)]);
+    expect(unmarshal(at, BigFloatCodec).prec).toBe(13603);
+    expect(() => unmarshal(past, BigFloatCodec)).toThrow(/prec above 13603/);
   });
 });
