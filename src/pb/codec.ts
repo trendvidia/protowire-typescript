@@ -182,6 +182,22 @@ export interface BigFloatValue {
   negative?: boolean;
 }
 
+/**
+ * The widest prec whose literal needs no more than `maxDigits` digits:
+ * floor((maxDigits - 1) / log10(2)), 13603 at the default (protowire#499).
+ * Computed from the bound, so 2^prec is never formed.
+ */
+function maxBigFloatPrec(maxDigits: number): number {
+  return Math.floor((maxDigits - 1) / Math.log10(2));
+}
+
+function checkBigFloatPrec(v: BigFloatValue, maxDigits: number): void {
+  const bound = maxBigFloatPrec(maxDigits);
+  if ((v.prec ?? 0) > bound) {
+    throw new Error(`pxf.BigFloat prec ${v.prec} implies more than MaxNumericLiteralDigits=${maxDigits} digits (prec above ${bound})`);
+  }
+}
+
 function checkBigFloat(v: BigFloatValue, max: number): void {
   // Precision 0 is zero, and a zero mantissa is zero at any exponent.
   const m = v.mantissa;
@@ -211,10 +227,12 @@ export const BigFloatCodec: MessageCodec<BigFloatValue> = {
   ...bigFloatFields,
   unmarshalFrom(r, end, into) {
     bigFloatFields.unmarshalFrom(r, end, into);
+    checkBigFloatPrec(into as BigFloatValue, r.maxDigits);
     checkBigFloat(into as BigFloatValue, r.maxBigFloatExponent);
   },
   unmarshal(data, options) {
     const v = bigFloatFields.unmarshal(data, options);
+    checkBigFloatPrec(v, options?.maxNumericLiteralDigits ?? 4096);
     checkBigFloat(v, options?.maxBigFloatExponent ?? MAX_BIG_FLOAT_EXPONENT);
     return v;
   },
@@ -562,7 +580,7 @@ function unmarshalMessageFrom(
 function readScalarValue(r: Reader, kind: ScalarKind): unknown {
   switch (kind) {
     case "bool":
-      return r.varint() !== 0;
+      return r.varintNonZero();
     case "int32": {
       // proto3 int32: read 10-byte-tolerant varint, take low 32 bits as signed.
       const u = r.varintBig();
@@ -577,7 +595,7 @@ function readScalarValue(r: Reader, kind: ScalarKind): unknown {
     case "sint64":
       return r.zigzag64();
     case "uint32":
-      return r.varint();
+      return r.varint32();
     case "uint64":
       return r.varintBig();
     case "float":

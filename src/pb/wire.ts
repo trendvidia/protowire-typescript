@@ -236,8 +236,35 @@ export class Reader {
   }
 
   /** Read a signed zigzag varint as a JS number (32-bit). */
+  /**
+   * The low 32 bits of a varint of up to 10 bytes, unsigned, as a protobuf
+   * reader keeps them for a 32-bit field. The bits past 32 are read and dropped.
+   */
+  varint32(): number {
+    let result = 0;
+    for (let i = 0; i < 10; i++) {
+      if (this.pos >= this.data.length) throw new Error("truncated varint");
+      const b = this.data[this.pos++]!;
+      if (i < 5) result |= (b & 0x7f) << (7 * i);
+      if ((b & 0x80) === 0) return result >>> 0;
+    }
+    throw new Error("varint longer than 10 bytes");
+  }
+
+  /** Whether a varint of up to 10 bytes is non-zero, whatever its width. */
+  varintNonZero(): boolean {
+    let any = 0;
+    for (let i = 0; i < 10; i++) {
+      if (this.pos >= this.data.length) throw new Error("truncated varint");
+      const b = this.data[this.pos++]!;
+      any |= b & 0x7f;
+      if ((b & 0x80) === 0) return any !== 0;
+    }
+    throw new Error("varint longer than 10 bytes");
+  }
+
   zigzag32(): number {
-    const u = this.varint();
+    const u = this.varint32();
     return (u >>> 1) ^ -(u & 1);
   }
 

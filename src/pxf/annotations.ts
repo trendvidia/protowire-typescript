@@ -353,7 +353,8 @@ function argLiteral(arg: Uint8Array, fd: DescField): { literal: string } | { pro
       case ARG_BIG_FLOAT:
         if (f.bytes) {
           const parts = wireFields(f.bytes);
-          const prec = Number(parts.find((x) => x.no === 3)?.int ?? 0n);
+          // uint32 on the wire: a protobuf reader keeps the low 32 bits.
+          const prec = Number(BigInt.asUintN(32, parts.find((x) => x.no === 3)?.int ?? 0n));
           if (prec === 0) return { problem: "@default's big_float_value declares no precision" };
           try {
             return {
