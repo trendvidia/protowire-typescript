@@ -78,6 +78,8 @@ format changes.
 
 ### Changed
 
+- **`marshal` refuses a message nested past `MaxNestingDepth`** ([#96](https://github.com/trendvidia/protowire-typescript/issues/96), protowire#502), in `pxf` and `pb`. A message deeper than 100 levels used to be written, and a default reader then refused it. Levels are counted as a decoder counts them, so lists and maps reach the limit at 50 levels of nesting. `maxNestingDepth` on `MarshalOptions` raises it, to pair with the same option on every reader. An `Any` too deep to write as a body is written as `type_url` and `value`.
+
 - **`MaxNestingDepth`, `MaxNumericLiteralDigits` and `MaxBigFloatExponent` can be set per call** ([#55](https://github.com/trendvidia/protowire-typescript/issues/55)), in the PXF and `pb` decoders, as the size and count limits can. `check-decode --limit` takes all six names, as the reference's harness does.
 
 - **`MaxMessageSize`, `MaxBytesLiteralLength` and `MaxRepeatedCount` are enforced** ([#55](https://github.com/trendvidia/protowire-typescript/issues/55), HARDENING.md § Mandatory limits). The PXF, `pb` and SBE decoders reject input past them, at 64 MiB by default, and each takes options to lower them.

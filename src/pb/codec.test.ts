@@ -404,3 +404,32 @@ describe("invalid UTF-8 in a string field (#93)", () => {
     expect(unmarshal(Uint8Array.from([0x0a, enc.length, ...enc]), S).s).toBe(text);
   });
 });
+
+describe("marshal refuses a message nested past MaxNestingDepth (protowire#502)", () => {
+  interface Node { child?: Node; tags: Record<string, Node> }
+  const NodePb: MessageCodec<Node> = defineMessage<Node>({
+    fields: [
+      { number: 1, name: "child", get kind() { return { message: NodePb }; } },
+      { number: 2, name: "tags", mapKey: "string", get kind() { return { message: NodePb }; } },
+    ],
+    create: () => ({ tags: {} }),
+  });
+  const chain = (n: number): Node => {
+    let node: Node = { tags: {} };
+    for (let i = 0; i < n; i++) node = { child: node, tags: {} };
+    return node;
+  };
+
+  it("writes 100 levels and refuses 101", () => {
+    expect(() => marshal(chain(100), NodePb)).not.toThrow();
+    expect(() => marshal(chain(101), NodePb)).toThrow(/MaxNestingDepth=100/);
+    expect(() => marshal(chain(101), NodePb, { maxNestingDepth: 101 })).not.toThrow();
+  });
+
+  it("counts a map entry as a descent of its own", () => {
+    let node: Node = { tags: {} };
+    for (let i = 0; i < 50; i++) node = { tags: { k: node } };
+    expect(() => marshal(node, NodePb)).not.toThrow();
+    expect(() => marshal({ tags: { k: node } }, NodePb)).toThrow(/MaxNestingDepth=100/);
+  });
+});

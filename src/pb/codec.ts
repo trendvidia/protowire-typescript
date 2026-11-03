@@ -36,6 +36,12 @@ export const MAX_NESTING_DEPTH = 100;
  * MaxRepeatedCount. */
 export const MAX_MESSAGE_SIZE = 64 << 20;
 
+export interface MarshalOptions {
+  /** The deepest a message may nest, counted as a decoder counts it. Default
+   * {@link MAX_NESTING_DEPTH}. Raise it only with the same option on every reader. */
+  readonly maxNestingDepth?: number;
+}
+
 export interface UnmarshalOptions {
   /** Bytes of input a call may read. Default {@link MAX_MESSAGE_SIZE}. */
   readonly maxMessageSize?: number;
@@ -118,7 +124,7 @@ export interface CodecBase {
 
 export interface MessageCodec<T> extends CodecBase {
   create(): T;
-  marshal(value: T): Uint8Array;
+  marshal(value: T, options?: MarshalOptions): Uint8Array;
   unmarshal(data: Uint8Array, options?: UnmarshalOptions): T;
 }
 
@@ -159,8 +165,9 @@ export function defineMessage<T extends object>(
     unmarshalFrom(r, end, into) {
       unmarshalMessageFrom(r, end, into, this);
     },
-    marshal(value) {
+    marshal(value, options) {
       const w = new Writer();
+      w.maxDepth = options?.maxNestingDepth ?? MAX_NESTING_DEPTH;
       marshalMessageInto(w, value, this);
       return w.finish();
     },
@@ -278,8 +285,8 @@ export const DecimalCodec: MessageCodec<DecimalValue> = {
   },
 };
 
-export function marshal<T>(value: T, codec: MessageCodec<T>): Uint8Array {
-  return codec.marshal(value);
+export function marshal<T>(value: T, codec: MessageCodec<T>, options?: MarshalOptions): Uint8Array {
+  return codec.marshal(value, options);
 }
 
 export function unmarshal<T>(data: Uint8Array, codec: MessageCodec<T>, options?: UnmarshalOptions): T {
@@ -375,8 +382,22 @@ function writeScalarValue(w: Writer, kind: ScalarKind, v: unknown): void {
   }
 }
 
-function writeNestedMessage(w: Writer, codec: CodecBase, value: unknown): void {
+/**
+ * A writer one descent below `w`. A reader at the same limit would refuse a
+ * deeper message, so the producer refuses it first (protowire#502).
+ */
+function childWriter(w: Writer): Writer {
   const inner = new Writer();
+  inner.depth = w.depth + 1;
+  inner.maxDepth = w.maxDepth;
+  if (inner.depth > inner.maxDepth) {
+    throw new Error(`nesting depth exceeds MaxNestingDepth=${inner.maxDepth}`);
+  }
+  return inner;
+}
+
+function writeNestedMessage(w: Writer, codec: CodecBase, value: unknown): void {
+  const inner = childWriter(w);
   codec.marshalInto(inner, value);
   const bytes = inner.finish();
   w.varint(bytes.length);
@@ -436,7 +457,8 @@ function writeMapField(w: Writer, f: FieldSpec, v: unknown): void {
   const keyKind = f.mapKey!;
   const valueIsMessage = typeof f.kind !== "string";
   for (const [key, val] of mapEntries(v, keyKind)) {
-    const inner = new Writer();
+    // A map entry is a descent of its own, as a reader counts it.
+    const inner = childWriter(w);
     // Both, zero-valued or not, as protoc and protobuf-go write them
     // (protowire#295).
     inner.tag(1, wireTypeOf(keyKind));
