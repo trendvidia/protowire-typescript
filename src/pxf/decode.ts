@@ -37,12 +37,16 @@ import {
   parseBigFloatLiteral,
   parseBigFloatString,
 } from "./bigfloat.js";
+import { type BigIntFields, type DecimalFields, parseBigInt, parseDecimal } from "./bignum.js";
 import { parseGoDuration } from "./duration.js";
 import { findMatchingBrace, MAX_NESTING_DEPTH, parse, parseDatasetAt } from "./parser.js";
 import {
   findFieldByProtoName,
   isAny,
   isBigFloat,
+  isBigInt,
+  isBigNumber,
+  isDecimal,
   isDuration,
   isTimestamp,
   isWrapperType,
@@ -615,8 +619,8 @@ class Decoder {
     const sub = create(fd.message);
     const subRefl = reflect(fd.message, sub);
     if (this.tryDecodeWkt(subRefl)) {
-      // A BigFloat literal sets every field the block form would.
-      if (isBigFloat(fd.message) && this.result) {
+      // A number literal sets every field the block form would.
+      if (isBigNumber(fd.message) && this.result) {
         for (const inner of fd.message.fields) {
           this.result.markPresent(`${this.pathPrefix}${fd.name}.${inner.name}`);
         }
@@ -763,6 +767,18 @@ class Decoder {
       target.set(innerFd, v);
       return true;
     }
+    if (isBigInt(mdesc) && this.peek() === TokenKind.INT) {
+      this.rejectLiteralPrecision(mdesc);
+      setFields(target, this.literal(() => parseBigInt(this.current.value)));
+      this.advance();
+      return true;
+    }
+    if (isDecimal(mdesc) && (this.peek() === TokenKind.INT || this.peek() === TokenKind.FLOAT)) {
+      this.rejectLiteralPrecision(mdesc);
+      setFields(target, this.literal(() => parseDecimal(this.current.value)));
+      this.advance();
+      return true;
+    }
     if (isBigFloat(mdesc) && (this.peek() === TokenKind.INT || this.peek() === TokenKind.FLOAT)) {
       let fields: BigFloatFields;
       try {
@@ -775,6 +791,23 @@ class Decoder {
       return true;
     }
     return false;
+  }
+
+  private rejectLiteralPrecision(desc: DescMessage): void {
+    if (this.current.prec !== undefined) {
+      throw this.err(
+        this.current.pos,
+        `precision suffix p${clipLiteral(this.current.prec)} is allowed only on a pxf.BigFloat, not on a ${desc.typeName}`,
+      );
+    }
+  }
+
+  private literal<T>(parse: () => T): T {
+    try {
+      return parse();
+    } catch (e) {
+      throw this.err(this.current.pos, (e as Error).message);
+    }
   }
 
   /**
@@ -1544,6 +1577,16 @@ function siblingPresent(fd: DescField, result: Result, pathPrefix: string): bool
   return oo !== undefined && oo.fields.some((f) => f !== fd && !result.isAbsent(pathPrefix + f.name));
 }
 
+/** Set a literal's fields, leaving proto3 zero values unset. */
+function setFields(target: ReflectMessage, fields: BigIntFields | DecimalFields): void {
+  for (const [name, value] of Object.entries(fields)) {
+    const fd = findFieldByProtoName(target.desc, name);
+    if (!fd) continue;
+    if (value === false || value === 0 || (value instanceof Uint8Array && value.length === 0)) continue;
+    target.set(fd, value);
+  }
+}
+
 function applyDefault(parent: ReflectMessage, fd: DescField, def: string): void {
   const errPos: Position = { line: 1, column: 1, offset: 0 };
   if (fd.fieldKind === "scalar") {
@@ -1672,6 +1715,15 @@ function applyMessageDefault(
       throw new PxfError(pos, `internal: wrapper ${mdesc.typeName} missing 'value' field`);
     }
     subRefl.set(innerFd, parseScalarDefault(innerFd.scalar, def, fd, pos));
+    parent.set(fd, subRefl);
+    return;
+  }
+  if (isBigInt(mdesc) || isDecimal(mdesc)) {
+    try {
+      setFields(subRefl, isBigInt(mdesc) ? parseBigInt(def) : parseDecimal(def));
+    } catch (e) {
+      throw new PxfError(pos, `invalid default for field ${JSON.stringify(fd.name)}: ${(e as Error).message}`);
+    }
     parent.set(fd, subRefl);
     return;
   }

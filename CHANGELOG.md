@@ -19,6 +19,8 @@ format changes.
 
 ### Added
 
+- **`pxf.BigInt` and `pxf.Decimal` literals** ([#87](https://github.com/trendvidia/protowire-typescript/issues/87)). They read and write as numbers, in fields, list elements, map values and `(pxf.default)`, with `MaxNumericLiteralDigits` enforced both ways. `pb.DecimalCodec` bounds `Decimal.scale` on the wire. `@default` on a big number is now read from the carrier.
+
 - **`scripts/check-decode.ts`**, the HARDENING corpus harness ([#55](https://github.com/trendvidia/protowire-typescript/issues/55)). The spec repo's security gate can run this port again.
 
 - **`@dataset` value cells and dotted column paths** ([#47](https://github.com/trendvidia/protowire-typescript/issues/47), [#49](https://github.com/trendvidia/protowire-typescript/issues/49), protowire#341, #342). A cell holds any value, and a column may be a path into a sub-message such as `desc.tempo.min_bpm`. A row groups its cells by path prefix into one block per prefix. The header is rejected for a repeated or overlapping column or an empty segment, and when a row binds for a path that names no field or goes through a repeated, map or scalar field or into a literal type. `bindRow` runs the post-decode pass when the row type needs it, takes a `typeResolver`, and names the column in its errors. `formatValue` is exported.

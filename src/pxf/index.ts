@@ -15,6 +15,7 @@ export { format, type FormatOptions } from "./format.js";
 export { keyField } from "./annotations.js";
 export { canonicalizeKeyed, identSafeEntryName } from "./keyed.js";
 export { formatValue } from "./format.js";
+export { formatBigInt, formatDecimal, parseBigInt, parseDecimal } from "./bignum.js";
 export {
   unmarshal,
   unmarshalFull,
