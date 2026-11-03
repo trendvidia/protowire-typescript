@@ -8,6 +8,7 @@
 //   dump-envelope                        canonical Envelope → pb hex
 //   dump-envelope --pb  FDS MESSAGE DOC  PXF DOC decoded against MESSAGE in FDS → pb hex
 //   dump-envelope --sbe FDS MESSAGE DOC  same → SBE hex
+//   dump-envelope --vector NAME          a named wire vector → pb hex
 //
 // The fixture modes apply the PXF annotations the descriptor carries, which
 // is how the gate proves this port reads (pxf.required) = 1314,
@@ -17,7 +18,8 @@
 // must reject.
 //
 // Exit 0 with hex on stdout; 1 with "reject: <reason>" on stderr when the
-// schema rejects DOC; 2 for anything that is the harness's fault.
+// schema rejects DOC; 2 for anything that is the harness's fault; 3 with
+// "not-implemented: <name>" on stderr for a vector this port does not have.
 
 import { readFileSync } from "node:fs";
 
@@ -96,11 +98,24 @@ function dumpFixture(mode: string, fdsPath: string, message: string, docPath: st
   console.log(hex(out));
 }
 
+/** Named vectors, checked against a golden rather than port to port. */
+function dumpVector(name: string): void {
+  if (name !== "zero-map-entry") {
+    console.error(`not-implemented: ${name}`);
+    process.exit(3);
+  }
+  // Envelope { error { metadata { key: "" value: "" } } }
+  const error = newAppError("", "").withMeta("", "");
+  console.log(hex(EnvelopePb.marshal(new Envelope({ error }))));
+}
+
 const argv = process.argv.slice(2);
 if (argv.length === 0) {
   dumpEnvelope();
 } else if (argv.length === 4 && (argv[0] === "--pb" || argv[0] === "--sbe")) {
   dumpFixture(argv[0], argv[1]!, argv[2]!, argv[3]!);
+} else if (argv.length === 2 && argv[0] === "--vector") {
+  dumpVector(argv[1]!);
 } else {
-  fatal(2, "usage: dump-envelope [--pb|--sbe FDS MESSAGE DOC]");
+  fatal(2, "usage: dump-envelope [--pb|--sbe FDS MESSAGE DOC | --vector NAME]");
 }
