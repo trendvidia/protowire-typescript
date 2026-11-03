@@ -19,6 +19,8 @@ format changes.
 
 ### Added
 
+- **`check-decode --format pxf-pb`** for the spec's write gate, and **`pb.BigIntValueCodec`**, a `pxf.BigInt` field bound to a JavaScript `bigint` ([#98](https://github.com/trendvidia/protowire-typescript/issues/98)). `src/pb/values-table.test.ts` twins the spec's struct-binding table. `CodecBase` gains optional `readValue` and `isZeroValue` for a codec whose value is not an object.
+
 - **`pxf.BigInt` and `pxf.Decimal` literals** ([#87](https://github.com/trendvidia/protowire-typescript/issues/87)). They read and write as numbers, in fields, list elements, map values and `(pxf.default)`, with `MaxNumericLiteralDigits` enforced both ways. `pb.DecimalCodec` bounds `Decimal.scale` on the wire. `@default` on a big number is now read from the carrier.
 
 - **`scripts/check-decode.ts`**, the HARDENING corpus harness ([#55](https://github.com/trendvidia/protowire-typescript/issues/55)). The spec repo's security gate can run this port again.
@@ -44,6 +46,12 @@ format changes.
 
 - **`xmlToProto` imports a char in a non-UTF-8 encoding as `bytes`** ([#100](https://github.com/trendvidia/protowire-typescript/issues/100), protowire#494). It ignored `characterEncoding`, so an `ISO-8859-1` char became a `string`, and the first byte outside UTF-8 failed the whole message.
 - **The `pb` and SBE decoders reject invalid UTF-8 in a string field** ([#93](https://github.com/trendvidia/protowire-typescript/issues/93), HARDENING.md § UTF-8), in fields, list elements, map keys and map values. They replaced it with U+FFFD. A field for another text encoding is declared `bytes`. `sbe.View` still trusts its bytes.
+
+- **`inf`, `+inf`, `-inf` and `nan` are read as float literals, and a float past its type's range is rejected** ([#98](https://github.com/trendvidia/protowire-typescript/issues/98), draft -01 §3.8). `1e400` on a `double` and `3.4028236e38` on a `float` read as Infinity. Found by the spec's write gate.
+
+- **`pxf.Secret` takes its string form** ([#98](https://github.com/trendvidia/protowire-typescript/issues/98)): `pw = "x"` sets `value`, and `marshal` writes a Secret without a hint or fingerprint that way.
+
+- **`pb` writes a `-0` float or double** ([#98](https://github.com/trendvidia/protowire-typescript/issues/98)). Its sign bit is set, so protobuf writes it where it omits a zero.
 
 - **A schema redefining a well-known type, or carrying a retired option number, is refused at bind time** ([#79](https://github.com/trendvidia/protowire-typescript/issues/79)). `validateDescriptor` reports the new `wellKnownShape` and `retiredNumber` kinds. A message of the wrong shape is treated as an ordinary message everywhere, including where nothing validates. A retired number counts only in a file that imports protowire's annotations, on the kind of options that used it.
 
@@ -79,6 +87,8 @@ format changes.
 ### Changed
 
 - **`marshal` refuses a message nested past `MaxNestingDepth`** ([#96](https://github.com/trendvidia/protowire-typescript/issues/96), protowire#502), in `pxf` and `pb`. A message deeper than 100 levels used to be written, and a default reader then refused it. Levels are counted as a decoder counts them, so lists and maps reach the limit at 50 levels of nesting. `maxNestingDepth` on `MarshalOptions` raises it, to pair with the same option on every reader. An `Any` too deep to write as a body is written as `type_url` and `value`.
+
+- **`pb` writes a repeated numeric scalar packed** ([#98](https://github.com/trendvidia/protowire-typescript/issues/98)), protobuf's proto3 default and what protobuf-go writes, pinned by the spec's struct-binding table (protowire#509). `packed: false` on a field keeps one tag per element. Readers take either form.
 
 - **`MaxNestingDepth`, `MaxNumericLiteralDigits` and `MaxBigFloatExponent` can be set per call** ([#55](https://github.com/trendvidia/protowire-typescript/issues/55)), in the PXF and `pb` decoders, as the size and count limits can. `check-decode --limit` takes all six names, as the reference's harness does.
 

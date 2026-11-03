@@ -108,6 +108,9 @@ export interface FieldSpec {
   readonly repeated?: boolean;
   /** Set to make this field a map. The field's `kind` is the value's kind. */
   readonly mapKey?: MapKeyKind;
+  /** Write a repeated numeric scalar unpacked, one tag per element. Default
+   * packed, as proto3 has it. */
+  readonly packed?: boolean;
 }
 
 /**
@@ -120,6 +123,14 @@ export interface CodecBase {
   create(): unknown;
   marshalInto(w: Writer, value: unknown): void;
   unmarshalFrom(r: Reader, end: number, into: unknown): void;
+  /**
+   * For a codec whose value is not an object it fills, such as a `bigint`:
+   * read the value between the reader's position and `end`, and return it.
+   */
+  readValue?(r: Reader, end: number): unknown;
+  /** A value a singular field omits, as a zero scalar is omitted. A zero
+   * element of a list is still written. */
+  isZeroValue?(value: unknown): boolean;
 }
 
 export interface MessageCodec<T> extends CodecBase {
@@ -245,6 +256,49 @@ export const BigFloatCodec: MessageCodec<BigFloatValue> = {
   },
 };
 
+/**
+ * The codec of a `pxf.BigInt` whose value is a JavaScript `bigint`, for a
+ * field's `{ message: BigIntValueCodec }`. A singular zero is omitted, as a
+ * zero scalar is; a zero element of a list is written as an empty message.
+ */
+export const BigIntValueCodec: CodecBase = {
+  fields: [],
+  byNumber: new Map(),
+  create: () => 0n,
+  marshalInto(w, value) {
+    const v = value as bigint;
+    const abs = v < 0n ? -v : v;
+    if (abs !== 0n) {
+      const hex = abs.toString(16);
+      const bytes = Uint8Array.from(Buffer.from(hex.length % 2 ? `0${hex}` : hex, "hex"));
+      w.tag(1, WireType.LengthDelimited);
+      w.varint(bytes.length);
+      w.raw(bytes);
+    }
+    if (v < 0n) {
+      w.tag(2, WireType.Varint);
+      w.varint(1);
+    }
+  },
+  unmarshalFrom() {
+    throw new Error("BigIntValueCodec reads through readValue");
+  },
+  readValue(r, end) {
+    const fields = bigIntFields.create();
+    bigIntFields.unmarshalFrom(r, end, fields);
+    const abs = fields.abs && fields.abs.length > 0 ? BigInt(`0x${Buffer.from(fields.abs).toString("hex")}`) : 0n;
+    return fields.negative ? -abs : abs;
+  },
+  isZeroValue: (value) => value === 0n,
+};
+
+const bigIntFields = defineMessage<{ abs?: Uint8Array; negative?: boolean }>({
+  fields: [
+    { number: 1, name: "abs", kind: "bytes" },
+    { number: 2, name: "negative", kind: "bool" },
+  ],
+});
+
 /** The shape of a `pxf.Decimal` on the wire. */
 export interface DecimalValue {
   unscaled?: Uint8Array;
@@ -305,9 +359,11 @@ function isZero(kind: ScalarKind, v: unknown): boolean {
     case "int32":
     case "sint32":
     case "uint32":
+      return v === 0;
     case "float":
     case "double":
-      return v === 0;
+      // -0 has its sign bit set, so protobuf writes it.
+      return v === 0 && !Object.is(v, -0);
     case "int64":
     case "sint64":
     case "uint64":
@@ -429,7 +485,7 @@ function marshalMessageInto(w: Writer, value: unknown, codec: CodecBase): void {
       w.tag(f.number, wireTypeOf(f.kind));
       writeScalarValue(w, f.kind, v);
     } else {
-      if (v === undefined || v === null) continue;
+      if (v === undefined || v === null || f.kind.message.isZeroValue?.(v)) continue;
       w.tag(f.number, WireType.LengthDelimited);
       writeNestedMessage(w, f.kind.message, v);
     }
@@ -439,6 +495,17 @@ function marshalMessageInto(w: Writer, value: unknown, codec: CodecBase): void {
 function writeRepeatedField(w: Writer, f: FieldSpec, v: unknown): void {
   if (!Array.isArray(v) || v.length === 0) return;
   if (typeof f.kind === "string") {
+    // A numeric scalar is written packed, protobuf's proto3 default and what
+    // protobuf-go writes. A reader takes either form.
+    if (f.packed !== false && wireTypeOf(f.kind) !== WireType.LengthDelimited) {
+      const inner = new Writer();
+      for (const item of v) writeScalarValue(inner, f.kind, item);
+      const bytes = inner.finish();
+      w.tag(f.number, WireType.LengthDelimited);
+      w.varint(bytes.length);
+      w.raw(bytes);
+      return;
+    }
     for (const item of v) {
       w.tag(f.number, wireTypeOf(f.kind));
       writeScalarValue(w, f.kind, item);
@@ -642,6 +709,11 @@ function readNestedMessage(r: Reader, codec: CodecBase): unknown {
   const end = r.pos + len;
   if (end > r.data.length) throw new Error("nested message exceeds buffer");
   descend(r);
+  if (codec.readValue) {
+    const v = codec.readValue(r, end);
+    r.depth--;
+    return v;
+  }
   const obj = codec.create();
   codec.unmarshalFrom(r, end, obj);
   r.depth--;

@@ -3,7 +3,7 @@
 // HARDENING conformance harness, driven by protowire's
 // scripts/cross_security_check.sh. Mirrors protowire-go/scripts/check_decode.
 //
-//   check-decode --format <pxf|pb|pb-render|sbe> --schema <message>
+//   check-decode --format <pxf|pxf-pb|pb|pb-render|sbe> --schema <message>
 //                --proto <path/adversarial.proto> --input <path>
 //                [--limit NAME=VALUE]...
 //
@@ -14,16 +14,20 @@
 // and 2 for a fault in the harness. Anything else is a bug in the decoder.
 //
 // This port cannot compile a .proto at run time, so --proto locates the
-// descriptor set that sits beside it, adversarial.binpb.
+// descriptor set that sits beside it: foo.proto's is foo.binpb.
+//
+// pxf-pb writes the message's PB bytes on stdout, map entries in key order,
+// for the spec's write gate.
 
 import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 
 import { type Registry, create, createFileRegistry, fromBinary } from "@bufbuild/protobuf";
 import { FileDescriptorSetSchema } from "@bufbuild/protobuf/wkt";
 
 import { BigFloatCodec, DecimalCodec, type MessageCodec, defineMessage, unmarshal as pbUnmarshal } from "../src/pb/index.js";
-import { unmarshal as pxfUnmarshal } from "../src/pxf/decode.js";
+import { unmarshal as pxfUnmarshal, unmarshalFull } from "../src/pxf/decode.js";
+import { deterministicBinary } from "./deterministic-pb.js";
 import { marshal as pxfMarshal } from "../src/pxf/encode.js";
 import { Codec, unmarshal as sbeUnmarshal } from "../src/sbe/index.js";
 
@@ -146,10 +150,13 @@ const PB_CODECS: Record<string, MessageCodec<never>> = {
   "adversarial.v1.ListHolder": ListHolderPb as unknown as MessageCodec<never>,
 };
 
+/** The descriptor set beside `protoPath`: foo.proto's is foo.binpb. */
 function registry(protoPath: string): Registry {
-  const set = join(dirname(protoPath), "adversarial.binpb");
+  const set = join(dirname(protoPath), `${basename(protoPath, ".proto")}.binpb`);
   return createFileRegistry(fromBinary(FileDescriptorSetSchema, new Uint8Array(readFileSync(set))));
 }
+
+let out: Uint8Array | undefined;
 
 function decode(args: Args, data: Uint8Array): void {
   if (args.format === "pb") {
@@ -165,6 +172,18 @@ function decode(args: Args, data: Uint8Array): void {
     case "pxf":
       pxfUnmarshal(new TextDecoder("utf-8", { fatal: true }).decode(data), desc, args.limits);
       return;
+    case "pxf-pb": {
+      // The write gate: decode as dump-envelope does, then write the bytes,
+      // map entries in key order (protowire#509).
+      const reg = registry(args.proto);
+      const typeResolver = { findMessageByURL: (u: string) => reg.getMessage(u.slice(u.lastIndexOf("/") + 1)) };
+      const { message } = unmarshalFull(new TextDecoder("utf-8", { fatal: true }).decode(data), desc, {
+        ...args.limits,
+        typeResolver,
+      });
+      out = deterministicBinary(desc, message);
+      return;
+    }
     case "pb-render":
       pxfMarshal(fromBinary(desc, data), desc);
       return;
@@ -180,6 +199,7 @@ const args = parseArgs(process.argv.slice(2));
 const data = new Uint8Array(readFileSync(args.input));
 try {
   decode(args, data);
+  if (out) process.stdout.write(out);
 } catch (e) {
   console.error(`reject: ${e instanceof Error ? e.message : String(e)}`);
   process.exit(1);
