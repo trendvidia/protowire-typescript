@@ -30,6 +30,8 @@ export interface XMLType {
   name: string;
   primitiveType: string;
   length?: number;
+  /** A char's `characterEncoding`; FIX SBE's default is US-ASCII. */
+  characterEncoding?: string;
   description?: string;
 }
 
@@ -123,6 +125,7 @@ export function parseXMLSchema(xml: string): XMLSchema {
           };
           if (attrs.length !== undefined) t.length = parseUint(attrs.length);
           if (attrs.description !== undefined) t.description = attrs.description;
+          if (attrs.characterEncoding !== undefined) t.characterEncoding = attrs.characterEncoding;
           if (parent === "composite" && currentComposite) {
             currentComposite.types.push(t);
           } else {

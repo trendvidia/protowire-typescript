@@ -86,8 +86,9 @@ function writeProtoComposite(c: XMLComposite): string {
   let out = `message ${c.name} {\n`;
   let fieldNum = 1;
   for (const t of c.types) {
-    const [protoType, opts] = resolveTypeToProto(t.primitiveType, t.length ?? 0);
+    const [protoType, opts, note] = resolveTypeToProto(t);
     const name = camelToSnake(t.name);
+    out += commentLine("  ", note);
     out +=
       opts !== ""
         ? `  ${protoType} ${name} = ${fieldNum} [${opts}];\n`
@@ -138,10 +139,12 @@ function writeProtoField(
   }
   const t = typeMap.get(f.type);
   if (t) {
-    const [protoType, opts] = resolveTypeToProto(t.primitiveType, t.length ?? 0);
-    return opts !== ""
-      ? `${indent}${protoType} ${name} = ${f.id} [${opts}];\n`
-      : `${indent}${protoType} ${name} = ${f.id};\n`;
+    const [protoType, opts, note] = resolveTypeToProto(t);
+    const line =
+      opts !== ""
+        ? `${indent}${protoType} ${name} = ${f.id} [${opts}];\n`
+        : `${indent}${protoType} ${name} = ${f.id};\n`;
+    return commentLine(indent, note) + line;
   }
   // Unknown type — pass through as-is so the user's protoc surfaces the error.
   return `${indent}${f.type} ${name} = ${f.id};\n`;
@@ -165,7 +168,47 @@ function writeProtoGroup(
   return out;
 }
 
-function resolveTypeToProto(primitiveType: string, length: number): [string, string] {
+function commentLine(indent: string, note: string): string {
+  return note === "" ? "" : `${indent}// ${note}\n`;
+}
+
+/**
+ * Whether every string in a char array of the named encoding is valid UTF-8:
+ * none named (FIX SBE's default is US-ASCII), a US-ASCII name or a UTF-8 name.
+ * Names are IANA charset names and aliases, compared ignoring case and
+ * punctuation. Mirrors the reference's `isUTF8Compatible`.
+ */
+export function isUtf8Compatible(encoding: string | undefined): boolean {
+  const name = (encoding ?? "").trim().toLowerCase().replace(/[-_.: ]/g, "");
+  return UTF8_COMPATIBLE.has(name);
+}
+
+const UTF8_COMPATIBLE = new Set([
+  "",
+  // US-ASCII and its IANA aliases.
+  "usascii", "ascii", "ansix341968", "ansix341986", "iso646us",
+  "isoir6", "iso646irv1991", "us", "ibm367", "cp367", "csascii",
+  // UTF-8.
+  "utf8", "csutf8",
+]);
+
+/** A proto type, field options, and a comment for the line above, if any. */
+function resolveTypeToProto(t: XMLType): [string, string, string] {
+  if (t.primitiveType === "char") {
+    const opts = `(sbe.length) = ${t.length || 1}`;
+    // A proto string holds UTF-8 only, and a decoder refuses one that is not,
+    // so text in another encoding is bytes rather than a run-time failure
+    // (protowire#494).
+    if (!isUtf8Compatible(t.characterEncoding)) {
+      return ["bytes", opts, `SBE characterEncoding ${JSON.stringify(t.characterEncoding)} is not UTF-8 compatible, so this field is bytes.`];
+    }
+    return ["string", opts, ""];
+  }
+  const [protoType, opts] = resolvePrimitiveToProto(t.primitiveType);
+  return [protoType, opts, ""];
+}
+
+function resolvePrimitiveToProto(primitiveType: string): [string, string] {
   switch (primitiveType) {
     case "int8":
       return ["int32", `(sbe.encoding) = "int8"`];
@@ -187,9 +230,6 @@ function resolveTypeToProto(primitiveType: string, length: number): [string, str
       return ["float", ""];
     case "double":
       return ["double", ""];
-    case "char":
-      if (length > 0) return ["string", `(sbe.length) = ${length}`];
-      return ["string", `(sbe.length) = 1`];
     default:
       return [primitiveType, ""];
   }

@@ -232,3 +232,26 @@ describe("SBE codec round-trip", () => {
     expect(() => unmarshal(codec, order, emptyMsg(order), data)).toThrow(/template ID mismatch/);
   });
 });
+
+describe("an overlong sbe.length value (#94)", () => {
+  it("cuts a string on a character boundary and a bytes field at the limit", () => {
+    const Text = descOf("test.v1.Text");
+    const msg = emptyMsg(Text);
+    const refl = reflect(Text, msg);
+    const value = "ABCDEFGé";
+    set(refl, "s", value);
+    set(refl, "b", new TextEncoder().encode(value));
+    const out = marshal(codec, Text, msg);
+    const block = Buffer.from(out.subarray(8, 24)).toString("hex");
+    expect(block).toBe("41424344454647004142434445464" + "7c3");
+  });
+
+  it("writes a string that reads back", () => {
+    const Text = descOf("test.v1.Text");
+    const msg = emptyMsg(Text);
+    set(reflect(Text, msg), "s", "ABCDEFGé");
+    const back = emptyMsg(Text);
+    unmarshal(codec, Text, back, marshal(codec, Text, msg));
+    expect((back as unknown as { s: string }).s).toBe("ABCDEFG");
+  });
+});

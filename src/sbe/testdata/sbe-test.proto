@@ -56,3 +56,11 @@ message WithNarrow {
   uint32 port = 2 [(sbe.encoding) = "uint16"];
   int32 delta = 3 [(sbe.encoding) = "int16"];
 }
+
+// An overlong string is cut on a character boundary, a bytes field at the
+// limit (protowire#495).
+message Text {
+  option (sbe.template_id) = 5;
+  string s = 1 [(sbe.length) = 8];
+  bytes b = 2 [(sbe.length) = 8];
+}
