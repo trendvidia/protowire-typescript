@@ -9,6 +9,10 @@ import { type DescField, type DescMessage, type MessageShape, ScalarType } from 
 import { type ReflectList, type ReflectMessage, reflect } from "@bufbuild/protobuf/reflect";
 
 import { Codec, GROUP_HEADER_SIZE, HEADER_SIZE } from "./sbe.js";
+
+/** A string field holds UTF-8, so a char[] that is not is refused (HARDENING.md § UTF-8).
+ * A field carrying another text encoding is declared bytes. */
+const strictUtf8 = new TextDecoder("utf-8", { fatal: true });
 import type { FieldTemplate, GroupTemplate, MessageTemplate } from "./template.js";
 
 /** MaxMessageSize (HARDENING.md § Mandatory limits), also the default
@@ -122,7 +126,13 @@ function readField(
         // STRING — trim trailing null padding.
         let n = slice.length;
         while (n > 0 && slice[n - 1] === 0) n--;
-        parent.set(fd, new TextDecoder().decode(slice.subarray(0, n)));
+        let text: string;
+        try {
+          text = strictUtf8.decode(slice.subarray(0, n));
+        } catch {
+          throw new Error(`sbe: invalid UTF-8 in string field ${fd.name}`);
+        }
+        parent.set(fd, text);
       }
       return;
     }

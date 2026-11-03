@@ -40,6 +40,8 @@ format changes.
 
 - **`pb` keeps the low 32 bits of a 32-bit varint** ([#95](https://github.com/trendvidia/protowire-typescript/issues/95)), as a protobuf reader does. A `uint32` past 32 bits read as the whole number, and any varint past 2^53 threw, for `uint32`, `bool` and `sint32`. A BigFloat `prec` is read the same way, from the wire and from the `@default` carrier, and `BigFloatCodec` now rejects a `prec` above 13603, the bound a precision suffix has (protowire#499).
 
+- **The `pb` and SBE decoders reject invalid UTF-8 in a string field** ([#93](https://github.com/trendvidia/protowire-typescript/issues/93), HARDENING.md § UTF-8), in fields, list elements, map keys and map values. They replaced it with U+FFFD. A field for another text encoding is declared `bytes`. `sbe.View` still trusts its bytes.
+
 - **A schema redefining a well-known type, or carrying a retired option number, is refused at bind time** ([#79](https://github.com/trendvidia/protowire-typescript/issues/79)). `validateDescriptor` reports the new `wellKnownShape` and `retiredNumber` kinds. A message of the wrong shape is treated as an ordinary message everywhere, including where nothing validates. A retired number counts only in a file that imports protowire's annotations, on the kind of options that used it.
 
 - **`\x` and octal escapes in a string are UTF-8 bytes** ([#55](https://github.com/trendvidia/protowire-typescript/issues/55)). `"\xC3\xA9"` decoded to two characters instead of `é`, and `"\xFF"` decoded to `ÿ` instead of being rejected on a string field. Found by running the HARDENING corpus for the first time.
