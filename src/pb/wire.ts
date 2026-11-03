@@ -181,6 +181,12 @@ export class Reader {
   public depth = 0;
   /** Elements one repeated or map field may hold. */
   public maxRepeated = Number.MAX_SAFE_INTEGER;
+  /** How deep a message may nest; 100 is MaxNestingDepth. */
+  public maxDepth = 100;
+  /** The bound on a Decimal's scale; 4096 is MaxNumericLiteralDigits. */
+  public maxDigits = 4096;
+  /** The bound on a BigFloat's binary exponent; 16384 is MaxBigFloatExponent. */
+  public maxBigFloatExponent = 16384;
   private dv: DataView;
 
   constructor(public readonly data: Uint8Array, start = 0, end?: number) {

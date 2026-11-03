@@ -22,12 +22,27 @@ export const MAX_NUMERIC_LITERAL_DIGITS = 4096;
  */
 export const MAX_BIG_FLOAT_EXPONENT = 16384;
 
+/** The numeric limits a literal is held to, per call. */
+export interface NumericLimits {
+  readonly maxDigits: number;
+  readonly maxBigFloatExponent: number;
+}
+
+export const DEFAULT_NUMERIC_LIMITS: NumericLimits = {
+  maxDigits: MAX_NUMERIC_LITERAL_DIGITS,
+  maxBigFloatExponent: MAX_BIG_FLOAT_EXPONENT,
+};
+
 /** The precision a literal without a suffix is read at. */
 const DEFAULT_PREC = 256;
 
 /** A literal's value farther than this many decades from 1 is past the exponent
  * bound whatever its digits: 2^16385 is about 10^4932.7. */
-const MAX_DECIMAL_MAGNITUDE = 4940;
+/** A decimal magnitude past this has a binary exponent past `max`, so the
+ * literal can be refused before anything is materialised. */
+function maxDecimalMagnitude(max: number): number {
+  return Math.ceil(max * Math.log10(2)) + 8;
+}
 
 /** floor(log10(2) × 2^128). */
 const LOG10_2_Q128 = 0x4d104d427de7fbcc47c4acd605be48bcn;
@@ -67,8 +82,8 @@ export function bigFloatBinaryExponent(mantissa: Uint8Array, exponent: number): 
   return exponent + 8 * (mantissa.length - first - 1) + (32 - Math.clz32(mantissa[first]!));
 }
 
-function exceedsExponentBound(e: number): boolean {
-  return e > MAX_BIG_FLOAT_EXPONENT || e < -MAX_BIG_FLOAT_EXPONENT;
+function exceedsExponentBound(e: number, max: number): boolean {
+  return e > max || e < -max;
 }
 
 function bitLength(n: bigint): number {
@@ -116,7 +131,7 @@ function bigIntOf(bytes: Uint8Array): bigint {
 }
 
 /** A suffix's digits as a bit count, or an error naming why it cannot be one. */
-function readPrecision(s: string, prec: string): number {
+function readPrecision(s: string, prec: string, lim: NumericLimits): number {
   // A suffix longer than a uint32 is rejected without being converted.
   const p = prec.length <= 10 ? Number(prec) : 0;
   if (p === 0 || p > 0xffffffff) {
@@ -125,9 +140,9 @@ function readPrecision(s: string, prec: string): number {
     );
   }
   const n = bigFloatDigits(p);
-  if (n > MAX_NUMERIC_LITERAL_DIGITS) {
+  if (n > lim.maxDigits) {
     throw new Error(
-      `big float literal ${clipLiteral(s)}p${p}: precision p${p} renders to ${n} digits; MaxNumericLiteralDigits=${MAX_NUMERIC_LITERAL_DIGITS}`,
+      `big float literal ${clipLiteral(s)}p${p}: precision p${p} renders to ${n} digits; MaxNumericLiteralDigits=${lim.maxDigits}`,
     );
   }
   return p;
@@ -148,9 +163,13 @@ const LITERAL_RE = /^(-?)(\d*)(?:\.(\d*))?(?:[eE]([+-]?\d+))?$/;
  * when `prec` is undefined, round half even. The suffix is checked first, then
  * the digit limit, and the exponent bound on the rounded value.
  */
-export function parseBigFloatLiteral(s: string, prec?: string): BigFloatFields {
+export function parseBigFloatLiteral(
+  s: string,
+  prec?: string,
+  lim: NumericLimits = DEFAULT_NUMERIC_LIMITS,
+): BigFloatFields {
   const suffixed = prec !== undefined;
-  const readPrec = suffixed ? readPrecision(s, prec) : DEFAULT_PREC;
+  const readPrec = suffixed ? readPrecision(s, prec, lim) : DEFAULT_PREC;
 
   const m = LITERAL_RE.exec(s);
   const whole = m?.[2] ?? "";
@@ -161,8 +180,8 @@ export function parseBigFloatLiteral(s: string, prec?: string): BigFloatFields {
   }
   const negative = m[1] === "-";
   const digits = (whole + frac).replace(/^0+/, "");
-  if (digits.length > MAX_NUMERIC_LITERAL_DIGITS) {
-    throw new Error(`numeric literal has ${digits.length} digits; MaxNumericLiteralDigits=${MAX_NUMERIC_LITERAL_DIGITS}`);
+  if (digits.length > lim.maxDigits) {
+    throw new Error(`numeric literal has ${digits.length} digits; MaxNumericLiteralDigits=${lim.maxDigits}`);
   }
   if (digits === "") {
     return { mantissa: new Uint8Array(), exponent: 0, prec: suffixed ? readPrec : 0, negative };
@@ -173,9 +192,9 @@ export function parseBigFloatLiteral(s: string, prec?: string): BigFloatFields {
   const e = exp.replace(/^[+-]/, "").replace(/^0+/, "").length > 15 ? (exp.startsWith("-") ? -1e15 : 1e15) : Number(exp);
   const scale = e - frac.length;
   const magnitude = digits.length - 1 + scale;
-  if (Math.abs(magnitude) > MAX_DECIMAL_MAGNITUDE) {
+  if (Math.abs(magnitude) > maxDecimalMagnitude(lim.maxBigFloatExponent)) {
     throw new Error(
-      `big float literal ${clipLiteral(s)} has a binary exponent past MaxBigFloatExponent=${MAX_BIG_FLOAT_EXPONENT}`,
+      `big float literal ${clipLiteral(s)} has a binary exponent past MaxBigFloatExponent=${lim.maxBigFloatExponent}`,
     );
   }
 
@@ -183,22 +202,22 @@ export function parseBigFloatLiteral(s: string, prec?: string): BigFloatFields {
   const d = BigInt(digits);
   const { q, shift } = scale >= 0 ? roundToPrec(d * power, 1n, readPrec) : roundToPrec(d, power, readPrec);
   const binary = readPrec - shift;
-  if (exceedsExponentBound(binary)) {
+  if (exceedsExponentBound(binary, lim.maxBigFloatExponent)) {
     throw new Error(
-      `big float literal ${clipLiteral(s)} has binary exponent ${binary}, and MaxBigFloatExponent=${MAX_BIG_FLOAT_EXPONENT} bounds its magnitude`,
+      `big float literal ${clipLiteral(s)} has binary exponent ${binary}, and MaxBigFloatExponent=${lim.maxBigFloatExponent} bounds its magnitude`,
     );
   }
   return { mantissa: bytesOf(q), exponent: 0 - shift, prec: readPrec, negative };
 }
 
 /** Reads a literal that arrives as one string, suffix included: a `(pxf.default)`. */
-export function parseBigFloatString(s: string): BigFloatFields {
+export function parseBigFloatString(s: string, lim: NumericLimits = DEFAULT_NUMERIC_LIMITS): BigFloatFields {
   const at = s.indexOf("p");
-  if (at < 0) return parseBigFloatLiteral(s);
+  if (at < 0) return parseBigFloatLiteral(s, undefined, lim);
   const prec = s.slice(at + 1);
   if (prec === "") throw new Error(`big float literal ${clipLiteral(s)}: precision suffix p is not a positive bit count`);
   if (!/^\d+$/.test(prec)) throw new Error(`invalid big float: ${clipLiteral(s)}`);
-  return parseBigFloatLiteral(s.slice(0, at), prec);
+  return parseBigFloatLiteral(s.slice(0, at), prec, lim);
 }
 
 /** Rounds a digit string to `n` digits, half to even. `point` follows a carry out. */
@@ -240,7 +259,7 @@ export function formatBigFloat(f: BigFloatFields): string {
   // A precision of zero is zero, whatever the other fields say.
   if (f.prec === 0) return `${sign}0`;
   const e = bigFloatBinaryExponent(f.mantissa, f.exponent);
-  if (e !== undefined && exceedsExponentBound(e)) {
+  if (e !== undefined && exceedsExponentBound(e, MAX_BIG_FLOAT_EXPONENT)) {
     throw new Error(`pxf.BigFloat binary exponent ${e} exceeds MaxBigFloatExponent=${MAX_BIG_FLOAT_EXPONENT}`);
   }
   const n = bigFloatDigits(f.prec);
@@ -260,7 +279,7 @@ export function formatBigFloat(f: BigFloatFields): string {
     exponent -= shift;
     // Rounding can carry the value over the bound, where no reader takes it.
     const rounded = exponent + bitLength(q);
-    if (exceedsExponentBound(rounded)) {
+    if (exceedsExponentBound(rounded, MAX_BIG_FLOAT_EXPONENT)) {
       throw new Error(`pxf.BigFloat binary exponent ${rounded} exceeds MaxBigFloatExponent=${MAX_BIG_FLOAT_EXPONENT}`);
     }
   }

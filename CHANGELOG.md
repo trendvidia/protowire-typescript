@@ -71,6 +71,8 @@ format changes.
 
 ### Changed
 
+- **`MaxNestingDepth`, `MaxNumericLiteralDigits` and `MaxBigFloatExponent` can be set per call** ([#55](https://github.com/trendvidia/protowire-typescript/issues/55)), in the PXF and `pb` decoders, as the size and count limits can. `check-decode --limit` takes all six names, as the reference's harness does.
+
 - **`MaxMessageSize`, `MaxBytesLiteralLength` and `MaxRepeatedCount` are enforced** ([#55](https://github.com/trendvidia/protowire-typescript/issues/55), HARDENING.md § Mandatory limits). The PXF, `pb` and SBE decoders reject input past them, at 64 MiB by default, and each takes options to lower them.
 
 - **A singular field or a map key bound twice in one message body is rejected** ([#51](https://github.com/trendvidia/protowire-typescript/issues/51), [#53](https://github.com/trendvidia/protowire-typescript/issues/53), protowire#347, #396). The last value used to win, and two blocks for a message field kept only the last. Map keys compare as values of the key type, so `1:` and `"1":` collide. Repeated fields still concatenate, and two map bindings with distinct keys still merge. This narrows accepted input.
