@@ -173,7 +173,7 @@ describe("protoToXml", () => {
     const schema = parseXMLSchema(xml);
     expect(schema.package).toBe("test.v1");
     expect(schema.id).toBe(1);
-    expect(schema.messages).toHaveLength(4);
+    expect(schema.messages).toHaveLength(5);
     const order = schema.messages.find((m) => m.name === "Order")!;
     expect(order.id).toBe(1);
     expect(order.groups).toHaveLength(1);
@@ -228,5 +228,40 @@ describe("name conversions", () => {
     expect(singularPascal("orders")).toBe("Order");
     expect(singularPascal("entries")).toBe("Entry");
     expect(singularPascal("class")).toBe("Class");
+  });
+});
+
+describe("xmlToProto and characterEncoding (#100)", () => {
+  const xml = (enc: string) => `<?xml version="1.0" encoding="UTF-8"?>
+<sbe:messageSchema xmlns:sbe="http://fixprotocol.io/2016/sbe" package="enc.v1" id="7" version="0">
+  <types>
+    <type name="text" primitiveType="char" length="8"${enc}/>
+    <composite name="Pair">
+      <type name="inner" primitiveType="char" length="4"${enc}/>
+    </composite>
+  </types>
+  <sbe:message name="Note" id="1">
+    <field name="body" id="1" type="text"/>
+    <field name="pair" id="2" type="Pair"/>
+  </sbe:message>
+</sbe:messageSchema>`;
+
+  it.each([
+    ["absent", ""],
+    ["ASCII", ' characterEncoding="ASCII"'],
+    ["US-ASCII", ' characterEncoding="US-ASCII"'],
+    ["UTF-8", ' characterEncoding="UTF-8"'],
+    ["utf_8, punctuation and case ignored", ' characterEncoding="utf_8"'],
+  ])("%s is a string", (_, enc) => {
+    const proto = xmlToProto(xml(enc));
+    expect(proto).toContain("string body = 1 [(sbe.length) = 8];");
+    expect(proto).toContain("string inner = 1 [(sbe.length) = 4];");
+  });
+
+  it("ISO-8859-1 is bytes, inside a composite too, with a note", () => {
+    const proto = xmlToProto(xml(' characterEncoding="ISO-8859-1"'));
+    expect(proto).toContain("bytes body = 1 [(sbe.length) = 8];");
+    expect(proto).toContain("bytes inner = 1 [(sbe.length) = 4];");
+    expect(proto).toContain('// SBE characterEncoding "ISO-8859-1" is not UTF-8 compatible, so this field is bytes.');
   });
 });

@@ -98,7 +98,9 @@ function writeField(
       return;
     case "char": {
       const bytes = toCharBytes(fd, raw);
-      const len = Math.min(bytes.length, ft.size);
+      const len = fd.fieldKind === "scalar" && fd.scalar === ScalarType.BYTES
+        ? Math.min(bytes.length, ft.size)
+        : stringCut(bytes, ft.size);
       const dst = new Uint8Array(view.buffer, view.byteOffset + off, ft.size);
       dst.set(bytes.subarray(0, len));
       // Remaining bytes already zero (allocator initialized).
@@ -156,6 +158,19 @@ function toBigUint(fd: DescField, raw: unknown): bigint {
   }
   if (typeof raw === "bigint") return raw;
   return BigInt(Number(raw));
+}
+
+/**
+ * How many of a string's UTF-8 bytes fit in `size` without splitting a
+ * character (draft -01 § SBE Annotations, protowire#495). A byte-exact cut can
+ * leave half a character, and a strict decoder then rejects the whole message.
+ * What the cut leaves over stays NUL. A bytes field is cut at the limit.
+ */
+export function stringCut(bytes: Uint8Array, size: number): number {
+  if (bytes.length <= size) return bytes.length;
+  let n = size;
+  while (n > 0 && (bytes[n]! & 0xc0) === 0x80) n--;
+  return n;
 }
 
 function toCharBytes(fd: DescField, raw: unknown): Uint8Array {
