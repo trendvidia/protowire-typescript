@@ -35,6 +35,7 @@ import {
   isBigInt,
   isBigNumber,
   isDecimal,
+  isSecret,
   isDuration,
   isTimestamp,
   isWrapperType,
@@ -254,6 +255,11 @@ class Encoder {
       this.buf += "\n";
       return;
     }
+    if (isSecretLiteral(sub)) {
+      this.writeFieldPrefix(level, fd.name);
+      this.buf += `${secretLiteral(sub)}\n`;
+      return;
+    }
     if (isAny(mdesc) && this.resolver && this.tryEncodeAny(fd, sub, level)) {
       return;
     }
@@ -305,6 +311,9 @@ class Encoder {
           }
           this.writeIndent(level + 1);
           this.writeScalarValue(innerFd.scalar, sub.get(innerFd) as unknown);
+        } else if (isSecretLiteral(sub)) {
+          this.writeIndent(level + 1);
+          this.buf += secretLiteral(sub);
         } else if (isBigNumber(mdesc)) {
           this.writeIndent(level + 1);
           this.buf += formatBigNumberFromReflect(sub);
@@ -383,7 +392,10 @@ class Encoder {
     entries.sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
 
     for (const [keyStr, val] of entries) {
-      if (fd.mapKind === "message" && isBigNumber(fd.message)) {
+      if (fd.mapKind === "message" && isSecretLiteral(val as ReflectMessage)) {
+        this.writeIndent(level + 1);
+        this.buf += `${keyStr}: ${secretLiteral(val as ReflectMessage)}\n`;
+      } else if (fd.mapKind === "message" && isBigNumber(fd.message)) {
         this.writeIndent(level + 1);
         this.buf += `${keyStr}: ${formatBigNumberFromReflect(val as ReflectMessage)}\n`;
       } else if (fd.mapKind === "message") {
@@ -656,6 +668,20 @@ function pad2(n: number): string {
 
 function pad4(n: number): string {
   return String(n).padStart(4, "0");
+}
+
+/** A Secret is written as its string literal only without a hint or
+ * fingerprint, which the literal would drop. */
+function isSecretLiteral(m: ReflectMessage): boolean {
+  if (!isSecret(m.desc)) return false;
+  return ["hint", "fingerprint"].every((name) => {
+    const fd = findFieldByProtoName(m.desc, name);
+    return !fd || !m.isSet(fd);
+  });
+}
+
+function secretLiteral(m: ReflectMessage): string {
+  return writeQuotedString(m.get(findFieldByProtoName(m.desc, "value")!) as string);
 }
 
 function formatBigNumberFromReflect(m: ReflectMessage): string {

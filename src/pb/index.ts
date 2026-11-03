@@ -3,6 +3,7 @@
 export { Reader, Writer, WireType } from "./wire.js";
 export {
   BigFloatCodec,
+  BigIntValueCodec,
   DecimalCodec,
   defineMessage,
   marshal,

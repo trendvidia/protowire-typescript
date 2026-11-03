@@ -92,6 +92,14 @@ jobs:
       - name: Fail if it changed
         run: git diff --exit-code src/pxf/testdata/corpus/reference.json
 
+      - uses: actions/checkout@v7
+        with:
+          repository: trendvidia/protowire
+          path: spec
+
+      - name: The struct-binding table matches the spec's
+        run: cmp spec/testdata/values/values.tsv src/pb/testdata/values.tsv
+
   buf:
     name: Buf lint + breaking
     runs-on: ubuntu-latest
