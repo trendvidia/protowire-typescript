@@ -245,11 +245,8 @@ describe("durations", () => {
     expect(ts.map((t) => t.kind)).toEqual([TokenKind.INT, TokenKind.IDENT]);
   });
 
-  it("`1.5s` lexes as FLOAT then IDENT (float branch wins over duration)", () => {
-    // Go's lexer takes the same path: a `.` after digits commits to lexFloat,
-    // which doesn't know about durations. Realistic PXF uses integer durations.
-    const ts = tokens("1.5s");
-    expect(ts.map((t) => t.kind)).toEqual([TokenKind.FLOAT, TokenKind.IDENT]);
+  it("`1.5s` is one duration token (draft -01 §3.3)", () => {
+    expect(kinds("1.5s")).toEqual([TokenKind.DURATION]);
   });
 
   it("malformed duration is ILLEGAL once a unit letter triggers duration lex", () => {
