@@ -19,7 +19,7 @@ import { dirname, join } from "node:path";
 import { type Registry, create, createFileRegistry, fromBinary } from "@bufbuild/protobuf";
 import { FileDescriptorSetSchema } from "@bufbuild/protobuf/wkt";
 
-import { type MessageCodec, defineMessage, unmarshal as pbUnmarshal } from "../src/pb/index.js";
+import { BigFloatCodec, type MessageCodec, defineMessage, unmarshal as pbUnmarshal } from "../src/pb/index.js";
 import { unmarshal as pxfUnmarshal } from "../src/pxf/decode.js";
 import { marshal as pxfMarshal } from "../src/pxf/encode.js";
 import { Codec, unmarshal as sbeUnmarshal } from "../src/sbe/index.js";
@@ -105,7 +105,15 @@ const ListHolderPb = defineMessage<{ values: number[] }>({
   create: () => ({ values: [] }),
 });
 
+// Only big_float is bounded here: this port has no pb codec for BigInt or
+// Decimal yet (#87), and the manifest skips those rows for it.
+const BigNumHolderPb = defineMessage<{ bigFloat?: unknown }>({
+  fields: [{ number: 3, name: "bigFloat", kind: { message: BigFloatCodec } }],
+  create: () => ({}),
+});
+
 const PB_CODECS: Record<string, MessageCodec<never>> = {
+  "adversarial.v1.BigNumHolder": BigNumHolderPb as unknown as MessageCodec<never>,
   "adversarial.v1.Tree": TreePb as unknown as MessageCodec<never>,
   "adversarial.v1.StringHolder": StringHolderPb as unknown as MessageCodec<never>,
   "adversarial.v1.BytesHolder": BytesHolderPb as unknown as MessageCodec<never>,

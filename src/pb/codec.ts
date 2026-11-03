@@ -31,6 +31,14 @@ import { Reader, Writer, WireType } from "./wire.js";
  */
 export const MAX_NESTING_DEPTH = 100;
 
+/**
+ * Bounds the magnitude of a `pxf.BigFloat`'s binary exponent, the wire exponent
+ * plus the mantissa's bit length (HARDENING.md § Mandatory limits,
+ * protowire#281). Rendering the value in decimal costs time that grows with
+ * the square of it.
+ */
+export const MAX_BIG_FLOAT_EXPONENT = 16384;
+
 export type ScalarKind =
   | "bool"
   | "int32"
@@ -136,6 +144,52 @@ export function defineMessage<T extends object>(
   };
   return codec;
 }
+
+/** A `pxf.BigFloat`: value = (-1)^negative × mantissa × 2^exponent, rounded to prec bits. */
+export interface BigFloatValue {
+  mantissa?: Uint8Array;
+  exponent?: number;
+  prec?: number;
+  negative?: boolean;
+}
+
+function checkBigFloat(v: BigFloatValue): void {
+  // Precision 0 is zero, and a zero mantissa is zero at any exponent.
+  const m = v.mantissa;
+  if (!v.prec || !m) return;
+  const first = m.findIndex((b) => b !== 0);
+  if (first < 0) return;
+  const e = (v.exponent ?? 0) + 8 * (m.length - first - 1) + (32 - Math.clz32(m[first]!));
+  if (e > MAX_BIG_FLOAT_EXPONENT || e < -MAX_BIG_FLOAT_EXPONENT) {
+    throw new Error(`pxf.BigFloat binary exponent ${e} exceeds MaxBigFloatExponent=${MAX_BIG_FLOAT_EXPONENT}`);
+  }
+}
+
+const bigFloatFields = defineMessage<BigFloatValue>({
+  fields: [
+    { number: 1, name: "mantissa", kind: "bytes" },
+    { number: 2, name: "exponent", kind: "int32" },
+    { number: 3, name: "prec", kind: "uint32" },
+    { number: 4, name: "negative", kind: "bool" },
+  ],
+});
+
+/**
+ * The codec of a `pxf.BigFloat`, for a field's `{ message: BigFloatCodec }`.
+ * It rejects a value past {@link MAX_BIG_FLOAT_EXPONENT}, nested or not.
+ */
+export const BigFloatCodec: MessageCodec<BigFloatValue> = {
+  ...bigFloatFields,
+  unmarshalFrom(r, end, into) {
+    bigFloatFields.unmarshalFrom(r, end, into);
+    checkBigFloat(into as BigFloatValue);
+  },
+  unmarshal(data) {
+    const v = bigFloatFields.unmarshal(data);
+    checkBigFloat(v);
+    return v;
+  },
+};
 
 export function marshal<T>(value: T, codec: MessageCodec<T>): Uint8Array {
   return codec.marshal(value);
