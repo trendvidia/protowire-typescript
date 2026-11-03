@@ -6,10 +6,6 @@
  * (protowire-go#214). Mirrors the reference's
  * `keyed_entry_name_presence_test.go`.
  *
- * This port's `postDecode` does not walk list elements yet (#58), so a default
- * or a required check on an element's field cannot misfire today. The value
- * checks below pin the answer the reference gives for when it does. The oneof
- * rows also need the sibling check of #31 by then.
  * `keyed-entry-name-test.binpb` comes from `npm run gen:testdata:keyed:buf`.
  */
 

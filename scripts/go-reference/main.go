@@ -42,6 +42,7 @@ type Record struct {
 	Parse   bool   `json:"parse"`
 	Format  string `json:"format,omitempty"`
 	Decode  Leg    `json:"decode"`
+	Full    Leg    `json:"full"`
 	Marshal string `json:"marshal,omitempty"`
 	Stream  *Leg   `json:"stream,omitempty"`
 }
@@ -164,6 +165,10 @@ func record(data []byte, desc protoreflect.MessageDescriptor, o pxf.UnmarshalOpt
 		s := bindStream(data, desc, o)
 		r.Stream = &s
 		return r
+	}
+	full := dynamicpb.NewMessage(desc)
+	if _, err := o.UnmarshalFull(data, full); err == nil {
+		r.Full = Leg{Accept: true, Hex: []string{encode(full)}}
 	}
 	msg := dynamicpb.NewMessage(desc)
 	err := o.Unmarshal(data, msg)

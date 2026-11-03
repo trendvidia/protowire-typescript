@@ -46,6 +46,7 @@ import {
 import { PxfError } from "./errors.js";
 import {
   type KeyedElemState,
+  checkEntryNameKept,
   checkExplicitKey,
   keyedDuplicateKeyError,
   keyedEmptyNameError,
@@ -652,6 +653,7 @@ class Decoder {
           }
           this.bindOnce(fd, bound, pos);
           this.checkOneof(fd, setOneofs, pos);
+          if (ke) checkEntryNameKept(ke, fd, this.peek() === TokenKind.NULL, pos);
           if (this.peek() === TokenKind.NULL) {
             if (!nullable(fd)) throw nullNotAllowed(this.current.pos, fd);
             this.markNull(fd);
@@ -711,21 +713,14 @@ class Decoder {
           }
           this.bindOnce(fd, bound, pos);
           this.checkOneof(fd, setOneofs, pos);
+          if (ke) checkEntryNameKept(ke, fd, false, pos);
           this.markPresent(fd);
           const sub = create(fd.message);
           const subRefl = reflect(fd.message, sub);
-          if (
-            isAny(fd.message) &&
-            this.typeResolver &&
-            this.peek() === TokenKind.AT_TYPE
-          ) {
-            this.decodeAnyInner(subRefl);
-          } else {
-            const saved = this.pathPrefix;
-            if (this.result) this.pathPrefix = saved + fd.name + ".";
-            this.decodeFields(subRefl, true);
-            this.pathPrefix = saved;
-          }
+          const saved = this.pathPrefix;
+          if (this.result) this.pathPrefix = saved + fd.name + ".";
+          this.decodeBody(subRefl);
+          this.pathPrefix = saved;
           parent.set(fd, subRefl);
           break;
         }
@@ -786,19 +781,20 @@ class Decoder {
       );
     }
     this.advance();
-    if (
-      isAny(fd.message) &&
-      this.typeResolver &&
-      this.peek() === TokenKind.AT_TYPE
-    ) {
-      this.decodeAnyInner(subRefl);
-    } else {
-      const saved = this.pathPrefix;
-      this.pathPrefix = saved + fd.name + ".";
-      this.decodeFields(subRefl, true);
-      this.pathPrefix = saved;
-    }
+    const saved = this.pathPrefix;
+    this.pathPrefix = saved + fd.name + ".";
+    this.decodeBody(subRefl);
+    this.pathPrefix = saved;
     parent.set(fd, subRefl);
+  }
+
+  /** A message body, the opening `{` consumed: an Any with a type entry, or fields. */
+  private decodeBody(target: ReflectMessage): void {
+    if (isAny(target.desc) && this.typeResolver && this.peek() === TokenKind.AT_TYPE) {
+      this.decodeAnyInner(target);
+    } else {
+      this.decodeFields(target, true);
+    }
   }
 
   /** A singular field is bound at most once in one message body. */
@@ -872,15 +868,7 @@ class Decoder {
         );
       }
       this.advance();
-      if (
-        isAny(fd.message) &&
-        this.typeResolver &&
-        this.peek() === TokenKind.AT_TYPE
-      ) {
-        this.decodeAnyInner(subRefl);
-      } else {
-        this.decodeFields(subRefl, true);
-      }
+      this.decodeBody(subRefl);
       parent.set(fd, subRefl);
       return;
     }
@@ -962,6 +950,9 @@ class Decoder {
     const inner = create(innerDesc);
     const innerRefl = reflect(innerDesc, inner);
     this.decodeFields(innerRefl, true);
+    // The body is packed below, out of reach of the pass over the root, so it
+    // takes the pass here, under the Any's own path.
+    if (this.result) postDecode(innerRefl, this.result, undefined, this.pathPrefix);
 
     const packed = toBinary(innerDesc, inner);
 
@@ -1009,10 +1000,10 @@ class Decoder {
           }
           this.advance();
           if (keyFd) {
-            const ke = { field: fd.name, keyName: keyFd.name };
+            const ke = { field: fd.name, keyName: keyFd.name, keyField: keyFd };
             this.decodeKeyedElement(elemRefl, fd, list.size, ke);
           } else {
-            this.decodeFields(elemRefl, true);
+            this.decodeElement(elemRefl, `${fd.name}[${list.size}]`);
           }
         }
         list.add(elemRefl);
@@ -1097,7 +1088,7 @@ class Decoder {
 
       const elem = reflect(fd.message, create(fd.message));
       elem.set(keyFd, name);
-      const ke = { field: fd.name, keyName: keyFd.name, entryName: name };
+      const ke = { field: fd.name, keyName: keyFd.name, keyField: keyFd, entryName: name };
       this.decodeKeyedElement(elem, fd, list.size, ke);
       list.add(elem);
     }
@@ -1121,6 +1112,16 @@ class Decoder {
     if (ke.entryName !== undefined) this.result?.markPresent(this.pathPrefix + ke.keyName);
     this.elemDepth++;
     this.decodeFields(elem, true, ke);
+    this.elemDepth--;
+    this.pathPrefix = saved;
+  }
+
+  /** A list element's or map value's body, its Result paths under `segment`. */
+  private decodeElement(elem: ReflectMessage, segment: string): void {
+    const saved = this.pathPrefix;
+    if (this.result) this.pathPrefix = `${saved}${segment}.`;
+    this.elemDepth++;
+    this.decodeBody(elem);
     this.elemDepth--;
     this.pathPrefix = saved;
   }
@@ -1194,7 +1195,7 @@ class Decoder {
             throw this.err(this.current.pos, "expected '{' for map message value");
           }
           this.advance();
-          this.decodeFields(elemRefl, true);
+          this.decodeElement(elemRefl, `${fd.name}[${mapKeyForPath(k)}]`);
         }
         v = elemRefl;
       } else if (fd.mapKind === "enum") {
@@ -1596,18 +1597,38 @@ function postDecode(
     }
     // Field is present. Skip nulls (don't recurse into a null subtree).
     if (result.isNull(path)) continue;
-    if (
-      fd.fieldKind === "message" &&
-      parent.isSet(fd) &&
-      !isTimestamp(fd.message) &&
-      !isDuration(fd.message) &&
-      !isWrapperType(fd.message) &&
-      !isAny(fd.message)
-    ) {
-      const sub = parent.get(fd) as ReflectMessage;
-      postDecode(sub, result, undefined, path + ".");
-    }
+    postDecodeBodies(parent, fd, result, path);
   }
+}
+
+/** Run the pass on the message bodies `fd` holds, under the paths they were decoded at. */
+function postDecodeBodies(parent: ReflectMessage, fd: DescField, result: Result, path: string): void {
+  if (fd.fieldKind === "message") {
+    if (parent.isSet(fd) && hasFieldBody(fd.message)) {
+      postDecode(parent.get(fd) as ReflectMessage, result, undefined, path + ".");
+    }
+  } else if (fd.fieldKind === "list" && fd.listKind === "message" && hasFieldBody(fd.message)) {
+    let i = 0;
+    for (const elem of parent.get(fd) as ReflectList) {
+      postDecode(elem as ReflectMessage, result, undefined, `${path}[${i}].`);
+      i++;
+    }
+  } else if (fd.fieldKind === "map" && fd.mapKind === "message" && hasFieldBody(fd.message)) {
+    // Key order, so the first error is the same on every run.
+    const entries = [...(parent.get(fd) as ReflectMap<unknown, ReflectMessage>)]
+      .map(([k, v]): [string, ReflectMessage] => [`${path}[${mapKeyForPath(k)}].`, v])
+      .sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
+    for (const [prefix, value] of entries) postDecode(value, result, undefined, prefix);
+  }
+}
+
+/** Literal-form types hold no annotated fields, and an Any took the pass when decoded. */
+function hasFieldBody(desc: DescMessage): boolean {
+  return !isTimestamp(desc) && !isDuration(desc) && !isWrapperType(desc) && !isAny(desc);
+}
+
+function mapKeyForPath(key: unknown): string {
+  return typeof key === "string" ? JSON.stringify(key) : String(key);
 }
 
 function siblingPresent(fd: DescField, result: Result, pathPrefix: string): boolean {

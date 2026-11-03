@@ -21,7 +21,7 @@ import { FileDescriptorSetSchema } from "@bufbuild/protobuf/wkt";
 import { describe, expect, it } from "vitest";
 
 import { bindRow, DatasetReader } from "./dataset_reader.js";
-import { unmarshal, type UnmarshalOptions } from "./decode.js";
+import { unmarshal, unmarshalFull, type UnmarshalOptions } from "./decode.js";
 import { marshal } from "./encode.js";
 import { format } from "./format.js";
 import { parse } from "./parser.js";
@@ -35,6 +35,7 @@ interface FixtureRecord {
   parse: boolean;
   format?: string;
   decode: Leg;
+  full: Leg;
   marshal?: string;
   stream?: Leg;
 }
@@ -47,6 +48,9 @@ const record = JSON.parse(readFileSync(resolve(root, "reference.json"), "utf8"))
 const reference = record.fixtures;
 
 const GAPS: Record<string, number> = {
+  "postdecode/any-default.pxf": 48,
+  "postdecode/err-any-does-not-satisfy-outer.pxf": 48,
+  "postdecode/err-any-required.pxf": 48,
   "any/assignment.pxf": 48,
   "any/block.pxf": 48,
   "any/list-element.pxf": 48,
@@ -158,6 +162,10 @@ for (const dir of dirs) {
         if (decode) failures.push(decode);
         if (!decode && want.marshal !== undefined && marshal(unmarshal(text, desc, { typeResolver }), desc, { typeResolver }) !== want.marshal) {
           failures.push("marshal: text differs from the reference");
+        }
+        if (!want.stream) {
+          const full = compare("full", want.full, desc, () => [unmarshalFull(text, desc, { typeResolver }).message]);
+          if (full) failures.push(full);
         }
         if (want.stream) {
           const stream = compare("stream", want.stream, desc, () => streamLeg(text, desc));
