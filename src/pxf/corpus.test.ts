@@ -36,6 +36,7 @@ interface FixtureRecord {
   format?: string;
   decode: Leg;
   full: Leg;
+  discard: boolean;
   marshal?: string;
   stream?: Leg;
 }
@@ -164,6 +165,13 @@ for (const dir of dirs) {
           failures.push("marshal: text differs from the reference");
         }
         if (!want.stream) {
+          let skipped = true;
+          try {
+            unmarshal(text, desc, { typeResolver, discardUnknown: true });
+          } catch {
+            skipped = false;
+          }
+          if (skipped !== want.discard) failures.push(`discardUnknown: ${skipped ? "accepted" : "rejected"}, the reference did not`);
           const full = compare("full", want.full, desc, () => [unmarshalFull(text, desc, { typeResolver }).message]);
           if (full) failures.push(full);
         }

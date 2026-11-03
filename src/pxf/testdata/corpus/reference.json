@@ -15,6 +15,7 @@
      "0a120a0b616e792e76312e4c65616612030a0174"
     ]
    },
+   "discard": true,
    "marshal": "payload {\n  @type = \"any.v1.Leaf\"\n  tag = \"t\"\n}\n"
   },
   "any/block.pxf": {
@@ -32,6 +33,7 @@
      "0a140a0b616e792e76312e4c65616612050a01741007"
     ]
    },
+   "discard": true,
    "marshal": "payload {\n  @type = \"any.v1.Leaf\"\n  tag = \"t\"\n  n = 7\n}\n"
   },
   "any/err-not-any.pxf": {
@@ -42,7 +44,8 @@
    },
    "full": {
     "accept": false
-   }
+   },
+   "discard": false
   },
   "any/err-not-first.pxf": {
    "parse": false,
@@ -51,7 +54,8 @@
    },
    "full": {
     "accept": false
-   }
+   },
+   "discard": false
   },
   "any/err-twice.pxf": {
    "parse": false,
@@ -60,7 +64,8 @@
    },
    "full": {
     "accept": false
-   }
+   },
+   "discard": false
   },
   "any/err-unquoted-url.pxf": {
    "parse": false,
@@ -69,7 +74,8 @@
    },
    "full": {
     "accept": false
-   }
+   },
+   "discard": false
   },
   "any/err-unresolved.pxf": {
    "parse": true,
@@ -79,7 +85,8 @@
    },
    "full": {
     "accept": false
-   }
+   },
+   "discard": false
   },
   "any/list-element.pxf": {
    "parse": true,
@@ -96,6 +103,7 @@
      "12120a0b616e792e76312e4c65616612030a016112110a0b616e792e76312e4c65616612021002"
     ]
    },
+   "discard": true,
    "marshal": "anys = [\n  {\n    type_url = \"any.v1.Leaf\"\n    value = b\"CgFh\"\n  },\n  {\n    type_url = \"any.v1.Leaf\"\n    value = b\"EAI=\"\n  }\n]\n"
   },
   "any/map-value.pxf": {
@@ -113,6 +121,7 @@
      "1a170a016b12120a0b616e792e76312e4c65616612030a0174"
     ]
    },
+   "discard": true,
    "marshal": "by_key = {\n  k: {\n    type_url = \"any.v1.Leaf\"\n    value = b\"CgF0\"\n  }\n}\n"
   },
   "any/plain-fields.pxf": {
@@ -130,6 +139,7 @@
      "0a120a0b616e792e76312e4c65616612030a0174"
     ]
    },
+   "discard": true,
    "marshal": "payload {\n  @type = \"any.v1.Leaf\"\n  tag = \"t\"\n}\n"
   },
   "any/url-verbatim.pxf": {
@@ -147,6 +157,7 @@
      "0a260a1f747970652e676f6f676c65617069732e636f6d2f616e792e76312e4c65616612030a0174"
     ]
    },
+   "discard": true,
    "marshal": "payload {\n  @type = \"type.googleapis.com/any.v1.Leaf\"\n  tag = \"t\"\n}\n"
   },
   "blocks/comma-between-elements.pxf": {
@@ -164,6 +175,7 @@
      "1a110a086772656574696e6712054c6162656c1a0e0a057469746c6512054c6162656c"
     ]
    },
+   "discard": true,
    "marshal": "children = [\n  {\n    id = \"greeting\"\n    type = \"Label\"\n  },\n  {\n    id = \"title\"\n    type = \"Label\"\n  }\n]\n"
   },
   "blocks/err-comma-in-block.pxf": {
@@ -173,7 +185,8 @@
    },
    "full": {
     "accept": false
-   }
+   },
+   "discard": false
   },
   "blocks/err-comma-in-list-element.pxf": {
    "parse": false,
@@ -182,7 +195,8 @@
    },
    "full": {
     "accept": false
-   }
+   },
+   "discard": false
   },
   "blocks/err-comma-in-map.pxf": {
    "parse": false,
@@ -191,7 +205,8 @@
    },
    "full": {
     "accept": false
-   }
+   },
+   "discard": false
   },
   "blocks/err-semicolon-in-block.pxf": {
    "parse": false,
@@ -200,7 +215,8 @@
    },
    "full": {
     "accept": false
-   }
+   },
+   "discard": false
   },
   "blocks/newline-in-block.pxf": {
    "parse": true,
@@ -217,6 +233,7 @@
      "0a0f0a064265726c696e12053130313135"
     ]
    },
+   "discard": true,
    "marshal": "address {\n  city = \"Berlin\"\n  zip = \"10115\"\n}\n"
   },
   "blocks/space-in-block.pxf": {
@@ -234,6 +251,7 @@
      "0a0f0a064265726c696e12053130313135"
     ]
    },
+   "discard": true,
    "marshal": "address {\n  city = \"Berlin\"\n  zip = \"10115\"\n}\n"
   },
   "dataset/arity-long.pxf": {
@@ -244,6 +262,7 @@
    "full": {
     "accept": false
    },
+   "discard": false,
    "stream": {
     "accept": false
    }
@@ -256,6 +275,7 @@
    "full": {
     "accept": false
    },
+   "discard": false,
    "stream": {
     "accept": false
    }
@@ -272,6 +292,7 @@
    "full": {
     "accept": false
    },
+   "discard": false,
    "stream": {
     "accept": true,
     "hex": [
@@ -288,6 +309,7 @@
    "full": {
     "accept": false
    },
+   "discard": false,
    "stream": {
     "accept": false
    }
@@ -305,6 +327,7 @@
    "full": {
     "accept": false
    },
+   "discard": false,
    "stream": {
     "accept": true,
     "hex": [
@@ -322,6 +345,7 @@
    "full": {
     "accept": false
    },
+   "discard": false,
    "stream": {
     "accept": false
    }
@@ -335,6 +359,7 @@
    "full": {
     "accept": false
    },
+   "discard": false,
    "stream": {
     "accept": true
    }
@@ -351,6 +376,7 @@
    "full": {
     "accept": false
    },
+   "discard": false,
    "stream": {
     "accept": true,
     "hex": [
@@ -366,6 +392,7 @@
    "full": {
     "accept": false
    },
+   "discard": false,
    "stream": {
     "accept": false
    }
@@ -385,6 +412,7 @@
    "full": {
     "accept": false
    },
+   "discard": false,
    "stream": {
     "accept": true,
     "hex": [
@@ -407,6 +435,7 @@
    "full": {
     "accept": false
    },
+   "discard": false,
    "stream": {
     "accept": true,
     "hex": [
@@ -423,6 +452,7 @@
    "full": {
     "accept": false
    },
+   "discard": false,
    "stream": {
     "accept": false
    }
@@ -436,6 +466,7 @@
    "full": {
     "accept": false
    },
+   "discard": false,
    "stream": {
     "accept": false
    }
@@ -452,6 +483,7 @@
    "full": {
     "accept": false
    },
+   "discard": false,
    "stream": {
     "accept": true,
     "hex": [
@@ -468,6 +500,7 @@
    "full": {
     "accept": false
    },
+   "discard": false,
    "stream": {
     "accept": false
    }
@@ -481,6 +514,7 @@
    "full": {
     "accept": false
    },
+   "discard": false,
    "stream": {
     "accept": false
    }
@@ -497,6 +531,7 @@
    "full": {
     "accept": false
    },
+   "discard": false,
    "stream": {
     "accept": true,
     "hex": [
@@ -513,6 +548,7 @@
    "full": {
     "accept": false
    },
+   "discard": false,
    "stream": {
     "accept": false
    }
@@ -530,6 +566,7 @@
    "full": {
     "accept": false
    },
+   "discard": false,
    "stream": {
     "accept": true,
     "hex": [
@@ -546,6 +583,7 @@
    "full": {
     "accept": false
    },
+   "discard": false,
    "stream": {
     "accept": false
    }
@@ -558,6 +596,7 @@
    "full": {
     "accept": false
    },
+   "discard": false,
    "stream": {
     "accept": false
    }
@@ -571,6 +610,7 @@
    "full": {
     "accept": false
    },
+   "discard": false,
    "stream": {
     "accept": false
    }
@@ -588,6 +628,7 @@
    "full": {
     "accept": false
    },
+   "discard": false,
    "stream": {
     "accept": true,
     "hex": [
@@ -605,6 +646,7 @@
    "full": {
     "accept": false
    },
+   "discard": false,
    "stream": {
     "accept": false
    }
@@ -618,6 +660,7 @@
    "full": {
     "accept": false
    },
+   "discard": false,
    "stream": {
     "accept": false
    }
@@ -631,6 +674,7 @@
    "full": {
     "accept": false
    },
+   "discard": false,
    "stream": {
     "accept": false
    }
@@ -643,6 +687,7 @@
    "full": {
     "accept": false
    },
+   "discard": false,
    "stream": {
     "accept": false
    }
@@ -656,6 +701,7 @@
    "full": {
     "accept": false
    },
+   "discard": false,
    "stream": {
     "accept": false
    }
@@ -672,6 +718,7 @@
    "full": {
     "accept": false
    },
+   "discard": false,
    "stream": {
     "accept": true,
     "hex": [
@@ -687,6 +734,7 @@
    "full": {
     "accept": false
    },
+   "discard": false,
    "stream": {
     "accept": false
    }
@@ -700,6 +748,7 @@
    "full": {
     "accept": false
    },
+   "discard": false,
    "stream": {
     "accept": true
    }
@@ -712,6 +761,7 @@
    "full": {
     "accept": false
    },
+   "discard": false,
    "stream": {
     "accept": false
    }
@@ -728,6 +778,7 @@
    "full": {
     "accept": false
    },
+   "discard": false,
    "stream": {
     "accept": true,
     "hex": [
@@ -750,6 +801,7 @@
    "full": {
     "accept": false
    },
+   "discard": false,
    "stream": {
     "accept": true,
     "hex": [
@@ -773,6 +825,7 @@
    "full": {
     "accept": false
    },
+   "discard": false,
    "stream": {
     "accept": true,
     "hex": [
@@ -790,6 +843,7 @@
    "full": {
     "accept": false
    },
+   "discard": false,
    "stream": {
     "accept": false
    }
@@ -808,6 +862,7 @@
    "full": {
     "accept": false
    },
+   "discard": false,
    "stream": {
     "accept": true,
     "hex": [
@@ -824,6 +879,7 @@
    "full": {
     "accept": false
    },
+   "discard": false,
    "stream": {
     "accept": false
    }
@@ -836,6 +892,7 @@
    "full": {
     "accept": false
    },
+   "discard": false,
    "stream": {
     "accept": false
    }
@@ -848,6 +905,7 @@
    "full": {
     "accept": false
    },
+   "discard": false,
    "stream": {
     "accept": false
    }
@@ -860,6 +918,7 @@
    "full": {
     "accept": false
    },
+   "discard": false,
    "stream": {
     "accept": false
    }
@@ -872,9 +931,124 @@
    "full": {
     "accept": false
    },
+   "discard": false,
    "stream": {
     "accept": false
    }
+  },
+  "discard/bad-inner-entry.pxf": {
+   "parse": false,
+   "decode": {
+    "accept": false
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": false
+  },
+  "discard/block-then-field.pxf": {
+   "parse": true,
+   "format": "@type discard.v1.Holder\n\nnope {\n  a = 1\n  b = [\n    1,\n    2\n  ]\n}\ns = \"x\"\n",
+   "decode": {
+    "accept": false
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": true
+  },
+  "discard/block-unterminated.pxf": {
+   "parse": false,
+   "decode": {
+    "accept": false
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": false
+  },
+  "discard/list-of-blocks.pxf": {
+   "parse": true,
+   "format": "@type discard.v1.Holder\n\nnope = [\n  {\n    a = 1\n  },\n  {\n    b = 2\n  }\n]\n",
+   "decode": {
+    "accept": false
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": true
+  },
+  "discard/list-unterminated.pxf": {
+   "parse": false,
+   "decode": {
+    "accept": false
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": false
+  },
+  "discard/map-then-field.pxf": {
+   "parse": true,
+   "format": "@type discard.v1.Holder\n\nnope = {\n  a: {\n    b = 1\n  }\n  c: [\n    1\n  ]\n}\ns = \"x\"\n",
+   "decode": {
+    "accept": false
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": true
+  },
+  "discard/mismatched-closer.pxf": {
+   "parse": false,
+   "decode": {
+    "accept": false
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": false
+  },
+  "discard/mismatched-inside.pxf": {
+   "parse": false,
+   "decode": {
+    "accept": false
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": false
+  },
+  "discard/missing-value.pxf": {
+   "parse": false,
+   "decode": {
+    "accept": false
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": false
+  },
+  "discard/scalar-then-field.pxf": {
+   "parse": true,
+   "format": "@type discard.v1.Holder\n\nnope = 1\ns = \"x\"\n",
+   "decode": {
+    "accept": false
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": true
+  },
+  "discard/unterminated-string.pxf": {
+   "parse": false,
+   "decode": {
+    "accept": false
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": false
   },
   "duplicates/err-map-key-twice-across-bindings.pxf": {
    "parse": true,
@@ -884,7 +1058,8 @@
    },
    "full": {
     "accept": false
-   }
+   },
+   "discard": false
   },
   "duplicates/err-map-key-twice-in-literal.pxf": {
    "parse": true,
@@ -894,7 +1069,8 @@
    },
    "full": {
     "accept": false
-   }
+   },
+   "discard": false
   },
   "duplicates/err-map-key-twice-int-spellings.pxf": {
    "parse": true,
@@ -904,7 +1080,8 @@
    },
    "full": {
     "accept": false
-   }
+   },
+   "discard": false
   },
   "duplicates/err-map-key-twice-message-values.pxf": {
    "parse": true,
@@ -914,7 +1091,8 @@
    },
    "full": {
     "accept": false
-   }
+   },
+   "discard": false
   },
   "duplicates/err-map-key-twice-same-value.pxf": {
    "parse": true,
@@ -924,7 +1102,8 @@
    },
    "full": {
     "accept": false
-   }
+   },
+   "discard": false
   },
   "duplicates/err-message-assign-then-block.pxf": {
    "parse": true,
@@ -934,7 +1113,8 @@
    },
    "full": {
     "accept": false
-   }
+   },
+   "discard": false
   },
   "duplicates/err-message-twice.pxf": {
    "parse": true,
@@ -944,7 +1124,8 @@
    },
    "full": {
     "accept": false
-   }
+   },
+   "discard": false
   },
   "duplicates/err-nested-scalar-twice.pxf": {
    "parse": true,
@@ -954,7 +1135,8 @@
    },
    "full": {
     "accept": false
-   }
+   },
+   "discard": false
   },
   "duplicates/err-null-then-value.pxf": {
    "parse": true,
@@ -964,7 +1146,8 @@
    },
    "full": {
     "accept": false
-   }
+   },
+   "discard": false
   },
   "duplicates/err-oneof-member-twice.pxf": {
    "parse": true,
@@ -974,7 +1157,8 @@
    },
    "full": {
     "accept": false
-   }
+   },
+   "discard": false
   },
   "duplicates/err-oneof-scalar-twice.pxf": {
    "parse": true,
@@ -984,7 +1168,8 @@
    },
    "full": {
     "accept": false
-   }
+   },
+   "discard": false
   },
   "duplicates/err-optional-twice.pxf": {
    "parse": true,
@@ -994,7 +1179,8 @@
    },
    "full": {
     "accept": false
-   }
+   },
+   "discard": false
   },
   "duplicates/err-scalar-same-value.pxf": {
    "parse": true,
@@ -1004,7 +1190,8 @@
    },
    "full": {
     "accept": false
-   }
+   },
+   "discard": false
   },
   "duplicates/err-scalar-twice.pxf": {
    "parse": true,
@@ -1014,7 +1201,8 @@
    },
    "full": {
     "accept": false
-   }
+   },
+   "discard": false
   },
   "duplicates/err-wrapper-twice.pxf": {
    "parse": true,
@@ -1024,7 +1212,8 @@
    },
    "full": {
     "accept": false
-   }
+   },
+   "discard": false
   },
   "duplicates/map-key-once-per-body.pxf": {
    "parse": true,
@@ -1041,6 +1230,7 @@
      "3a081a060a01611201313a081a060a0161120132"
     ]
    },
+   "discard": true,
    "marshal": "items = [\n  {\n    tags = {\n      a: \"1\"\n    }\n  },\n  {\n    tags = {\n      a: \"2\"\n    }\n  }\n]\n"
   },
   "duplicates/map-twice-distinct-keys.pxf": {
@@ -1058,6 +1248,7 @@
      "4a060a01611201314a060a0162120132"
     ]
    },
+   "discard": true,
    "marshal": "labels = {\n  a: \"1\"\n  b: \"2\"\n}\n"
   },
   "duplicates/once-per-body.pxf": {
@@ -1075,6 +1266,7 @@
      "1a020801320208013a0208013a020802"
     ]
    },
+   "discard": true,
    "marshal": "m {\n  a = 1\n}\nn {\n  a = 1\n}\nitems = [\n  {\n    a = 1\n  },\n  {\n    a = 2\n  }\n]\n"
   },
   "duplicates/repeated-twice.pxf": {
@@ -1092,6 +1284,7 @@
      "3a0208013a020802"
     ]
    },
+   "discard": true,
    "marshal": "items = [\n  {\n    a = 1\n  },\n  {\n    a = 2\n  }\n]\n"
   },
   "duration/err-digit-led-identifier.pxf": {
@@ -1101,7 +1294,8 @@
    },
    "full": {
     "accept": false
-   }
+   },
+   "discard": false
   },
   "duration/err-sign-per-segment.pxf": {
    "parse": false,
@@ -1110,7 +1304,8 @@
    },
    "full": {
     "accept": false
-   }
+   },
+   "discard": false
   },
   "duration/err-unit-then-alpha.pxf": {
    "parse": false,
@@ -1119,7 +1314,8 @@
    },
    "full": {
     "accept": false
-   }
+   },
+   "discard": false
   },
   "duration/negative-fractional.pxf": {
    "parse": true,
@@ -1136,6 +1332,7 @@
      "0a1608ffffffffffffffffff011080b6ca91feffffffff01"
     ]
    },
+   "discard": true,
    "marshal": "d = -1.5s\n"
   },
   "duration/negative-multi-segment.pxf": {
@@ -1153,6 +1350,7 @@
      "0a0b08e8d5ffffffffffffff01"
     ]
    },
+   "discard": true,
    "marshal": "d = -1h30m0s\n"
   },
   "duration/negative-seconds.pxf": {
@@ -1170,6 +1368,7 @@
      "0a0b08e2ffffffffffffffff01"
     ]
    },
+   "discard": true,
    "marshal": "d = -30s\n"
   },
   "duration/negative-zero.pxf": {
@@ -1187,6 +1386,7 @@
      "0a00"
     ]
    },
+   "discard": true,
    "marshal": "d = 0s\n"
   },
   "duration/roundtrip-negative.pxf": {
@@ -1204,6 +1404,7 @@
      "0a1608ffffffffffffffffff011080b6ca91feffffffff01"
     ]
    },
+   "discard": true,
    "marshal": "d = -1.5s\n"
   },
   "keyed/anonymous-duplicate-ok.pxf": {
@@ -1221,6 +1422,7 @@
      "0a04726f6f74220c0a0364757012054c6162656c220b0a03647570120448426f78"
     ]
    },
+   "discard": true,
    "marshal": "id = \"root\"\nchildren = [\n  {\n    id = \"dup\"\n    type = \"Label\"\n  },\n  {\n    id = \"dup\"\n    type = \"HBox\"\n  }\n]\n"
   },
   "keyed/anonymous-equivalence.pxf": {
@@ -1238,6 +1440,7 @@
      "0a04726f6f74120456426f7822130a086772656574696e6712054c6162656c180122150a0b636f756e7465725f726f77120448426f781802"
     ]
    },
+   "discard": true,
    "marshal": "id = \"root\"\ntype = \"VBox\"\nchildren {\n  greeting {\n    type = \"Label\"\n    weight = 1\n  }\n  counter_row {\n    type = \"HBox\"\n    weight = 2\n  }\n}\n"
   },
   "keyed/err-duplicate-key-spelling.pxf": {
@@ -1248,7 +1451,8 @@
    },
    "full": {
     "accept": false
-   }
+   },
+   "discard": false
   },
   "keyed/err-duplicate-key.pxf": {
    "parse": true,
@@ -1258,7 +1462,8 @@
    },
    "full": {
     "accept": false
-   }
+   },
+   "discard": false
   },
   "keyed/err-empty-key-anonymous.pxf": {
    "parse": true,
@@ -1268,7 +1473,8 @@
    },
    "full": {
     "accept": false
-   }
+   },
+   "discard": false
   },
   "keyed/err-empty-key.pxf": {
    "parse": true,
@@ -1278,7 +1484,8 @@
    },
    "full": {
     "accept": false
-   }
+   },
+   "discard": false
   },
   "keyed/err-key-conflict.pxf": {
    "parse": true,
@@ -1288,7 +1495,8 @@
    },
    "full": {
     "accept": false
-   }
+   },
+   "discard": false
   },
   "keyed/err-key-null.pxf": {
    "parse": true,
@@ -1298,7 +1506,8 @@
    },
    "full": {
     "accept": false
-   }
+   },
+   "discard": false
   },
   "keyed/err-key-oneof-sibling-null.pxf": {
    "parse": true,
@@ -1308,7 +1517,8 @@
    },
    "full": {
     "accept": false
-   }
+   },
+   "discard": false
   },
   "keyed/err-key-oneof-sibling.pxf": {
    "parse": true,
@@ -1318,7 +1528,8 @@
    },
    "full": {
     "accept": false
-   }
+   },
+   "discard": false
   },
   "keyed/err-quoted-name-unkeyed.pxf": {
    "parse": true,
@@ -1328,7 +1539,8 @@
    },
    "full": {
     "accept": false
-   }
+   },
+   "discard": false
   },
   "keyed/fmt-anonymous-to-keyed.pxf": {
    "parse": true,
@@ -1345,6 +1557,7 @@
      "0a0465646765120d0a0975732d656173742d311003120b0a077072696d6172791002"
     ]
    },
+   "discard": true,
    "marshal": "service = \"edge\"\nregions {\n  \"us-east-1\" {\n    replicas = 3\n  }\n  primary {\n    replicas = 2\n  }\n}\n"
   },
   "keyed/fmt-unquote.pxf": {
@@ -1362,6 +1575,7 @@
      "0a04726f6f74120456426f7822110a086772656574696e6712054c6162656c22130a0b636f756e7465725f726f77120448426f78"
     ]
    },
+   "discard": true,
    "marshal": "id = \"root\"\ntype = \"VBox\"\nchildren {\n  greeting {\n    type = \"Label\"\n  }\n  counter_row {\n    type = \"HBox\"\n  }\n}\n"
   },
   "keyed/key-null-anonymous-ok.pxf": {
@@ -1379,6 +1593,7 @@
      "1200"
     ]
    },
+   "discard": true,
    "marshal": "tags = [\n  {\n  }\n]\n"
   },
   "keyed/key-oneof-ok.pxf": {
@@ -1396,6 +1611,7 @@
      "0a070a05616c7068610a060a04626574610a03120178"
     ]
    },
+   "discard": true,
    "marshal": "choices = [\n  {\n    name = \"alpha\"\n  },\n  {\n    name = \"beta\"\n  },\n  {\n    other = \"x\"\n  }\n]\n"
   },
   "keyed/redundant-key-ok.pxf": {
@@ -1413,6 +1629,7 @@
      "0a04726f6f7422110a086772656574696e6712054c6162656c"
     ]
    },
+   "discard": true,
    "marshal": "id = \"root\"\nchildren {\n  greeting {\n    type = \"Label\"\n  }\n}\n"
   },
   "keyed/roundtrip-keyed.pxf": {
@@ -1430,6 +1647,7 @@
      "0a04726f6f74120456426f7822130a086772656574696e6712054c6162656c180122150a0b636f756e7465725f726f77120448426f781802"
     ]
    },
+   "discard": true,
    "marshal": "id = \"root\"\ntype = \"VBox\"\nchildren {\n  greeting {\n    type = \"Label\"\n    weight = 1\n  }\n  counter_row {\n    type = \"HBox\"\n    weight = 2\n  }\n}\n"
   },
   "keyed/roundtrip-quoted.pxf": {
@@ -1447,6 +1665,7 @@
      "0a0465646765120d0a0975732d656173742d311003120d0a0965752d776573742d321001"
     ]
    },
+   "discard": true,
    "marshal": "service = \"edge\"\nregions {\n  \"us-east-1\" {\n    replicas = 3\n  }\n  \"eu-west-2\" {\n    replicas = 1\n  }\n}\n"
   },
   "map-keys/bool-keys-integer.pxf": {
@@ -1464,6 +1683,7 @@
      "0a100800120c696e7465676572207a65726f0a0f0801120b696e7465676572206f6e65"
     ]
    },
+   "discard": true,
    "marshal": "by_flag = {\n  false: \"integer zero\"\n  true: \"integer one\"\n}\n"
   },
   "map-keys/bool-keys-keyword.pxf": {
@@ -1481,6 +1701,7 @@
      "0a0b080012076b6579776f72640a0b080112076b6579776f7264"
     ]
    },
+   "discard": true,
    "marshal": "by_flag = {\n  false: \"keyword\"\n  true: \"keyword\"\n}\n"
   },
   "map-keys/bool-keys.pxf": {
@@ -1498,6 +1719,7 @@
      "0a120800120e71756f746564206c69746572616c0a120801120e71756f746564206c69746572616c"
     ]
    },
+   "discard": true,
    "marshal": "by_flag = {\n  false: \"quoted literal\"\n  true: \"quoted literal\"\n}\n"
   },
   "map-keys/fmt-bare-keys.pxf": {
@@ -1515,6 +1737,7 @@
      "0a0b08001207696e74656765720a0b080112076b6579776f7264"
     ]
    },
+   "discard": true,
    "marshal": "by_flag = {\n  false: \"integer\"\n  true: \"keyword\"\n}\n"
   },
   "map-keys/fmt-dotted-keys.pxf": {
@@ -1532,6 +1755,7 @@
      "0a110a022e65120b6c656164696e6720646f740a130a03312e35120c666c6f61742d7368617065640a140a03612e62120d71756f74656420646f747465640a120a03632e64120b6261726520646f74746564"
     ]
    },
+   "discard": true,
    "marshal": "by_label = {\n  \".e\": \"leading dot\"\n  \"1.5\": \"float-shaped\"\n  a.b: \"quoted dotted\"\n  c.d: \"bare dotted\"\n}\n"
   },
   "map-keys/fmt-keyword-keys.pxf": {
@@ -1549,6 +1773,7 @@
      "0a150a03313233120e71756f74656420696e74656765720a170a0462617265120f62617265206964656e7469666965720a170a0566616c7365120e71756f746564206b6579776f72640a160a046e756c6c120e71756f746564206b6579776f72640a230a05706c61696e121a71756f746564206964656e7469666965722d73616665206b65790a160a0474727565120e71756f746564206b6579776f7264"
     ]
    },
+   "discard": true,
    "marshal": "by_label = {\n  \"123\": \"quoted integer\"\n  \"false\": \"quoted keyword\"\n  \"null\": \"quoted keyword\"\n  \"true\": \"quoted keyword\"\n  bare: \"bare identifier\"\n  plain: \"quoted identifier-safe key\"\n}\n"
   },
   "map-keys/invalid/identifier-lower-f.pxf": {
@@ -1559,7 +1784,8 @@
    },
    "full": {
     "accept": false
-   }
+   },
+   "discard": false
   },
   "map-keys/invalid/identifier-lower-t.pxf": {
    "parse": true,
@@ -1569,7 +1795,8 @@
    },
    "full": {
     "accept": false
-   }
+   },
+   "discard": false
   },
   "map-keys/invalid/identifier-title-False.pxf": {
    "parse": true,
@@ -1579,7 +1806,8 @@
    },
    "full": {
     "accept": false
-   }
+   },
+   "discard": false
   },
   "map-keys/invalid/identifier-title-True.pxf": {
    "parse": true,
@@ -1589,7 +1817,8 @@
    },
    "full": {
     "accept": false
-   }
+   },
+   "discard": false
   },
   "map-keys/invalid/identifier-upper-F.pxf": {
    "parse": true,
@@ -1599,7 +1828,8 @@
    },
    "full": {
     "accept": false
-   }
+   },
+   "discard": false
   },
   "map-keys/invalid/identifier-upper-FALSE.pxf": {
    "parse": true,
@@ -1609,7 +1839,8 @@
    },
    "full": {
     "accept": false
-   }
+   },
+   "discard": false
   },
   "map-keys/invalid/identifier-upper-T.pxf": {
    "parse": true,
@@ -1619,7 +1850,8 @@
    },
    "full": {
     "accept": false
-   }
+   },
+   "discard": false
   },
   "map-keys/invalid/identifier-upper-TRUE.pxf": {
    "parse": true,
@@ -1629,7 +1861,8 @@
    },
    "full": {
     "accept": false
-   }
+   },
+   "discard": false
   },
   "map-keys/invalid/identifier-word-yes.pxf": {
    "parse": true,
@@ -1639,7 +1872,8 @@
    },
    "full": {
     "accept": false
-   }
+   },
+   "discard": false
   },
   "map-keys/invalid/string-lower-t.pxf": {
    "parse": true,
@@ -1649,7 +1883,8 @@
    },
    "full": {
     "accept": false
-   }
+   },
+   "discard": false
   },
   "map-keys/invalid/string-one-1.pxf": {
    "parse": true,
@@ -1659,7 +1894,8 @@
    },
    "full": {
     "accept": false
-   }
+   },
+   "discard": false
   },
   "map-keys/invalid/string-upper-TRUE.pxf": {
    "parse": true,
@@ -1669,7 +1905,8 @@
    },
    "full": {
     "accept": false
-   }
+   },
+   "discard": false
   },
   "map-keys/invalid/string-zero-0.pxf": {
    "parse": true,
@@ -1679,7 +1916,8 @@
    },
    "full": {
     "accept": false
-   }
+   },
+   "discard": false
   },
   "nulls/default-optional.pxf": {
    "parse": true,
@@ -1695,7 +1933,8 @@
     "hex": [
      ""
     ]
-   }
+   },
+   "discard": true
   },
   "nulls/editions-explicit.pxf": {
    "parse": true,
@@ -1711,7 +1950,8 @@
     "hex": [
      ""
     ]
-   }
+   },
+   "discard": true
   },
   "nulls/err-editions-implicit.pxf": {
    "parse": true,
@@ -1721,7 +1961,8 @@
    },
    "full": {
     "accept": false
-   }
+   },
+   "discard": false
   },
   "nulls/err-list-element.pxf": {
    "parse": true,
@@ -1731,7 +1972,8 @@
    },
    "full": {
     "accept": false
-   }
+   },
+   "discard": false
   },
   "nulls/err-map-message-value.pxf": {
    "parse": true,
@@ -1741,7 +1983,8 @@
    },
    "full": {
     "accept": false
-   }
+   },
+   "discard": false
   },
   "nulls/err-map-value.pxf": {
    "parse": true,
@@ -1751,7 +1994,8 @@
    },
    "full": {
     "accept": false
-   }
+   },
+   "discard": false
   },
   "nulls/err-map.pxf": {
    "parse": true,
@@ -1761,7 +2005,8 @@
    },
    "full": {
     "accept": false
-   }
+   },
+   "discard": false
   },
   "nulls/err-nested-scalar.pxf": {
    "parse": true,
@@ -1771,7 +2016,8 @@
    },
    "full": {
     "accept": false
-   }
+   },
+   "discard": false
   },
   "nulls/err-oneof-sibling.pxf": {
    "parse": true,
@@ -1781,7 +2027,8 @@
    },
    "full": {
     "accept": false
-   }
+   },
+   "discard": false
   },
   "nulls/err-proto2-required.pxf": {
    "parse": true,
@@ -1791,7 +2038,8 @@
    },
    "full": {
     "accept": false
-   }
+   },
+   "discard": false
   },
   "nulls/err-repeated.pxf": {
    "parse": true,
@@ -1801,7 +2049,8 @@
    },
    "full": {
     "accept": false
-   }
+   },
+   "discard": false
   },
   "nulls/err-scalar.pxf": {
    "parse": true,
@@ -1811,7 +2060,8 @@
    },
    "full": {
     "accept": false
-   }
+   },
+   "discard": false
   },
   "nulls/message.pxf": {
    "parse": true,
@@ -1827,7 +2077,8 @@
     "hex": [
      ""
     ]
-   }
+   },
+   "discard": true
   },
   "nulls/oneof-message.pxf": {
    "parse": true,
@@ -1843,7 +2094,8 @@
     "hex": [
      ""
     ]
-   }
+   },
+   "discard": true
   },
   "nulls/oneof-scalar.pxf": {
    "parse": true,
@@ -1859,7 +2111,8 @@
     "hex": [
      ""
     ]
-   }
+   },
+   "discard": true
   },
   "nulls/optional-scalar.pxf": {
    "parse": true,
@@ -1875,7 +2128,8 @@
     "hex": [
      ""
     ]
-   }
+   },
+   "discard": true
   },
   "nulls/proto2-scalar.pxf": {
    "parse": true,
@@ -1891,7 +2145,8 @@
     "hex": [
      ""
     ]
-   }
+   },
+   "discard": true
   },
   "nulls/required-optional.pxf": {
    "parse": true,
@@ -1907,7 +2162,8 @@
     "hex": [
      ""
     ]
-   }
+   },
+   "discard": true
   },
   "nulls/wrapper.pxf": {
    "parse": true,
@@ -1923,7 +2179,8 @@
     "hex": [
      ""
     ]
-   }
+   },
+   "discard": true
   },
   "postdecode/any-default.pxf": {
    "parse": true,
@@ -1940,6 +2197,7 @@
      "0a01722a230a12706f73746465636f64652e76312e4c656166120d0a05696e6e6572120464666c74"
     ]
    },
+   "discard": true,
    "marshal": "name = \"r\"\npayload {\n  @type = \"postdecode.v1.Leaf\"\n  name = \"inner\"\n}\n"
   },
   "postdecode/err-any-does-not-satisfy-outer.pxf": {
@@ -1954,6 +2212,7 @@
    "full": {
     "accept": false
    },
+   "discard": true,
    "marshal": "payload {\n  @type = \"postdecode.v1.Leaf\"\n  name = \"inner\"\n}\n"
   },
   "postdecode/err-any-required.pxf": {
@@ -1968,6 +2227,7 @@
    "full": {
     "accept": false
    },
+   "discard": true,
    "marshal": "name = \"r\"\npayload {\n  @type = \"postdecode.v1.Leaf\"\n  tag = \"x\"\n}\n"
   },
   "postdecode/err-element-does-not-satisfy-outer.pxf": {
@@ -1982,6 +2242,7 @@
    "full": {
     "accept": false
    },
+   "discard": true,
    "marshal": "list = [\n  {\n    name = \"a\"\n  }\n]\n"
   },
   "postdecode/err-list-required.pxf": {
@@ -1996,6 +2257,7 @@
    "full": {
     "accept": false
    },
+   "discard": true,
    "marshal": "name = \"r\"\nlist = [\n  {\n    name = \"a\"\n  },\n  {\n    tag = \"x\"\n  }\n]\n"
   },
   "postdecode/err-map-required.pxf": {
@@ -2010,6 +2272,7 @@
    "full": {
     "accept": false
    },
+   "discard": true,
    "marshal": "name = \"r\"\nby_key = {\n  k: {\n    tag = \"x\"\n  }\n}\n"
   },
   "postdecode/list-default.pxf": {
@@ -2027,6 +2290,7 @@
      "0a017212090a0161120464666c7412080a01621203736574"
     ]
    },
+   "discard": true,
    "marshal": "name = \"r\"\nlist = [\n  {\n    name = \"a\"\n  },\n  {\n    name = \"b\"\n    tag = \"set\"\n  }\n]\n"
   },
   "postdecode/map-default.pxf": {
@@ -2044,6 +2308,7 @@
      "0a01721a0e0a016b12090a0161120464666c74220d080112090a0162120464666c74"
     ]
    },
+   "discard": true,
    "marshal": "name = \"r\"\nby_key = {\n  k: {\n    name = \"a\"\n  }\n}\nby_num = {\n  1: {\n    name = \"b\"\n  }\n}\n"
   },
   "postdecode/single-default.pxf": {
@@ -2061,6 +2326,7 @@
      "0a017232090a0161120464666c74"
     ]
    },
+   "discard": true,
    "marshal": "name = \"r\"\nsingle {\n  name = \"a\"\n}\n"
   },
   "repeated/concat-lists.pxf": {
@@ -2078,6 +2344,7 @@
      "6201616201626201636a040a026e316a060a026e321002"
     ]
    },
+   "discard": true,
    "marshal": "repeated_string = [\n  \"a\",\n  \"b\",\n  \"c\"\n]\nrepeated_nested = [\n  {\n    name = \"n1\"\n  },\n  {\n    name = \"n2\"\n    value = 2\n  }\n]\n"
   },
   "repeated/err-assigned-block.pxf": {
@@ -2088,7 +2355,8 @@
    },
    "full": {
     "accept": false
-   }
+   },
+   "discard": false
   },
   "repeated/err-block-entries.pxf": {
    "parse": true,
@@ -2098,7 +2366,8 @@
    },
    "full": {
     "accept": false
-   }
+   },
+   "discard": false
   },
   "repeated/err-scalar-entries.pxf": {
    "parse": true,
@@ -2108,7 +2377,8 @@
    },
    "full": {
     "accept": false
-   }
+   },
+   "discard": false
   },
   "strings/err-raw-newline.pxf": {
    "parse": false,
@@ -2117,7 +2387,8 @@
    },
    "full": {
     "accept": false
-   }
+   },
+   "discard": false
   },
   "strings/escaped-newline.pxf": {
    "parse": true,
@@ -2134,6 +2405,7 @@
      "0a03780a79"
     ]
    },
+   "discard": true,
    "marshal": "s = \"x\\ny\"\n"
   },
   "strings/newline-after-string.pxf": {
@@ -2151,6 +2423,7 @@
      "0a0178120179"
     ]
    },
+   "discard": true,
    "marshal": "s = \"x\"\nt = \"y\"\n"
   },
   "strings/triple-quoted.pxf": {
@@ -2168,6 +2441,7 @@
      "0a03780a79"
     ]
    },
+   "discard": true,
    "marshal": "s = \"x\\ny\"\n"
   }
  },

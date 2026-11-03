@@ -1,0 +1,10 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 TrendVidia, LLC.
+// Written for this port, not vendored: what discardUnknown skips must still
+// parse (#61). Its fixtures go through the protowire-go comparison.
+syntax = "proto3";
+package discard.v1;
+
+message Holder {
+  string s = 1;
+}
