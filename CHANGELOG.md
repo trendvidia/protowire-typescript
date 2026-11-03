@@ -19,6 +19,8 @@ format changes.
 
 ### Added
 
+- **`@dataset` value cells and dotted column paths** ([#47](https://github.com/trendvidia/protowire-typescript/issues/47), [#49](https://github.com/trendvidia/protowire-typescript/issues/49), protowire#341, #342). A cell holds any value, and a column may be a path into a sub-message such as `desc.tempo.min_bpm`. A row groups its cells by path prefix into one block per prefix. The header is rejected for a repeated or overlapping column or an empty segment, and when a row binds for a path that names no field or goes through a repeated, map or scalar field or into a literal type. `bindRow` runs the post-decode pass when the row type needs it, takes a `typeResolver`, and names the column in its errors. `formatValue` is exported.
+
 - **`@type` as the first entry of an `Any` block** ([#48](https://github.com/trendvidia/protowire-typescript/issues/48), protowire#354). `parse` accepts it in any block and rejects it anywhere else, the decoder takes it in a list element or a map value too, and `format` keeps it. `Entry` gains `TypeEntry`.
 
 - **v1.11 bind-time checks over the import closure** ([#33](https://github.com/trendvidia/protowire-typescript/issues/33)). `validateDescriptor` and `unmarshal` report a misplaced `(pxf.default)` as the new `defaultOption` kind, two defaults in one oneof, `(pxf.required)` on a oneof member, and reserved names, in the bound file and everything it imports. Results are cached per descriptor. This narrows accepted schemas: one bad placement fails every file that imports it.

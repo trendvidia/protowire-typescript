@@ -44,6 +44,13 @@ export function format(doc: Document, options: FormatOptions = {}): string {
   return f.finish();
 }
 
+/** One value as PXF text. Mirrors the reference's `FormatValue`. */
+export function formatValue(v: Value): string {
+  const f = new Formatter("  ");
+  f.formatValue(v, 0);
+  return f.finish();
+}
+
 class Formatter {
   private out: string[] = [];
   constructor(private readonly indent: string) {}

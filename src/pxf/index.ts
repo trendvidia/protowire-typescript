@@ -13,6 +13,7 @@ export { MAX_NESTING_DEPTH, parse } from "./parser.js";
 export { format, type FormatOptions } from "./format.js";
 export { keyField } from "./annotations.js";
 export { canonicalizeKeyed, identSafeEntryName } from "./keyed.js";
+export { formatValue } from "./format.js";
 export {
   unmarshal,
   unmarshalFull,

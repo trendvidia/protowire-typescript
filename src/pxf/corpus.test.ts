@@ -49,32 +49,6 @@ const record = JSON.parse(readFileSync(resolve(root, "reference.json"), "utf8"))
 const reference = record.fixtures;
 
 const GAPS: Record<string, number> = {
-  "dataset/block-cell.pxf": 47,
-  "dataset/cell-framing.pxf": 47,
-  "dataset/dotted-bad-header-no-rows.pxf": 49,
-  "dataset/dotted-column.pxf": 49,
-  "dataset/dotted-grouping.pxf": 49,
-  "dataset/dotted-into-any.pxf": 49,
-  "dataset/dotted-into-secret.pxf": 49,
-  "dataset/dotted-null-leaf.pxf": 49,
-  "dataset/dotted-oneof.pxf": 49,
-  "dataset/dotted-required.pxf": 49,
-  "dataset/dotted-with-value-cells.pxf": 49,
-  "dataset/duplicate-column.pxf": 49,
-  "dataset/list-cell.pxf": 47,
-  "dataset/nested-cells.pxf": 47,
-  "dataset/block-on-scalar.pxf": 47,
-  "dataset/dotted-bad-header-empty-row.pxf": 49,
-  "dataset/dotted-into-bignum.pxf": 49,
-  "dataset/dotted-into-duration.pxf": 49,
-  "dataset/dotted-into-timestamp.pxf": 49,
-  "dataset/dotted-into-wrapper.pxf": 49,
-  "dataset/dotted-oneof-two-members.pxf": 49,
-  "dataset/dotted-required-missing.pxf": 49,
-  "dataset/dotted-through-map.pxf": 49,
-  "dataset/dotted-through-repeated.pxf": 49,
-  "dataset/dotted-through-scalar.pxf": 49,
-  "dataset/dotted-unknown-segment.pxf": 49,
 };
 
 function registryFor(dir: string) {
@@ -88,16 +62,20 @@ function typeName(text: string): string {
   return m[1]!;
 }
 
+function rowOptions(options: UnmarshalOptions): { typeResolver: NonNullable<UnmarshalOptions["typeResolver"]> } {
+  return { typeResolver: options.typeResolver! };
+}
+
 function decodeLeg(text: string, desc: DescMessage, options: UnmarshalOptions): Message[] {
   const doc = parse(text);
   if (doc.datasets.length === 0) return [unmarshal(text, desc, options)];
-  return doc.datasets.flatMap((ds) => ds.rows.map((row) => bindRow(desc, ds.columns, row)));
+  return doc.datasets.flatMap((ds) => ds.rows.map((row) => bindRow(desc, ds.columns, row, rowOptions(options))));
 }
 
-function streamLeg(text: string, desc: DescMessage): Message[] {
+function streamLeg(text: string, desc: DescMessage, options: UnmarshalOptions): Message[] {
   const reader = DatasetReader.fromString(text);
   const rows: Message[] = [];
-  for (const row of reader) rows.push(bindRow(desc, reader.columns, row));
+  for (const row of reader) rows.push(bindRow(desc, reader.columns, row, rowOptions(options)));
   return rows;
 }
 
@@ -166,7 +144,7 @@ for (const dir of dirs) {
           if (full) failures.push(full);
         }
         if (want.stream) {
-          const stream = compare("stream", want.stream, desc, () => streamLeg(text, desc));
+          const stream = compare("stream", want.stream, desc, () => streamLeg(text, desc, { typeResolver }));
           if (stream) failures.push(stream);
         }
         if (GAPS[key] !== undefined) {

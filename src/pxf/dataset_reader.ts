@@ -25,9 +25,18 @@ import {
 } from "@bufbuild/protobuf";
 
 import { type Directive, type DatasetRow } from "./ast.js";
-import { unmarshal } from "./decode.js";
+import { findNullMaskField, getDefault, isRequired } from "./annotations.js";
+import { type TypeResolver, unmarshal, unmarshalFull } from "./decode.js";
+import {
+  findFieldByProtoName,
+  isAny,
+  isDuration,
+  isTimestamp,
+  isWrapperType,
+} from "./descriptor.js";
 import { PxfError } from "./errors.js";
-import { parse } from "./parser.js";
+import { formatValue } from "./format.js";
+import { columnPathError, parse } from "./parser.js";
 import { type Position } from "./token.js";
 
 /**
@@ -257,7 +266,7 @@ export function bindRow<Desc extends DescMessage>(
   schema: Desc,
   columns: readonly string[],
   row: DatasetRow,
-  options?: { skipValidate?: boolean },
+  options?: { skipValidate?: boolean; typeResolver?: TypeResolver },
 ): MessageShape<Desc> {
   if (columns.length !== row.cells.length) {
     throw new PxfError(
@@ -265,60 +274,161 @@ export function bindRow<Desc extends DescMessage>(
       `pxf: bindRow: ${columns.length} columns vs ${row.cells.length} cells`,
     );
   }
-  let body = "";
-  for (let i = 0; i < columns.length; i++) {
-    const cell = row.cells[i]!;
-    if (cell === null) continue;
-    body += `${columns[i]} = ${cellToPxf(cell, row.pos)}\n`;
-  }
-  return unmarshal(body, schema, {
+  const problem = columnPathProblem(schema, columns);
+  if (problem !== undefined) throw new PxfError(row.pos, problem);
+  const { body, spans } = rowBody(columns, row);
+  const opts = {
     skipValidate: options?.skipValidate ?? true,
-  });
+    ...(options?.typeResolver ? { typeResolver: options.typeResolver } : {}),
+  };
+  try {
+    // The post-decode pass gives an empty cell its default, rejects it for
+    // (pxf.required), and lets a null cell satisfy required.
+    return rowNeedsPresence(schema)
+      ? unmarshalFull(body, schema, opts).message
+      : unmarshal(body, schema, opts);
+  } catch (err) {
+    if (!(err instanceof PxfError)) throw err;
+    const span = spans.find((sp) => err.pos.line >= sp.first && err.pos.line <= sp.last);
+    throw new PxfError(row.pos, span ? `column ${columns[span.col]}: ${err.detail}` : err.detail);
+  }
 }
 
 // ---- internal helpers ----------------------------------------------------
 
-function cellToPxf(cell: NonNullable<DatasetRow["cells"][number]>, pos: Position): string {
-  switch (cell.kind) {
-    case "null":
-      return "null";
-    case "string":
-      // A raw line feed would be an error in the body this builds.
-      return `"${cell.value.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\n/g, "\\n")}"`;
-    case "int":
-    case "float":
-    case "timestamp":
-    case "duration":
-      return cell.raw;
-    case "bool":
-      return cell.value ? "true" : "false";
-    case "bytes": {
-      // Re-encode bytes as base64 standard form. Both base64 chars
-      // and the closing `"` make it through the lexer unchanged.
-      return `b"${encodeBase64(cell.value)}"`;
-    }
-    case "ident":
-      return cell.name;
-    default:
-      throw new PxfError(
-        pos,
-        // The parser rejects list/block cells before they reach us.
-        `pxf: bindRow: unexpected cell kind ${(cell as { kind: string }).kind}`,
-      );
-  }
+/** Types written as a literal, which a path cannot go into. pxf.Secret is not
+ * here: it has a block form too. */
+function isLiteralMessage(desc: DescMessage): boolean {
+  return (
+    isTimestamp(desc) ||
+    isDuration(desc) ||
+    isWrapperType(desc) ||
+    desc.typeName === "pxf.BigInt" ||
+    desc.typeName === "pxf.Decimal" ||
+    desc.typeName === "pxf.BigFloat"
+  );
 }
 
-function encodeBase64(bytes: Uint8Array): string {
-  if (typeof btoa !== "undefined") {
-    let bin = "";
-    for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]!);
-    return btoa(bin);
+/**
+ * The header rules that need the row type: each segment names a field, and
+ * each segment but the last a singular message field not written as a literal.
+ * They are checked when a row binds, so a table with no rows is not rejected
+ * for breaking one.
+ */
+function columnPathProblem(desc: DescMessage, columns: readonly string[]): string | undefined {
+  const header = columnPathError(columns);
+  if (header) return header.message;
+  for (const c of columns) {
+    let md = desc;
+    const segments = c.split(".");
+    for (let i = 0; i < segments.length; i++) {
+      const seg = segments[i]!;
+      const fd = findFieldByProtoName(md, seg);
+      if (!fd) return `@dataset column ${JSON.stringify(c)}: ${md.typeName} has no field ${JSON.stringify(seg)}`;
+      if (i === segments.length - 1) break;
+      const at = JSON.stringify(segments.slice(0, i + 1).join("."));
+      if (fd.fieldKind === "map") {
+        return `@dataset column ${JSON.stringify(c)}: ${at} is a map field, and a column path cannot go through one; use a value cell for ${at} (draft §3.4.4)`;
+      }
+      if (fd.fieldKind === "list") {
+        return `@dataset column ${JSON.stringify(c)}: ${at} is a repeated field, and a column path cannot go through one; use a value cell for ${at} (draft §3.4.4)`;
+      }
+      if (fd.fieldKind !== "message") return `@dataset column ${JSON.stringify(c)}: ${at} is not a message field`;
+      if (isLiteralMessage(fd.message)) {
+        return `@dataset column ${JSON.stringify(c)}: ${at} is a ${fd.message.typeName}, which is written as a literal; a column path cannot go into it (draft §3.4.4)`;
+      }
+      md = fd.message;
+    }
   }
-  // Node fallback (Buffer is global in Node; some bundlers strip it).
-  const buf = (globalThis as { Buffer?: { from(b: Uint8Array): { toString(enc: string): string } } })
-    .Buffer;
-  if (buf) return buf.from(bytes).toString("base64");
-  throw new Error("no base64 encoder available (btoa / Buffer)");
+  return undefined;
+}
+
+const presenceCache = new WeakMap<DescMessage, boolean>();
+
+/** Whether a row must go through the full pipeline: a reachable field carries
+ * a default or required, or the type has a `_null` mask. An Any counts, since
+ * a cell may name its type. */
+function rowNeedsPresence(desc: DescMessage): boolean {
+  let need = presenceCache.get(desc);
+  if (need === undefined) {
+    need = findNullMaskField(desc) !== undefined || hasAnnotations(desc, new Set());
+    presenceCache.set(desc, need);
+  }
+  return need;
+}
+
+function hasAnnotations(desc: DescMessage, seen: Set<string>): boolean {
+  if (seen.has(desc.typeName)) return false;
+  seen.add(desc.typeName);
+  if (isAny(desc)) return true;
+  for (const fd of desc.fields) {
+    if (isRequired(fd) || getDefault(fd) !== undefined) return true;
+    if (fd.message && hasAnnotations(fd.message, seen)) return true;
+  }
+  return false;
+}
+
+/** One entry of a row body: a column's cell, or a block its paths share. */
+interface BodyNode {
+  readonly name: string;
+  readonly col: number;
+  readonly children: BodyNode[];
+}
+
+interface CellSpan {
+  readonly col: number;
+  readonly first: number;
+  readonly last: number;
+}
+
+/**
+ * A row as a PXF body. A non-empty cell in column `c` is `c = <value>`, and one
+ * in `a.b.c` is `c = <value>` inside `a { b { ... } }`. Every cell under one
+ * prefix lands in that one block, in the order its first non-empty cell
+ * appears: two blocks would bind the sub-message twice. A prefix with no
+ * non-empty cell writes no block, so the field stays absent.
+ *
+ * The body opens with an empty line, so an error at 1:1 (a missing required
+ * field) falls in no column's span.
+ */
+function rowBody(columns: readonly string[], row: DatasetRow): { body: string; spans: CellSpan[] } {
+  const root: BodyNode[] = [];
+  row.cells.forEach((cell, col) => {
+    if (cell === null) return;
+    const segments = columns[col]!.split(".");
+    let level = root;
+    for (const seg of segments.slice(0, -1)) {
+      let block = level.find((n) => n.col < 0 && n.name === seg);
+      if (!block) {
+        block = { name: seg, col: -1, children: [] };
+        level.push(block);
+      }
+      level = block.children;
+    }
+    level.push({ name: segments[segments.length - 1]!, col, children: [] });
+  });
+  const spans: CellSpan[] = [];
+  let body = "\n";
+  let line = 2;
+  const write = (nodes: BodyNode[]): void => {
+    for (const n of nodes) {
+      if (n.col < 0) {
+        body += `${n.name} {\n`;
+        line++;
+        write(n.children);
+        body += "}\n";
+        line++;
+      } else {
+        const text = formatValue(row.cells[n.col]!);
+        const height = text.split("\n").length;
+        spans.push({ col: n.col, first: line, last: line + height - 1 });
+        body += `${n.name} = ${text}\n`;
+        line += height;
+      }
+    }
+  };
+  write(root);
+  return { body, spans };
 }
 
 function buildSyntheticRow(columns: readonly string[], rowBytes: string): string {

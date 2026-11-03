@@ -45,14 +45,51 @@ export function parse(input: string): Document {
   return new Parser(input).parseDocument();
 }
 
+/**
+ * Parse the `@dataset` directive at `offset`, so the decoder shares one row
+ * grammar with `parse`. Returns the directive and the offset past it.
+ */
+export function parseDatasetAt(input: string, offset: number): { table: DatasetDirective; endOffset: number } {
+  return new Parser(input, offset).parseDatasetDirective();
+}
+
+/**
+ * The header rules that need no schema: no path has an empty segment, none
+ * appears twice, and no column is a prefix of another, since a row could then
+ * set one sub-message twice (draft §3.4.4).
+ */
+export function columnPathError(cols: readonly string[]): { index: number; message: string } | undefined {
+  const isPrefix = (prefix: string, path: string): boolean => path.startsWith(`${prefix}.`);
+  for (let i = 0; i < cols.length; i++) {
+    const c = cols[i]!;
+    if (c.startsWith(".") || c.endsWith(".") || c.includes("..")) {
+      return { index: i, message: `@dataset column ${JSON.stringify(c)}: a column path has an empty segment (draft §3.4.4)` };
+    }
+    for (let j = 0; j < i; j++) {
+      const prev = cols[j]!;
+      if (prev === c) {
+        return { index: i, message: `@dataset column ${JSON.stringify(c)} appears twice (draft §3.4.4)` };
+      }
+      if (isPrefix(prev, c) || isPrefix(c, prev)) {
+        return {
+          index: i,
+          message: `@dataset column ${JSON.stringify(c)} overlaps column ${JSON.stringify(prev)}: a field and a path inside it cannot both be columns (draft §3.4.4)`,
+        };
+      }
+    }
+  }
+  return undefined;
+}
+
 class Parser {
   private readonly lex: Lexer;
   private current!: Token;
   private pendingComments: Comment[] = [];
   private depth = 0;
 
-  constructor(input: string) {
+  constructor(input: string, offset = 0) {
     this.lex = new Lexer(input);
+    this.lex.repositionTo(offset);
     this.advance();
   }
 
@@ -265,7 +302,7 @@ class Parser {
    * parseDatasetDirective reads `@dataset <type> ( col1, col2, ... ) row*`.
    * AT_DATASET is current on entry. See draft §3.4.4.
    */
-  private parseDatasetDirective(): { table: DatasetDirective; endOffset: number } {
+  parseDatasetDirective(): { table: DatasetDirective; endOffset: number } {
     const leadingComments = this.flushComments();
     const atPos = this.current.pos;
     this.advance(); // consume @dataset
@@ -294,6 +331,7 @@ class Parser {
       );
     }
     const columns: string[] = [];
+    const columnPositions: Position[] = [];
     for (;;) {
       if (this.current.kind !== TokenKind.IDENT) {
         throw new PxfError(
@@ -302,14 +340,7 @@ class Parser {
         );
       }
       const col = this.current.value;
-      // v1: column entries are unqualified field names; dotted paths
-      // reserved for a future revision.
-      if (col.includes(".")) {
-        throw new PxfError(
-          this.current.pos,
-          `@dataset column ${JSON.stringify(col)}: dotted column paths are not supported in v1 (draft §3.4.4)`,
-        );
-      }
+      columnPositions.push(this.current.pos);
       columns.push(col);
       this.advance();
       if ((this.current.kind as TokenKind) === TokenKind.COMMA) {
@@ -322,6 +353,8 @@ class Parser {
         `expected ',' or ')' in @dataset column list, got ${tokenKindName(this.current.kind)}`,
       );
     }
+    const bad = columnPathError(columns);
+    if (bad) throw new PxfError(columnPositions[bad.index]!, bad.message);
     let endOffset = this.current.pos.offset + 1; // past `)`
     this.advance(); // consume )
 
@@ -464,25 +497,14 @@ class Parser {
 
   /**
    * parseRowCell consumes one cell of a @dataset row. Returns null for an
-   * empty cell (no value between two commas, or at row start/end).
-   * Rejects list ('[ ... ]') and block ('{ ... }') values per v1
-   * cell-grammar (draft §3.4.4).
+   * empty cell (no value between two commas, or at row start/end). A cell
+   * holds any value (draft §3.4.4, protowire#341).
    */
   private parseRowCell(): Value | null {
     switch (this.current.kind) {
       case TokenKind.COMMA:
       case TokenKind.RPAREN:
         return null;
-      case TokenKind.LBRACKET:
-        throw new PxfError(
-          this.current.pos,
-          "@dataset cells cannot contain list values in v1 (draft §3.4.4)",
-        );
-      case TokenKind.LBRACE:
-        throw new PxfError(
-          this.current.pos,
-          "@dataset cells cannot contain block values in v1 (draft §3.4.4)",
-        );
       default:
         return this.parseValue();
     }
