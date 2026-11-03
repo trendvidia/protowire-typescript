@@ -245,3 +245,10 @@ describe("bindRow — a string cell holding a line feed", () => {
     expect(m.stringField).toBe("a\nb");
   });
 });
+
+describe("bindRow — errors", () => {
+  it("names the column a value fell in", () => {
+    const reader = DatasetReader.fromString('@dataset test.v1.AllTypes (string_field, int32_field)\n("a", { x = 1 })\n');
+    expect(() => reader.scan(AllTypes)).toThrow(/column int32_field: expected integer for field "int32_field"/);
+  });
+});
