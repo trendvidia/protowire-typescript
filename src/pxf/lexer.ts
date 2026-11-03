@@ -194,10 +194,27 @@ export class Lexer {
   private lexString(pos: Position): Token {
     this.advance(); // opening "
     let out = "";
+    // A run of `\x` and octal escapes spells UTF-8 bytes, so it is decoded as
+    // one: "\xC3\xA9" is one character, and "\xFF" is no character.
+    let bytes: number[] = [];
+    let invalidUtf8 = false;
+    const flush = (): void => {
+      if (bytes.length === 0) return;
+      try {
+        out += strictUtf8.decode(Uint8Array.from(bytes));
+      } catch {
+        invalidUtf8 = true;
+        out += String.fromCharCode(...bytes);
+      }
+      bytes = [];
+    };
     while (this.pos < this.input.length) {
+      if (bytes.length > 0 && !this.atByteEscape()) flush();
       const ch = this.advance();
       if (ch === '"') {
-        return { kind: TokenKind.STRING, value: out, pos };
+        return invalidUtf8
+          ? { kind: TokenKind.STRING, value: out, pos, invalidUtf8 }
+          : { kind: TokenKind.STRING, value: out, pos };
       }
       if (ch === "\n") {
         return {
@@ -225,12 +242,12 @@ export class Lexer {
         case "t": out += "\t"; break;
         case "v": out += "\x0b"; break;
         case "x": {
-          // Exactly 2 hex digits → 1 byte, appended as a Latin-1 code unit.
+          // Exactly 2 hex digits → 1 byte.
           const b = this.readHexByte();
           if (b === null) {
             return { kind: TokenKind.ILLEGAL, value: "invalid \\x escape: expected 2 hex digits", pos };
           }
-          out += String.fromCharCode(b);
+          bytes.push(b);
           break;
         }
         case "0": case "1": case "2": case "3": {
@@ -239,7 +256,7 @@ export class Lexer {
           if (b === null) {
             return { kind: TokenKind.ILLEGAL, value: "invalid octal escape: expected 3 octal digits", pos };
           }
-          out += String.fromCharCode(b);
+          bytes.push(b);
           break;
         }
         case "u": {
@@ -263,6 +280,13 @@ export class Lexer {
       }
     }
     return { kind: TokenKind.ILLEGAL, value: "unterminated string", pos };
+  }
+
+  /** At a `\x` or `\nnn` escape, which spell a byte rather than a character. */
+  private atByteEscape(): boolean {
+    if (this.peekAt(0) !== "\\") return false;
+    const next = this.peekAt(1);
+    return next === "x" || (next >= "0" && next <= "3");
   }
 
   /** Reads exactly 2 hex digits from the current position. */
@@ -563,6 +587,8 @@ function isValidRfc3339(s: string): boolean {
  * Only U+00B5 spells the unit: U+03BC GREEK SMALL LETTER MU is not in the
  * grammar.
  */
+const strictUtf8 = new TextDecoder("utf-8", { fatal: true });
+
 const MICRO_SIGN = "\u00b5";
 
 const GO_DURATION_RE = /^-?(\d+(\.\d+)?(ns|us|µs|ms|s|m|h))+$/;

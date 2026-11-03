@@ -296,21 +296,21 @@ function writeMapField(w: Writer, f: FieldSpec, v: unknown): void {
   const valueIsMessage = typeof f.kind !== "string";
   for (const [key, val] of mapEntries(v, keyKind)) {
     const inner = new Writer();
-    if (!isZero(keyKind, key)) {
-      inner.tag(1, wireTypeOf(keyKind));
-      writeScalarValue(inner, keyKind, key);
-    }
+    // Both, zero-valued or not, as protoc and protobuf-go write them
+    // (protowire#295).
+    inner.tag(1, wireTypeOf(keyKind));
+    writeScalarValue(inner, keyKind, key);
     if (valueIsMessage) {
+      inner.tag(2, WireType.LengthDelimited);
       if (val !== undefined && val !== null) {
-        inner.tag(2, WireType.LengthDelimited);
         writeNestedMessage(inner, (f.kind as { message: CodecBase }).message, val);
+      } else {
+        inner.varint(0);
       }
     } else {
       const sk = f.kind as ScalarKind;
-      if (!isZero(sk, val)) {
-        inner.tag(2, wireTypeOf(sk));
-        writeScalarValue(inner, sk, val);
-      }
+      inner.tag(2, wireTypeOf(sk));
+      writeScalarValue(inner, sk, val);
     }
     const blob = inner.finish();
     w.tag(f.number, WireType.LengthDelimited);

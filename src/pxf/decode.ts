@@ -30,12 +30,9 @@ import {
 import { findNullMaskField, getDefault, isRequired, keyField } from "./annotations.js";
 import {
   type Directive,
-  type DatasetDirective,
-  type DatasetRow,
-  type Value,
 } from "./ast.js";
 import { parseGoDuration } from "./duration.js";
-import { findMatchingBrace, MAX_NESTING_DEPTH, parse } from "./parser.js";
+import { findMatchingBrace, MAX_NESTING_DEPTH, parse, parseDatasetAt } from "./parser.js";
 import {
   findFieldByProtoName,
   isAny,
@@ -246,61 +243,6 @@ class Decoder {
   }
 
   /**
-   * parseScalarCellValue consumes one scalar token at `this.current`
-   * and builds the corresponding Value. Mirrors the scalar branches of
-   * the AST parser's parseValue. Used by @dataset row parsing in
-   * consumeDirectives — list / block / unparseable cell tokens are
-   * already rejected by the caller.
-   */
-  private parseScalarCellValue(): Value {
-    const pos = this.current.pos;
-    const tok = this.current;
-    switch (tok.kind) {
-      case TokenKind.STRING: {
-        this.advance();
-        return { kind: "string", pos, value: tok.value };
-      }
-      case TokenKind.INT: {
-        this.advance();
-        return { kind: "int", pos, raw: tok.value };
-      }
-      case TokenKind.FLOAT: {
-        this.advance();
-        return { kind: "float", pos, raw: tok.value };
-      }
-      case TokenKind.BOOL: {
-        this.advance();
-        return { kind: "bool", pos, value: tok.value === "true" };
-      }
-      case TokenKind.BYTES: {
-        this.advance();
-        return { kind: "bytes", pos, value: decodeBase64(tok.value) };
-      }
-      case TokenKind.TIMESTAMP: {
-        this.advance();
-        return { kind: "timestamp", pos, raw: tok.value };
-      }
-      case TokenKind.DURATION: {
-        this.advance();
-        return { kind: "duration", pos, raw: tok.value };
-      }
-      case TokenKind.NULL: {
-        this.advance();
-        return { kind: "null", pos };
-      }
-      case TokenKind.IDENT: {
-        this.advance();
-        return { kind: "ident", pos, name: tok.value };
-      }
-      default:
-        throw this.err(
-          pos,
-          `unsupported @dataset cell value: ${tokenKindName(tok.kind)}`,
-        );
-    }
-  }
-
-  /**
    * consumeDirectives drains any leading `@type` / `@<name>` / `@dataset`
    * directives, leaving `this.current` at the first body token. When
    * `result` is non-null (unmarshalFull path), populates
@@ -398,121 +340,14 @@ class Decoder {
               "@dataset directive cannot coexist with @type (draft §3.4.4)",
             );
           }
-          const tablePos = this.current.pos;
           if (!hasTable) {
-            firstTablePos = tablePos;
+            firstTablePos = this.current.pos;
             hasTable = true;
           }
-          this.advance(); // consume @dataset
-          // Optional row message type; MAY be omitted when an anonymous
-          // @proto precedes the @dataset (draft §3.4.4 Anonymous binding).
-          let tableType = "";
-          if (this.peek() === TokenKind.IDENT) {
-            tableType = this.current.value;
-            this.advance();
-          }
-          if ((this.peek() as TokenKind) !== TokenKind.LPAREN) {
-            throw this.err(
-              this.current.pos,
-              "expected '(' to start @dataset column list",
-            );
-          }
+          const { table, endOffset } = parseDatasetAt(this.lex.inputView(), this.current.pos.offset);
+          this.lex.repositionTo(endOffset);
           this.advance();
-          if (this.peek() !== TokenKind.IDENT) {
-            throw this.err(
-              this.current.pos,
-              "@dataset column list must contain at least one field name",
-            );
-          }
-          const columns: string[] = [];
-          for (;;) {
-            if (this.peek() !== TokenKind.IDENT) {
-              throw this.err(this.current.pos, "expected column field name");
-            }
-            if (this.current.value.includes(".")) {
-              throw this.err(
-                this.current.pos,
-                "@dataset column has dotted path; not supported in v1 (draft §3.4.4)",
-              );
-            }
-            columns.push(this.current.value);
-            this.advance();
-            if ((this.peek() as TokenKind) === TokenKind.COMMA) {
-              this.advance();
-              continue;
-            }
-            if ((this.peek() as TokenKind) === TokenKind.RPAREN) break;
-            throw this.err(
-              this.current.pos,
-              "expected ',' or ')' in @dataset column list",
-            );
-          }
-          this.advance(); // consume )
-          const nCols = columns.length;
-          const rows: DatasetRow[] = [];
-          // Zero or more rows; each cell is a single scalar token (or empty).
-          while ((this.peek() as TokenKind) === TokenKind.LPAREN) {
-            const rowPos = this.current.pos;
-            this.advance(); // (
-            const cells: (Value | null)[] = [];
-            // First cell.
-            if (
-              (this.peek() as TokenKind) === TokenKind.COMMA ||
-              (this.peek() as TokenKind) === TokenKind.RPAREN
-            ) {
-              cells.push(null);
-            } else if (
-              (this.peek() as TokenKind) === TokenKind.LBRACKET ||
-              (this.peek() as TokenKind) === TokenKind.LBRACE
-            ) {
-              throw this.err(
-                this.current.pos,
-                "@dataset cells cannot contain list/block values in v1 (draft §3.4.4)",
-              );
-            } else {
-              cells.push(this.parseScalarCellValue());
-            }
-            while ((this.peek() as TokenKind) === TokenKind.COMMA) {
-              this.advance();
-              if (
-                (this.peek() as TokenKind) === TokenKind.COMMA ||
-                (this.peek() as TokenKind) === TokenKind.RPAREN
-              ) {
-                cells.push(null);
-              } else if (
-                (this.peek() as TokenKind) === TokenKind.LBRACKET ||
-                (this.peek() as TokenKind) === TokenKind.LBRACE
-              ) {
-                throw this.err(
-                  this.current.pos,
-                  "@dataset cells cannot contain list/block values in v1 (draft §3.4.4)",
-                );
-              } else {
-                cells.push(this.parseScalarCellValue());
-              }
-            }
-            if ((this.peek() as TokenKind) !== TokenKind.RPAREN) {
-              throw this.err(this.current.pos, "expected ',' or ')' in @dataset row");
-            }
-            if (cells.length !== nCols) {
-              throw this.err(
-                rowPos,
-                `@dataset row has ${cells.length} cells, expected ${nCols} (column count)`,
-              );
-            }
-            this.advance(); // consume )
-            rows.push({ pos: rowPos, cells });
-          }
-          if (this.result !== null) {
-            const table: DatasetDirective = {
-              pos: tablePos,
-              type: tableType,
-              columns,
-              rows,
-              leadingComments: [],
-            };
-            this.result.addDataset(table);
-          }
+          if (this.result !== null) this.result.addDataset(table);
           break;
         }
         case TokenKind.AT_PROTO: {
@@ -1155,6 +990,7 @@ class Decoder {
       ) {
         throw this.err(pos, `expected map key, got ${tokenKindName(tk)}`);
       }
+      if (this.current.invalidUtf8) throw this.err(pos, "invalid UTF-8 in string map key");
       const keyStr = this.current.value;
       this.advance();
 
@@ -1227,6 +1063,9 @@ class Decoder {
       case ScalarType.STRING: {
         if (tk !== TokenKind.STRING) {
           throw this.err(pos, `expected string for field ${JSON.stringify(fd.name)}`);
+        }
+        if (this.current.invalidUtf8) {
+          throw this.err(pos, `invalid UTF-8 in string field ${JSON.stringify(fd.name)} (use b"…" for raw bytes)`);
         }
         const v = this.current.value;
         this.advance();

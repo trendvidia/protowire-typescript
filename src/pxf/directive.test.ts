@@ -147,16 +147,18 @@ describe("Table", () => {
     );
   });
 
-  it("dotted column rejected", () => {
-    expect(() => parse("@dataset x.Row ( a.b )\n")).toThrow(/dotted column/);
+  it("column paths (protowire#342)", () => {
+    expect(parse("@dataset x.Row ( a.b, c )\n").datasets[0]!.columns).toEqual(["a.b", "c"]);
+    expect(() => parse("@dataset x.Row ( a, a )\n")).toThrow(/appears twice/);
+    expect(() => parse("@dataset x.Row ( a, a.b )\n")).toThrow(/overlaps/);
+    expect(() => parse("@dataset x.Row ( a.b. )\n")).toThrow(/empty segment/);
   });
 
-  it("list cell rejected", () => {
-    expect(() => parse("@dataset x.Row ( a )\n( [1, 2] )\n")).toThrow(/list values/);
-  });
-
-  it("block cell rejected", () => {
-    expect(() => parse("@dataset x.Row ( a )\n( { x = 1 } )\n")).toThrow(/block values/);
+  it("list and block cells hold values (protowire#341)", () => {
+    const doc = parse("@dataset x.Row ( a, b )\n( [1, 2], { x = 1 } )\n");
+    const [a, b] = doc.datasets[0]!.rows[0]!.cells;
+    expect(a?.kind).toBe("list");
+    expect(b?.kind).toBe("blockVal");
   });
 
   it("standalone constraint: rejects coexisting @type", () => {
