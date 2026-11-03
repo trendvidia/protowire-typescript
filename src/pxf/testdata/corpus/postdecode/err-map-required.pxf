@@ -1,0 +1,4 @@
+@type postdecode.v1.Root
+
+name = "r"
+by_key = { k: { tag = "x" } }
