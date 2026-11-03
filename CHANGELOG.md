@@ -23,6 +23,8 @@ format changes.
 
 ### Fixed
 
+- **Fractional and `µs` duration literals are read** ([#34](https://github.com/trendvidia/protowire-typescript/issues/34)). `1.5ms`, `2µs`, `1h30m0.5s` and `-2.5s` lexed as a number and an identifier, so this port could not read its own encoder's output for those values.
+
 - **Map keys follow the spec** ([#41](https://github.com/trendvidia/protowire-typescript/issues/41), [#43](https://github.com/trendvidia/protowire-typescript/issues/43), [#44](https://github.com/trendvidia/protowire-typescript/issues/44), protowire#284, #306, #313). A bool map takes `0` / `1` and the keyword `true` / `false`, and the keyword on a string map is rejected. `MapEntry.keyQuoted` records the spelling, so `format` keeps `"true"` and `"123"` quoted, keeps a bare `404` bare, and unquotes `"a.b"`. `marshal` writes a dotted string key bare.
 
 - **`null` binds only to a field that can be unset** ([#50](https://github.com/trendvidia/protowire-typescript/issues/50), protowire#339). It is now rejected on a plain scalar, a repeated or map field, a proto2 `required` field and a scalar with implicit presence under editions, in `@dataset` cells too.

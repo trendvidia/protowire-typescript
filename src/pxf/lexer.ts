@@ -393,22 +393,34 @@ export class Lexer {
       return this.lexTimestamp(pos, start);
     }
 
-    // Float: '.' or 'e'/'E'.
-    if (this.pos < this.input.length) {
-      const c = this.peek();
-      if (c === "." || c === "e" || c === "E") return this.lexFloat(pos, start);
+    // A fraction needs a digit after the '.'. Floats and durations both take
+    // one, so it is consumed here and what follows tells them apart.
+    let fraction = false;
+    if (this.peekAt(0) === "." && isDigit(this.peekAt(1))) {
+      fraction = true;
+      this.advance();
+      while (this.pos < this.input.length && isDigit(this.peek())) this.advance();
     }
 
-    // Duration: digits followed by a time-unit letter.
+    // Duration, checked first so 1.5ms is one token rather than a float and
+    // an identifier.
     if (this.pos < this.input.length && isDurationUnit(this.peek())) {
       return this.lexDuration(pos, start);
+    }
+
+    // Float: a fraction, an exponent, or a bare trailing '.'.
+    if (this.pos < this.input.length) {
+      const c = this.peek();
+      if (fraction || c === "." || c === "e" || c === "E") return this.lexFloat(pos, start, fraction);
+    } else if (fraction) {
+      return this.lexFloat(pos, start, fraction);
     }
 
     return { kind: TokenKind.INT, value: this.input.slice(start, this.pos), pos };
   }
 
-  private lexFloat(pos: Position, start: number): Token {
-    if (this.peek() === ".") {
+  private lexFloat(pos: Position, start: number, fraction: boolean): Token {
+    if (!fraction && this.peek() === ".") {
       this.advance();
       while (this.pos < this.input.length && isDigit(this.peek())) this.advance();
     }
@@ -442,7 +454,7 @@ export class Lexer {
   private lexDuration(pos: Position, start: number): Token {
     while (this.pos < this.input.length) {
       const ch = this.peek();
-      if (!(isDigit(ch) || isLowerAlpha(ch) || ch === ".")) break;
+      if (!(isDigit(ch) || isLowerAlpha(ch) || ch === "." || ch === MICRO_SIGN)) break;
       this.advance();
     }
     const raw = this.input.slice(start, this.pos);
@@ -485,7 +497,7 @@ function isIdentPart(ch: string): boolean {
 }
 
 function isDurationUnit(ch: string): boolean {
-  return ch === "h" || ch === "m" || ch === "s" || ch === "n" || ch === "u";
+  return ch === "h" || ch === "m" || ch === "s" || ch === "n" || ch === "u" || ch === MICRO_SIGN;
 }
 
 function hexVal(ch: string): number | null {
@@ -548,10 +560,11 @@ function isValidRfc3339(s: string): boolean {
 /**
  * Validate a Go-style duration: a possibly-signed sequence of decimal numbers
  * each followed by a unit (`ns`, `us`, `µs`, `ms`, `s`, `m`, `h`).
- *
- * The lexer never feeds in `µs` because µ is non-ASCII and isn't accepted
- * during the digit/letter scan, but the regex permits it for completeness.
+ * Only U+00B5 spells the unit: U+03BC GREEK SMALL LETTER MU is not in the
+ * grammar.
  */
+const MICRO_SIGN = "\u00b5";
+
 const GO_DURATION_RE = /^-?(\d+(\.\d+)?(ns|us|µs|ms|s|m|h))+$/;
 
 function isValidGoDuration(s: string): boolean {

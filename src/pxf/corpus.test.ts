@@ -61,8 +61,6 @@ const GAPS: Record<string, number> = {
   "dataset/duplicate-column.pxf": 49,
   "dataset/list-cell.pxf": 47,
   "dataset/nested-cells.pxf": 47,
-  "duration/negative-fractional.pxf": 34,
-  "duration/roundtrip-negative.pxf": 34,
   "any/err-not-any.pxf": 48,
   "any/err-unresolved.pxf": 48,
   "dataset/block-on-scalar.pxf": 47,
