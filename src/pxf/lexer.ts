@@ -85,6 +85,16 @@ export class Lexer {
       case "@": return this.lexDirective(pos);
     }
 
+    // "+inf" and "-inf" are the only signed identifier literals (draft -01 §3.8).
+    if ((ch === "-" || ch === "+") && this.input.startsWith("inf", this.pos + 1) && !isIdentPart(this.peekAt(4))) {
+      const value = this.input.slice(this.pos, this.pos + 4);
+      for (let i = 0; i < 4; i++) this.advance();
+      return { kind: TokenKind.FLOAT, value, pos };
+    }
+    if (ch === "+") {
+      this.advance();
+      return { kind: TokenKind.ILLEGAL, value: '"+" is valid only in "+inf"', pos };
+    }
     if (ch === "-" || isDigit(ch)) return this.lexNumber(pos);
     if (isIdentStart(ch)) return this.lexIdent(pos);
 

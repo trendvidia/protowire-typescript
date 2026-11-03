@@ -192,3 +192,8 @@ export function isDecimal(desc: DescMessage): boolean {
 export function isBigNumber(desc: DescMessage): boolean {
   return isBigInt(desc) || isDecimal(desc) || isBigFloat(desc);
 }
+
+/** `pxf.Secret`, by its shape as well as its name. */
+export function isSecret(desc: DescMessage): boolean {
+  return desc.typeName === "pxf.Secret" && hasKnownShape(desc);
+}

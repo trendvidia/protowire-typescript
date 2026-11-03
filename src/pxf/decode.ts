@@ -50,6 +50,7 @@ import {
   isBigInt,
   isBigNumber,
   isDecimal,
+  isSecret,
   isDuration,
   isTimestamp,
   isWrapperType,
@@ -802,6 +803,14 @@ class Decoder {
       this.advance();
       return true;
     }
+    // A Secret's string literal sets value alone (draft -01 § PXF Annotations).
+    if (isSecret(mdesc) && this.peek() === TokenKind.STRING) {
+      const valueFd = findFieldByProtoName(mdesc, "value")!;
+      if (this.current.invalidUtf8) throw this.err(this.current.pos, "invalid UTF-8 in pxf.Secret value");
+      target.set(valueFd, this.current.value);
+      this.advance();
+      return true;
+    }
     if (isWrapperType(mdesc) && this.peek() !== TokenKind.LBRACE) {
       const innerFd = findFieldByProtoName(mdesc, "value");
       if (!innerFd || innerFd.fieldKind !== "scalar") {
@@ -1261,24 +1270,14 @@ class Decoder {
         this.advance();
         return v;
       }
-      case ScalarType.FLOAT: {
-        if (tk !== TokenKind.FLOAT && tk !== TokenKind.INT) {
-          throw this.err(pos, `expected number for field ${JSON.stringify(fd.name)}`);
-        }
-        const f = Number(this.current.value);
-        if (Number.isNaN(f) && this.current.value !== "NaN") {
-          throw this.err(pos, `invalid float: ${this.current.value}`);
-        }
-        this.advance();
-        return Math.fround(f);
-      }
+      case ScalarType.FLOAT:
       case ScalarType.DOUBLE: {
-        if (tk !== TokenKind.FLOAT && tk !== TokenKind.INT) {
+        if (tk !== TokenKind.FLOAT && tk !== TokenKind.INT && !isNonFiniteIdent(this.current)) {
           throw this.err(pos, `expected number for field ${JSON.stringify(fd.name)}`);
         }
-        const f = Number(this.current.value);
-        if (Number.isNaN(f) && this.current.value !== "NaN") {
-          throw this.err(pos, `invalid double: ${this.current.value}`);
+        const f = parseFloatLiteral(this.current.value, kind === ScalarType.FLOAT);
+        if (f === undefined) {
+          throw this.err(pos, `invalid ${kind === ScalarType.FLOAT ? "float" : "double"}: ${this.current.value}`);
         }
         this.advance();
         return f;
@@ -1647,6 +1646,32 @@ function setFields(target: ReflectMessage, fields: BigIntFields | DecimalFields)
     if (value === false || value === 0 || (value instanceof Uint8Array && value.length === 0)) continue;
     target.set(fd, value);
   }
+}
+
+/** "inf" and "nan" are identifiers; "+inf" and "-inf" lex as numbers (§3.8). */
+function isNonFiniteIdent(tok: Token): boolean {
+  return tok.kind === TokenKind.IDENT && (tok.value === "inf" || tok.value === "nan");
+}
+
+/**
+ * A float or double literal's value, or undefined when it does not denote
+ * one: a finite literal past the type's range, as strconv.ParseFloat refuses
+ * it. "nan" is the canonical quiet NaN, which a DataView writes.
+ */
+function parseFloatLiteral(raw: string, float32: boolean): number | undefined {
+  switch (raw) {
+    case "inf":
+    case "+inf":
+      return Infinity;
+    case "-inf":
+      return -Infinity;
+    case "nan":
+      return NaN;
+  }
+  const v = Number(raw);
+  if (Number.isNaN(v)) return undefined;
+  const f = float32 ? Math.fround(v) : v;
+  return Number.isFinite(f) ? f : undefined;
 }
 
 function applyDefault(parent: ReflectMessage, fd: DescField, def: string): void {
