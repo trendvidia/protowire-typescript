@@ -9,7 +9,8 @@
  *  - Strings: `"..."` (with `\"`, `\\`, `\n`, `\t`, `\r` escapes) and
  *    `"""..."""` triple-quoted with closing-line indent dedent
  *  - Bytes: `b"<base64>"` (standard or raw, validated at lex time)
- *  - Integers, floats (with optional sign and exponent)
+ *  - Integers, floats (with optional sign and exponent), each with an
+ *    optional precision suffix `p<bits>`
  *  - RFC 3339 timestamps: 4 digits + `-` triggers timestamp lex; validated
  *  - Go-style durations: digits + a unit letter (h/m/s/ns/us/ms); validated
  *  - Identifiers (with `.` allowed for dotted package names), `true` /
@@ -440,7 +441,21 @@ export class Lexer {
       return this.lexFloat(pos, start, fraction);
     }
 
-    return { kind: TokenKind.INT, value: this.input.slice(start, this.pos), pos };
+    return this.numberToken(TokenKind.INT, start, pos);
+  }
+
+  /**
+   * A number ending at the cursor, with the precision suffix after it: `p`
+   * and one or more digits (draft -01, protowire#406). A `p` with no digit is
+   * not a suffix. Which fields take one is the decoder's call, not the lexer's.
+   */
+  private numberToken(kind: TokenKind, start: number, pos: Position): Token {
+    const value = this.input.slice(start, this.pos);
+    if (this.peek() !== "p" || !isDigit(this.peekAt(1))) return { kind, value, pos };
+    this.advance(); // p
+    const digits = this.pos;
+    while (this.pos < this.input.length && isDigit(this.peek())) this.advance();
+    return { kind, value, pos, prec: this.input.slice(digits, this.pos) };
   }
 
   private lexFloat(pos: Position, start: number, fraction: boolean): Token {
@@ -455,7 +470,7 @@ export class Lexer {
       }
       while (this.pos < this.input.length && isDigit(this.peek())) this.advance();
     }
-    return { kind: TokenKind.FLOAT, value: this.input.slice(start, this.pos), pos };
+    return this.numberToken(TokenKind.FLOAT, start, pos);
   }
 
   private lexTimestamp(pos: Position, start: number): Token {

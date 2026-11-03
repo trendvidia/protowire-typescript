@@ -11,7 +11,7 @@
  * "stringField").
  */
 
-import { type DescField, type DescMessage } from "@bufbuild/protobuf";
+import { type DescField, type DescMessage, ScalarType } from "@bufbuild/protobuf";
 
 /**
  * Find a field by its proto source name (e.g. "string_field").
@@ -57,4 +57,20 @@ export function isAny(desc: DescMessage): boolean {
 
 export function isFieldMask(desc: DescMessage): boolean {
   return desc.typeName === "google.protobuf.FieldMask";
+}
+
+const BIG_FLOAT_SHAPE: ReadonlyArray<[string, number, ScalarType]> = [
+  ["mantissa", 1, ScalarType.BYTES],
+  ["exponent", 2, ScalarType.INT32],
+  ["prec", 3, ScalarType.UINT32],
+  ["negative", 4, ScalarType.BOOL],
+];
+
+/** `pxf.BigFloat`, by its shape as well as its name. */
+export function isBigFloat(desc: DescMessage): boolean {
+  if (desc.typeName !== "pxf.BigFloat") return false;
+  return BIG_FLOAT_SHAPE.every(([name, number, scalar]) => {
+    const fd = findFieldByProtoName(desc, name);
+    return fd?.fieldKind === "scalar" && fd.number === number && fd.scalar === scalar;
+  });
 }

@@ -28,6 +28,7 @@ import {
   type ProtoDirective,
   type Value,
 } from "./ast.js";
+import { clipLiteral } from "./bigfloat.js";
 import { FUTURE_RESERVED_DIRECTIVES } from "./schema.js";
 import { PxfError } from "./errors.js";
 import { Lexer } from "./lexer.js";
@@ -524,6 +525,7 @@ class Parser {
     }
     const keyKind = k;
     const key = this.current.value;
+    const keyPrec = this.current.prec;
     this.advance();
     if (keyKind === TokenKind.BOOL && (this.current.kind !== TokenKind.COLON || !opts.allowMapEntry)) {
       throw new PxfError(
@@ -566,6 +568,10 @@ class Parser {
             pos,
             `map entry (':' form) is only allowed inside a '{ … }' block; use '=' for top-level field assignments`,
           );
+        }
+        // A map key is an integer without a suffix (draft -01, protowire#406).
+        if (keyPrec !== undefined) {
+          throw new PxfError(pos, `map key ${key}: a key cannot carry a precision suffix (p${clipLiteral(keyPrec)})`);
         }
         this.advance();
         const value = this.parseValue();
@@ -622,11 +628,11 @@ class Parser {
       }
       case TokenKind.INT: {
         this.advance();
-        return { kind: "int", pos, raw: tok.value };
+        return { kind: "int", pos, raw: tok.value, ...(tok.prec === undefined ? {} : { prec: tok.prec }) };
       }
       case TokenKind.FLOAT: {
         this.advance();
-        return { kind: "float", pos, raw: tok.value };
+        return { kind: "float", pos, raw: tok.value, ...(tok.prec === undefined ? {} : { prec: tok.prec }) };
       }
       case TokenKind.BOOL: {
         this.advance();

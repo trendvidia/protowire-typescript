@@ -135,10 +135,8 @@ class Formatter {
         this.write(quoteString(v.value));
         return;
       case "int":
-        this.write(v.raw);
-        return;
       case "float":
-        this.write(v.raw);
+        this.write(v.prec === undefined ? v.raw : `${v.raw}p${v.prec}`);
         return;
       case "bool":
         this.write(v.value ? "true" : "false");

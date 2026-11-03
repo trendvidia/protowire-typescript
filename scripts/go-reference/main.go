@@ -38,7 +38,10 @@ type Leg struct {
 }
 
 // Record is a fixture's outcome on each leg. Stream is set for @dataset only.
+// Type names the message of a fixture with no @type line. Encode is set for an
+// enc- case: the text Marshal writes for its .binpb.
 type Record struct {
+	Type    string `json:"type,omitempty"`
 	Parse   bool   `json:"parse"`
 	Format  string `json:"format,omitempty"`
 	Decode  Leg    `json:"decode"`
@@ -46,11 +49,16 @@ type Record struct {
 	Discard bool   `json:"discard"`
 	Marshal string `json:"marshal,omitempty"`
 	Stream  *Leg   `json:"stream,omitempty"`
+	Encode  string `json:"encode,omitempty"`
 }
 
 var typeLine = regexp.MustCompile(`(?m)^@(?:type|dataset)\s+([\w.]+)`)
 
 var opts = proto.MarshalOptions{Deterministic: true}
+
+// untyped names the message of a directory whose fixtures may carry no @type
+// line: an enc- case is exactly the text an encoder writes, which has none.
+var untyped = map[string]string{"bigfloat": "bf.v1.H"}
 
 func main() {
 	if len(os.Args) != 2 {
@@ -58,10 +66,15 @@ func main() {
 		os.Exit(2)
 	}
 	out := map[string]Record{}
-	dirs, err := filepath.Glob(filepath.Join(os.Args[1], "*", "*.binpb"))
+	dirs, err := filepath.Glob(filepath.Join(os.Args[1], "*"))
 	check(err)
-	for _, binpb := range dirs {
-		dir := filepath.Dir(binpb)
+	for _, dir := range dirs {
+		// A directory's descriptor set is <dir>/<dir>.binpb. Any other .binpb
+		// is a fixture's expected bytes.
+		binpb := filepath.Join(dir, filepath.Base(dir)+".binpb")
+		if _, err := os.Stat(binpb); err != nil {
+			continue
+		}
 		files, o := load(binpb)
 		fixtures, err := filepath.Glob(filepath.Join(dir, "*.pxf"))
 		check(err)
@@ -73,15 +86,27 @@ func main() {
 			}
 			data, err := os.ReadFile(path)
 			check(err)
+			name := untyped[filepath.Base(dir)]
 			m := typeLine.FindSubmatch(data)
-			if m == nil {
+			if m != nil {
+				name = string(m[1])
+			}
+			if name == "" {
 				continue
 			}
-			d, err := files.FindDescriptorByName(protoreflect.FullName(m[1]))
+			d, err := files.FindDescriptorByName(protoreflect.FullName(name))
 			check(err)
+			desc := d.(protoreflect.MessageDescriptor)
 			key, err := filepath.Rel(os.Args[1], path)
 			check(err)
-			out[filepath.ToSlash(key)] = record(data, d.(protoreflect.MessageDescriptor), o)
+			r := record(data, desc, o)
+			if m == nil {
+				r.Type = name
+			}
+			if strings.HasPrefix(filepath.Base(path), "enc-") {
+				r.Encode = encodeWire(strings.TrimSuffix(path, ".pxf")+".binpb", desc, o)
+			}
+			out[filepath.ToSlash(key)] = r
 		}
 	}
 	enc := json.NewEncoder(os.Stdout)
@@ -183,6 +208,17 @@ func record(data []byte, desc protoreflect.MessageDescriptor, o pxf.UnmarshalOpt
 		r.Marshal = string(text)
 	}
 	return r
+}
+
+// encodeWire is the text Marshal writes for the PB message in path.
+func encodeWire(path string, desc protoreflect.MessageDescriptor, o pxf.UnmarshalOptions) string {
+	wire, err := os.ReadFile(path)
+	check(err)
+	msg := dynamicpb.NewMessage(desc)
+	check(proto.Unmarshal(wire, msg))
+	text, err := pxf.MarshalOptions{TypeResolver: o.TypeResolver}.Marshal(msg)
+	check(err)
+	return string(text)
 }
 
 func bindParsed(doc *pxf.Document, parseErr error, desc protoreflect.MessageDescriptor, o pxf.UnmarshalOptions) Leg {

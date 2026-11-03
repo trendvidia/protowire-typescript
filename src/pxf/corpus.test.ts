@@ -32,6 +32,7 @@ interface Leg {
   hex?: string[];
 }
 interface FixtureRecord {
+  type?: string;
   parse: boolean;
   format?: string;
   decode: Leg;
@@ -115,7 +116,7 @@ for (const dir of dirs) {
       it(key, () => {
         const want = reference[key]!;
         const text = readFileSync(resolve(root, key), "utf8");
-        const name = typeName(text);
+        const name = want.type ?? typeName(text);
         const desc = registry.getMessage(name);
         if (!desc) throw new Error(`no descriptor for ${name}`);
         const failures: string[] = [];

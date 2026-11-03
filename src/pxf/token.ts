@@ -96,4 +96,8 @@ export interface Token {
   /** A STRING whose `\\x` or octal escapes are not valid UTF-8. Legal syntax,
    * but no string field can hold it, so `value` is not meaningful text. */
   readonly invalidUtf8?: boolean;
+  /** A number's precision suffix digits (`53` for `1.5p53`). The lexer takes
+   * a suffix on every number; the schema layer rejects it on any field but a
+   * `pxf.BigFloat`. Absent on a number without one and on any other token. */
+  readonly prec?: string;
 }
