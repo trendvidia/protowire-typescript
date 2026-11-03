@@ -62,10 +62,12 @@ function generateProto(schema: XMLSchema): string {
   for (const e of schema.types.enums) out += writeProtoEnum(e);
   for (const c of schema.types.composites) {
     if (c.name === "messageHeader" || c.name === "groupSizeEncoding") continue;
-    out += writeProtoComposite(c);
+    out += within(`sbe: composite ${JSON.stringify(c.name)}`, () => writeProtoComposite(c));
   }
   for (const m of schema.messages) {
-    out += writeProtoMessage(m, typeMap, compositeMap, enumMap);
+    out += within(`sbe: message ${JSON.stringify(m.name)}`, () =>
+      writeProtoMessage(m, typeMap, compositeMap, enumMap),
+    );
   }
 
   return out;
@@ -139,7 +141,9 @@ function writeProtoField(
   }
   const t = typeMap.get(f.type);
   if (t) {
-    const [protoType, opts, note] = resolveTypeToProto(t);
+    const [protoType, opts, note] = within(`field ${JSON.stringify(f.name)}`, () =>
+      resolveTypeToProto(t),
+    );
     const line =
       opts !== ""
         ? `${indent}${protoType} ${name} = ${f.id} [${opts}];\n`
@@ -160,12 +164,27 @@ function writeProtoGroup(
   const msgName = singularPascal(g.name);
   let out = `${indent}message ${msgName} {\n`;
   for (const f of g.fields) {
-    out += writeProtoField(f, typeMap, compositeMap, enumMap, indent + "  ");
+    out += within(`group ${JSON.stringify(g.name)}`, () =>
+      writeProtoField(f, typeMap, compositeMap, enumMap, indent + "  "),
+    );
   }
   out += `${indent}}\n`;
   const fieldName = camelToSnake(g.name);
   out += `${indent}repeated ${msgName} ${fieldName} = ${g.id};\n`;
   return out;
+}
+
+/**
+ * Runs fn, prefixing the message of any error it throws with where it was,
+ * so a refusal names the message, group and field that hold the type.
+ */
+function within<T>(where: string, fn: () => T): T {
+  try {
+    return fn();
+  } catch (err) {
+    if (err instanceof Error) err.message = `${where}: ${err.message}`;
+    throw err;
+  }
 }
 
 function commentLine(indent: string, note: string): string {
@@ -192,7 +211,11 @@ const UTF8_COMPATIBLE = new Set([
   "utf8", "csutf8",
 ]);
 
-/** A proto type, field options, and a comment for the line above, if any. */
+/**
+ * A proto type, field options, and a comment for the line above, if any. It
+ * refuses an array that no proto field can hold, rather than importing it as
+ * one element and misplacing every later field in the block.
+ */
 function resolveTypeToProto(t: XMLType): [string, string, string] {
   if (t.primitiveType === "char") {
     const opts = `(sbe.length) = ${t.length || 1}`;
@@ -203,6 +226,17 @@ function resolveTypeToProto(t: XMLType): [string, string, string] {
       return ["bytes", opts, `SBE characterEncoding ${JSON.stringify(t.characterEncoding)} is not UTF-8 compatible, so this field is bytes.`];
     }
     return ["string", opts, ""];
+  }
+  const length = t.length ?? 0;
+  if (length > 1) {
+    if (t.primitiveType === "uint8" || t.primitiveType === "int8") {
+      // A fixed-length array of octets is raw bytes, the same N bytes on the
+      // wire as a bytes field with (sbe.length) = N.
+      return ["bytes", `(sbe.length) = ${length}`, ""];
+    }
+    throw new Error(
+      `type ${JSON.stringify(t.name)} is an array of ${length} ${t.primitiveType}, which no proto field represents`,
+    );
   }
   const [protoType, opts] = resolvePrimitiveToProto(t.primitiveType);
   return [protoType, opts, ""];
