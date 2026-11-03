@@ -19,6 +19,8 @@ format changes.
 
 ### Added
 
+- **`pb.Decimal` and `pb.BigFloat`, language values for `pxf.Decimal` and `pxf.BigFloat`**, with **`pb.DecimalValueCodec`** and **`pb.BigFloatValueCodec`** to bind a field to them ([#98](https://github.com/trendvidia/protowire-typescript/issues/98)). They are the twins of protowire-go's `*big.Rat` and `*big.Float`, and hold a value exactly without doing arithmetic. A `Decimal` keeps the scale it is given, and is written in the reduced form a `big.Rat` has (1.50 as 1.5). A `BigFloat` is rounded to its precision half to even, as a `big.Float` is, and keeps the sign of a zero. Both parse and print their PXF literal. With them `src/pb/values-table.test.ts` twins every row of the spec's struct-binding table.
+
 - **`check-decode --format pxf-pb`** for the spec's write gate, and **`pb.BigIntValueCodec`**, a `pxf.BigInt` field bound to a JavaScript `bigint` ([#98](https://github.com/trendvidia/protowire-typescript/issues/98)). `src/pb/values-table.test.ts` twins the spec's struct-binding table. `CodecBase` gains optional `readValue` and `isZeroValue` for a codec whose value is not an object.
 
 - **`pxf.BigInt` and `pxf.Decimal` literals** ([#87](https://github.com/trendvidia/protowire-typescript/issues/87)). They read and write as numbers, in fields, list elements, map values and `(pxf.default)`, with `MaxNumericLiteralDigits` enforced both ways. `pb.DecimalCodec` bounds `Decimal.scale` on the wire. `@default` on a big number is now read from the carrier.
@@ -39,6 +41,8 @@ format changes.
 - **Conformance test against protowire-go.** `src/pxf/corpus.test.ts` holds this port to the reference on the spec repo's `any`, `blocks`, `dataset`, `duplicates`, `duration`, `map-keys`, `nulls`, `repeated` and `strings` fixtures: the same verdict on each leg, and the same bound message. `scripts/go-reference` records the reference's results for a pinned protowire-go, and CI regenerates them. Fixtures this port does not meet yet are listed with their issue. A `,` or `;` between block entries was already rejected ([#54](https://github.com/trendvidia/protowire-typescript/issues/54)).
 
 ### Fixed
+
+- **`pb` writes a null element of a message list as an empty message** ([#98](https://github.com/trendvidia/protowire-typescript/issues/98)), as protowire-go writes a nil element. It was dropped, so `[1n, null]` wrote one element and the list came back shorter. It reads back as the zero value.
 
 - **SBE XML import and export keep a fixed-length array that is not text** ([#102](https://github.com/trendvidia/protowire-typescript/issues/102), protowire-go#249). `xmlToProto` read a `uint8` or `int8` array of length N as one narrowed `uint32`, so a 16-byte field took 1 byte and every later field in the block moved; it now imports as `bytes` with `(sbe.length) = N`. An array of a wider primitive is refused, naming the message, group, field or composite that holds it. `protoToXml` wrote a `bytes` field as a `char` array, which imports back as a `string`; it now writes a `uint8` array, declared once per length as `bytesN`. A `bytes` field of length 1 exports as one `uint8` and comes back as `uint32 [(sbe.encoding) = "uint8"]`, the same byte in the block. The wire bytes do not change.
 

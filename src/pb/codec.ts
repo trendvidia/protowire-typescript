@@ -23,6 +23,8 @@
  */
 
 import { Reader, Writer, WireType } from "./wire.js";
+import { bigFloatDigits, bigIntOf, bitLength, bytesOf } from "../pxf/bigfloat.js";
+import { BigFloat, Decimal } from "./bignum.js";
 
 /**
  * How deep a message may nest. The root is depth 0, and every submessage and
@@ -339,6 +341,134 @@ export const DecimalCodec: MessageCodec<DecimalValue> = {
   },
 };
 
+/** The default MaxNumericLiteralDigits, which a producer holds what it writes to. */
+const MAX_DIGITS = 4096;
+
+function writeBytesField(w: Writer, num: number, v: bigint): void {
+  if (v === 0n) return;
+  w.tag(num, WireType.LengthDelimited);
+  w.bytes(bytesOf(v));
+}
+
+/** A plain varint, a negative value sign-extended to 64 bits, as `int32` is written. */
+function writeInt32Field(w: Writer, num: number, v: number): void {
+  if (v === 0) return;
+  w.tag(num, WireType.Varint);
+  w.varint(v < 0 ? BigInt(v) : v);
+}
+
+function writeTrueField(w: Writer, num: number, v: boolean): void {
+  if (!v) return;
+  w.tag(num, WireType.Varint);
+  w.varint(1);
+}
+
+/**
+ * The codec of a `pxf.Decimal` whose value is a {@link Decimal}, for a field's
+ * `{ message: DecimalValueCodec }`. It writes the reduced form, as
+ * protowire-go writes a `*big.Rat`: 1.50 as 1.5, 1.00 as 1, 5E+2 as 500. A
+ * singular zero is omitted; a zero or null element is an empty message.
+ */
+export const DecimalValueCodec: CodecBase = {
+  fields: [],
+  byNumber: new Map(),
+  create: () => new Decimal(0n),
+  marshalInto(w, value) {
+    if (!(value instanceof Decimal)) throw new TypeError("DecimalValueCodec writes a Decimal");
+    const { unscaled, scale } = value.reduced();
+    // A conformant reader refuses a scale past the bound, so writing one
+    // would produce bytes this package's own unmarshal refuses.
+    if (scale > MAX_DIGITS) {
+      throw new Error(`pxf.Decimal scale ${scale} exceeds MaxNumericLiteralDigits=${MAX_DIGITS}`);
+    }
+    writeBytesField(w, 1, unscaled < 0n ? -unscaled : unscaled);
+    writeInt32Field(w, 2, scale);
+    writeTrueField(w, 3, unscaled < 0n);
+  },
+  unmarshalFrom() {
+    throw new Error("DecimalValueCodec reads through readValue");
+  },
+  readValue(r, end) {
+    const f = decimalFields.create();
+    decimalFields.unmarshalFrom(r, end, f);
+    // The bound comes first: a scale materialises 10^|scale| (#95).
+    checkDecimal(f, r.maxDigits);
+    const abs = bigIntOf(f.unscaled ?? new Uint8Array());
+    return new Decimal(f.negative ? -abs : abs, f.scale ?? 0);
+  },
+  isZeroValue: (value) => (value as Decimal).isZero(),
+};
+
+/**
+ * The codec of a `pxf.BigFloat` whose value is a {@link BigFloat}, for a
+ * field's `{ message: BigFloatValueCodec }`. It writes the mantissa widened to
+ * prec bits, as protowire-go writes a `*big.Float`. A singular +0 at prec 0 is
+ * omitted, and is an empty message as an element; -0 there is written as
+ * `{negative: true}`.
+ */
+export const BigFloatValueCodec: CodecBase = {
+  fields: [],
+  byNumber: new Map(),
+  create: () => new BigFloat({ mantissa: 0n, exponent: 0, prec: 0 }),
+  marshalInto(w, value) {
+    if (!(value instanceof BigFloat)) throw new TypeError("BigFloatValueCodec writes a BigFloat");
+    const { mantissa, exponent, prec, negative } = value;
+    if (prec === 0) {
+      // ±0, and its sign is all there is to write (protowire#410).
+      writeTrueField(w, 4, negative);
+      return;
+    }
+    // The wire mantissa is prec bits wide, so prec sets the size of what is
+    // written; a reader refuses a prec past the bound a suffix has (#499).
+    if (prec > maxBigFloatPrec(MAX_DIGITS)) {
+      throw new Error(
+        `pxf.BigFloat prec ${prec} implies ${bigFloatDigits(prec)} digits; MaxNumericLiteralDigits=${MAX_DIGITS}`,
+      );
+    }
+    let wide = 0n;
+    let adj = 0;
+    if (mantissa !== 0n) {
+      // value = mantissa × 2^exponent = (mantissa << k) × 2^(exponent - k).
+      const bits = bitLength(mantissa);
+      const k = prec - bits;
+      wide = mantissa << BigInt(k);
+      adj = exponent - k;
+      const binary = exponent + bits;
+      if (binary > MAX_BIG_FLOAT_EXPONENT || binary < -MAX_BIG_FLOAT_EXPONENT) {
+        throw new Error(`pxf.BigFloat binary exponent ${binary} exceeds MaxBigFloatExponent=${MAX_BIG_FLOAT_EXPONENT}`);
+      }
+      if (adj < -0x80000000 || adj > 0x7fffffff) {
+        throw new Error(`pxf.BigFloat exponent ${adj} does not fit int32`);
+      }
+    }
+    writeBytesField(w, 1, wide);
+    writeInt32Field(w, 2, adj);
+    w.tag(3, WireType.Varint);
+    w.varint(prec);
+    writeTrueField(w, 4, negative);
+  },
+  unmarshalFrom() {
+    throw new Error("BigFloatValueCodec reads through readValue");
+  },
+  readValue(r, end) {
+    const f = bigFloatFields.create();
+    bigFloatFields.unmarshalFrom(r, end, f);
+    // Both bounds before anything is built for the value.
+    checkBigFloatPrec(f, r.maxDigits);
+    checkBigFloat(f, r.maxBigFloatExponent);
+    return new BigFloat({
+      mantissa: bigIntOf(f.mantissa ?? new Uint8Array()),
+      exponent: f.exponent ?? 0,
+      prec: f.prec ?? 0,
+      negative: f.negative ?? false,
+    });
+  },
+  isZeroValue: (value) => {
+    const v = value as BigFloat;
+    return v.prec === 0 && !v.negative;
+  },
+};
+
 export function marshal<T>(value: T, codec: MessageCodec<T>, options?: MarshalOptions): Uint8Array {
   return codec.marshal(value, options);
 }
@@ -512,8 +642,15 @@ function writeRepeatedField(w: Writer, f: FieldSpec, v: unknown): void {
     }
   } else {
     for (const item of v) {
-      if (item === undefined || item === null) continue;
       w.tag(f.number, WireType.LengthDelimited);
+      if (item === undefined || item === null) {
+        // A null element is written as an empty message, the zero value's
+        // record, so the list keeps its length: what protowire-go writes for a
+        // nil element (protowire#509). It reads back as the zero value.
+        childWriter(w);
+        w.varint(0);
+        continue;
+      }
       writeNestedMessage(w, f.kind.message, item);
     }
   }

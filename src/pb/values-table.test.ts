@@ -5,11 +5,10 @@
  * in values_table_test.go, each compared with the bytes protowire-go writes,
  * from the spec repo's testdata/values/values.tsv, copied to testdata/.
  *
- * A row whose value has no language-value binding here is listed in
- * FIELD_LEVEL with the reason. JavaScript has no decimal or arbitrary-precision
- * float, so pxf.Decimal and pxf.BigFloat are bound field by field, and a
- * producer of a message's fields writes them as they are, where these rows pin
- * the reduced form a language value is written in (draft -01 § PXF Annotations).
+ * Every row has a twin. pxf.BigInt binds to a bigint, pxf.Decimal to a Decimal
+ * (protowire-go's *big.Rat) and pxf.BigFloat to a BigFloat (its *big.Float),
+ * and these rows pin the reduced form a language value is written in (draft
+ * -01 § PXF Annotations).
  */
 
 import { readFileSync } from "node:fs";
@@ -18,7 +17,16 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
-import { BigIntValueCodec, type MessageCodec, defineMessage, marshal } from "./index.js";
+import {
+  BigFloat,
+  BigFloatValueCodec,
+  BigIntValueCodec,
+  Decimal,
+  DecimalValueCodec,
+  type MessageCodec,
+  defineMessage,
+  marshal,
+} from "./index.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const rows = new Map(
@@ -38,6 +46,21 @@ const Leaf = defineMessage<{ name: string; n: number }>({
   ],
   create: () => ({ name: "", n: 0 }),
 });
+
+const dec = { message: DecimalValueCodec };
+const flt = { message: BigFloatValueCodec };
+const VDecimal = defineMessage({ fields: [{ number: 1, name: "d", kind: dec }] }) as never;
+const VDecimals = defineMessage({ fields: [{ number: 1, name: "ds", kind: dec, repeated: true }] }) as never;
+const VBigNums = defineMessage({
+  fields: [
+    { number: 1, name: "i", kind: { message: BigIntValueCodec } },
+    { number: 2, name: "d", kind: dec },
+    { number: 3, name: "f", kind: flt },
+  ],
+}) as never;
+const VBigFloat = defineMessage({ fields: [{ number: 1, name: "f", kind: flt }] }) as never;
+const VBigFloatMap = defineMessage({ fields: [{ number: 1, name: "m", kind: flt, mapKey: "string" }] }) as never;
+const D = (s: string): Decimal => Decimal.parse(s);
 
 const TWINS: Record<string, [MessageCodec<never>, unknown]> = {
   Ints: [
@@ -116,28 +139,32 @@ const TWINS: Record<string, [MessageCodec<never>, unknown]> = {
     defineMessage({ fields: [{ number: 1, name: "is", kind: { message: BigIntValueCodec }, repeated: true }] }) as never,
     { is: [0n, 1n] },
   ],
+  BigIntsNullElement: [
+    defineMessage({ fields: [{ number: 1, name: "is", kind: { message: BigIntValueCodec }, repeated: true }] }) as never,
+    { is: [1n, null] },
+  ],
+  Decimal: [VDecimal, { d: D("3.1415") }],
+  DecimalOne: [VDecimal, { d: D("1.00") }],
+  DecimalFiveE2: [VDecimal, { d: new Decimal(5n, -2) }],
+  DecimalFifteen: [VDecimal, { d: D("15.00") }],
+  DecimalZero: [VDecimal, { d: D("0.00") }],
+  DecimalNegative: [VDecimal, { d: D("-1.50") }],
+  Decimals: [VDecimals, { ds: [D("0.00"), D("1.00"), new Decimal(5n, -2)] }],
+  DecimalsNullElement: [VDecimals, { ds: [D("1"), null] }],
+  BigNumsZero: [VBigNums, { i: 0n, d: D("0"), f: new BigFloat({ mantissa: 0n, exponent: 0, prec: 0 }) }],
+  BigNumsNegative: [
+    VBigNums,
+    { i: -12345678901234567890n, d: D("-0.5"), f: BigFloat.fromNumber(-1.5) },
+  ],
+  BigFloatMapNullValue: [VBigFloatMap, { m: { k: null } }],
+  BigFloatPrec64: [VBigFloat, { f: BigFloat.fromNumber(1.5, 64) }],
 };
 
-const FIELD_LEVEL: Record<string, string> = {
-  Decimal: "pxf.Decimal is bound field by field here",
-  DecimalOne: "pxf.Decimal is bound field by field here",
-  DecimalFiveE2: "pxf.Decimal is bound field by field here",
-  DecimalFifteen: "pxf.Decimal is bound field by field here",
-  DecimalZero: "pxf.Decimal is bound field by field here",
-  DecimalNegative: "pxf.Decimal is bound field by field here",
-  Decimals: "pxf.Decimal is bound field by field here",
-  DecimalsNullElement: "pxf.Decimal is bound field by field here",
-  BigNumsZero: "it holds a pxf.Decimal and a pxf.BigFloat, bound field by field here",
-  BigNumsNegative: "it holds a pxf.Decimal and a pxf.BigFloat, bound field by field here",
-  BigIntsNullElement: "a JavaScript bigint has no null; a list of them cannot hold one",
-  BigFloatMapNullValue: "pxf.BigFloat is bound field by field here",
-  BigFloatPrec64: "pxf.BigFloat is bound field by field here",
-};
 
 describe("the struct-binding table", () => {
-  it("names every row, as a twin or with the reason it has none", () => {
+  it("twins every row", () => {
     for (const name of rows.keys()) {
-      expect(TWINS[name] !== undefined || FIELD_LEVEL[name] !== undefined, `${name} has no twin`).toBe(true);
+      expect(TWINS[name] !== undefined, `${name} has no twin`).toBe(true);
     }
   });
 
