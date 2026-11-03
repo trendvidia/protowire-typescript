@@ -38,8 +38,6 @@ format changes.
 
 ### Fixed
 
-- **`pb` reads packed repeated scalars** ([#55](https://github.com/trendvidia/protowire-typescript/issues/55)), proto3's default wire form. A `repeated int32` from any standard writer failed to decode. Found by the HARDENING corpus.
-
 - **`\x` and octal escapes in a string are UTF-8 bytes** ([#55](https://github.com/trendvidia/protowire-typescript/issues/55)). `"\xC3\xA9"` decoded to two characters instead of `é`, and `"\xFF"` decoded to `ÿ` instead of being rejected on a string field. Found by running the HARDENING corpus for the first time.
 
 - **A `pb` map entry always carries its key and value, zero-valued or not** ([#42](https://github.com/trendvidia/protowire-typescript/issues/42), protowire#295). A zero key or value was omitted, which is not the layout `protoc` and protobuf-go write. `dump-envelope` gains `--vector`.
@@ -66,6 +64,8 @@ format changes.
 - **`node_modules` is no longer tracked** ([#66](https://github.com/trendvidia/protowire-typescript/issues/66)). `main` carried a symlink to an absolute path on one machine, and `npm ci` in a new worktree emptied that path through it. The `.gitignore` rule now matches a symlink as well as a directory.
 
 - **`Result` reports a keyed entry's name as setting the key field** (protowire-go#214). After `kd { alpha {} }`, `isSet("kd[0].name")` is `true` and `isAbsent("kd[0].name")` is `false`; they said the opposite, although the name was in the message. Decoded values do not change. `postDecode` does not walk list elements in this port yet (#58), so the reference's other symptoms, a default replacing the name and a required key reported absent, could not occur here. New tests pin the right answer for when it does.
+
+- **`pb` reads packed repeated scalars** ([#55](https://github.com/trendvidia/protowire-typescript/issues/55)), proto3's default wire form. A `repeated int32` from any standard writer failed to decode. Found by the HARDENING corpus.
 
 ### Changed
 
