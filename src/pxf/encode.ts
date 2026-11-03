@@ -15,6 +15,7 @@ import {
   type MessageShape,
   ScalarType,
   fromBinary,
+  toBinary,
 } from "@bufbuild/protobuf";
 import {
   type ReflectList,
@@ -27,7 +28,7 @@ import { findNullMaskField, keyField } from "./annotations.js";
 import { formatBigFloat } from "./bigfloat.js";
 import { MAX_NESTING_DEPTH } from "./parser.js";
 import { formatBigInt, formatDecimal } from "./bignum.js";
-import { type TypeResolver } from "./decode.js";
+import { type TypeResolver, unmarshalFull } from "./decode.js";
 import {
   findFieldByProtoName,
   isAny,
@@ -468,6 +469,25 @@ class Encoder {
    * false to fall back to plain `{ type_url = ..., value = ... }` encoding
    * when the resolver can't find the URL or the bytes can't be unpacked.
    */
+  /**
+   * Whether `body`, decoded as a reader would at `depth` with the post-decode
+   * pass, packs to `value`. That catches unknown fields, field and map order,
+   * explicit zeros, a value no literal holds, and an unset default or required
+   * field, which a re-encode of the parsed value would not.
+   */
+  private readsBack(body: string, desc: DescMessage, depth: number, value: Uint8Array): boolean {
+    try {
+      const { message } = unmarshalFull(body, desc, {
+        ...(this.resolver ? { typeResolver: this.resolver } : {}),
+        maxNestingDepth: this.maxDepth - depth,
+      });
+      const bytes = toBinary(desc, message);
+      return bytes.length === value.length && bytes.every((b, i) => b === value[i]);
+    } catch {
+      return false;
+    }
+  }
+
   private tryEncodeAny(
     fd: DescField,
     anyMsg: ReflectMessage,
@@ -480,7 +500,9 @@ class Encoder {
     if (!typeUrlFd || !valueFd) return false;
 
     const typeURL = anyMsg.get(typeUrlFd) as string;
-    if (typeURL === "") return false;
+    // At the depth limit an Any is not unpacked: its block has no room for a
+    // body's submessages, and stopping here bounds a chain of Anys.
+    if (typeURL === "" || level >= this.maxDepth) return false;
     const valueBytes = anyMsg.get(valueFd) as Uint8Array;
 
     const innerDesc = this.resolver!.findMessageByURL(typeURL);
@@ -504,7 +526,14 @@ class Encoder {
       this.writeIndent(level + 1);
       this.buf += `@type = ${writeQuotedString(typeURL)}\n`;
       this.pathPrefix = saved + fd.name + ".";
+      const bodyStart = this.buf.length;
       this.encodeMessage(innerRefl, level + 1);
+      // A reader compares an Any by its bytes, so a body is written only when
+      // decoding it gives back exactly the stored value (protowire#501).
+      if (!this.readsBack(this.buf.slice(bodyStart), innerDesc, level + 1, valueBytes)) {
+        this.buf = this.buf.slice(0, start);
+        return false;
+      }
     } catch (e) {
       if (!(e instanceof NestingError)) throw e;
       this.buf = this.buf.slice(0, start);
