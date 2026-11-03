@@ -17,6 +17,10 @@ format changes.
 
 ## [Unreleased]
 
+### Added
+
+- **Conformance test against protowire-go.** `src/pxf/corpus.test.ts` holds this port to the reference on the spec repo's `any`, `blocks`, `dataset`, `duplicates`, `duration`, `map-keys`, `nulls`, `repeated` and `strings` fixtures: the same verdict on each leg, and the same bound message. `scripts/go-reference` records the reference's results for a pinned protowire-go, and CI regenerates them. Fixtures this port does not meet yet are listed with their issue. A `,` or `;` between block entries was already rejected ([#54](https://github.com/trendvidia/protowire-typescript/issues/54)).
+
 ### Fixed
 
 - **`node_modules` is no longer tracked** ([#66](https://github.com/trendvidia/protowire-typescript/issues/66)). `main` carried a symlink to an absolute path on one machine, and `npm ci` in a new worktree emptied that path through it. The `.gitignore` rule now matches a symlink as well as a directory.

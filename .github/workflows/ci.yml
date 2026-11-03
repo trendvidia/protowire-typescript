@@ -74,6 +74,24 @@ jobs:
             dist/
             **/junit.xml
 
+  reference:
+    name: Corpus record matches protowire-go
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: scripts/go-reference/go.mod
+          cache-dependency-path: scripts/go-reference/go.sum
+
+      - name: Regenerate the record
+        working-directory: scripts/go-reference
+        run: go run . ../../src/pxf/testdata/corpus > ../../src/pxf/testdata/corpus/reference.json
+
+      - name: Fail if it changed
+        run: git diff --exit-code src/pxf/testdata/corpus/reference.json
+
   buf:
     name: Buf lint + breaking
     runs-on: ubuntu-latest

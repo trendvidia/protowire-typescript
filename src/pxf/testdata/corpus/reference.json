@@ -1,0 +1,1144 @@
+{
+ "any/assignment.pxf": {
+  "parse": true,
+  "decode": {
+   "accept": true,
+   "hex": [
+    "0a120a0b616e792e76312e4c65616612030a0174"
+   ]
+  }
+ },
+ "any/block.pxf": {
+  "parse": true,
+  "decode": {
+   "accept": true,
+   "hex": [
+    "0a140a0b616e792e76312e4c65616612050a01741007"
+   ]
+  }
+ },
+ "any/err-not-any.pxf": {
+  "parse": true,
+  "decode": {
+   "accept": false
+  }
+ },
+ "any/err-not-first.pxf": {
+  "parse": false,
+  "decode": {
+   "accept": false
+  }
+ },
+ "any/err-twice.pxf": {
+  "parse": false,
+  "decode": {
+   "accept": false
+  }
+ },
+ "any/err-unquoted-url.pxf": {
+  "parse": false,
+  "decode": {
+   "accept": false
+  }
+ },
+ "any/err-unresolved.pxf": {
+  "parse": true,
+  "decode": {
+   "accept": false
+  }
+ },
+ "any/list-element.pxf": {
+  "parse": true,
+  "decode": {
+   "accept": true,
+   "hex": [
+    "12120a0b616e792e76312e4c65616612030a016112110a0b616e792e76312e4c65616612021002"
+   ]
+  }
+ },
+ "any/map-value.pxf": {
+  "parse": true,
+  "decode": {
+   "accept": true,
+   "hex": [
+    "1a170a016b12120a0b616e792e76312e4c65616612030a0174"
+   ]
+  }
+ },
+ "any/plain-fields.pxf": {
+  "parse": true,
+  "decode": {
+   "accept": true,
+   "hex": [
+    "0a120a0b616e792e76312e4c65616612030a0174"
+   ]
+  }
+ },
+ "any/url-verbatim.pxf": {
+  "parse": true,
+  "decode": {
+   "accept": true,
+   "hex": [
+    "0a260a1f747970652e676f6f676c65617069732e636f6d2f616e792e76312e4c65616612030a0174"
+   ]
+  }
+ },
+ "blocks/comma-between-elements.pxf": {
+  "parse": true,
+  "decode": {
+   "accept": true,
+   "hex": [
+    "1a110a086772656574696e6712054c6162656c1a0e0a057469746c6512054c6162656c"
+   ]
+  }
+ },
+ "blocks/err-comma-in-block.pxf": {
+  "parse": false,
+  "decode": {
+   "accept": false
+  }
+ },
+ "blocks/err-comma-in-list-element.pxf": {
+  "parse": false,
+  "decode": {
+   "accept": false
+  }
+ },
+ "blocks/err-comma-in-map.pxf": {
+  "parse": false,
+  "decode": {
+   "accept": false
+  }
+ },
+ "blocks/err-semicolon-in-block.pxf": {
+  "parse": false,
+  "decode": {
+   "accept": false
+  }
+ },
+ "blocks/newline-in-block.pxf": {
+  "parse": true,
+  "decode": {
+   "accept": true,
+   "hex": [
+    "0a0f0a064265726c696e12053130313135"
+   ]
+  }
+ },
+ "blocks/space-in-block.pxf": {
+  "parse": true,
+  "decode": {
+   "accept": true,
+   "hex": [
+    "0a0f0a064265726c696e12053130313135"
+   ]
+  }
+ },
+ "dataset/arity-long.pxf": {
+  "parse": false,
+  "decode": {
+   "accept": false
+  },
+  "stream": {
+   "accept": false
+  }
+ },
+ "dataset/arity-short.pxf": {
+  "parse": false,
+  "decode": {
+   "accept": false
+  },
+  "stream": {
+   "accept": false
+  }
+ },
+ "dataset/block-cell.pxf": {
+  "parse": true,
+  "decode": {
+   "accept": true,
+   "hex": [
+    "0a05726f772d315a090a05696e6e65721063"
+   ]
+  },
+  "stream": {
+   "accept": true,
+   "hex": [
+    "0a05726f772d315a090a05696e6e65721063"
+   ]
+  }
+ },
+ "dataset/block-on-scalar.pxf": {
+  "parse": true,
+  "decode": {
+   "accept": false
+  },
+  "stream": {
+   "accept": false
+  }
+ },
+ "dataset/cell-framing.pxf": {
+  "parse": true,
+  "decode": {
+   "accept": true,
+   "hex": [
+    "0a05726f772d315a0b0a0761292c2028622c10016202292c6202282c",
+    "0a05726f772d325a0e0a0a7829202279222c20287a10026203656e64"
+   ]
+  },
+  "stream": {
+   "accept": true,
+   "hex": [
+    "0a05726f772d315a0b0a0761292c2028622c10016202292c6202282c",
+    "0a05726f772d325a0e0a0a7829202279222c20287a10026203656e64"
+   ]
+  }
+ },
+ "dataset/dotted-bad-header-empty-row.pxf": {
+  "parse": true,
+  "decode": {
+   "accept": false
+  },
+  "stream": {
+   "accept": false
+  }
+ },
+ "dataset/dotted-bad-header-no-rows.pxf": {
+  "parse": true,
+  "decode": {
+   "accept": true
+  },
+  "stream": {
+   "accept": true
+  }
+ },
+ "dataset/dotted-column.pxf": {
+  "parse": true,
+  "decode": {
+   "accept": true,
+   "hex": [
+    "0a05726f772d315a070a05696e6e6572"
+   ]
+  },
+  "stream": {
+   "accept": true,
+   "hex": [
+    "0a05726f772d315a070a05696e6e6572"
+   ]
+  }
+ },
+ "dataset/dotted-empty-segment.pxf": {
+  "parse": false,
+  "decode": {
+   "accept": false
+  },
+  "stream": {
+   "accept": false
+  }
+ },
+ "dataset/dotted-grouping.pxf": {
+  "parse": true,
+  "decode": {
+   "accept": true,
+   "hex": [
+    "0a027231121209000000000000e03f1204083c10781a01784801",
+    "0a027232120909000000000000d03f4802",
+    "0a0272334803",
+    "0a0272341204120210094804"
+   ]
+  },
+  "stream": {
+   "accept": true,
+   "hex": [
+    "0a027231121209000000000000e03f1204083c10781a01784801",
+    "0a027232120909000000000000d03f4802",
+    "0a0272334803",
+    "0a0272341204120210094804"
+   ]
+  }
+ },
+ "dataset/dotted-into-any.pxf": {
+  "parse": true,
+  "decode": {
+   "accept": true,
+   "hex": [
+    "0a01786a2a0a23747970652e676f6f676c65617069732e636f6d2f646174617365742e76312e5069636b12030a0178"
+   ]
+  },
+  "stream": {
+   "accept": true,
+   "hex": [
+    "0a01786a2a0a23747970652e676f6f676c65617069732e636f6d2f646174617365742e76312e5069636b12030a0178"
+   ]
+  }
+ },
+ "dataset/dotted-into-bignum.pxf": {
+  "parse": true,
+  "decode": {
+   "accept": false
+  },
+  "stream": {
+   "accept": false
+  }
+ },
+ "dataset/dotted-into-duration.pxf": {
+  "parse": true,
+  "decode": {
+   "accept": false
+  },
+  "stream": {
+   "accept": false
+  }
+ },
+ "dataset/dotted-into-secret.pxf": {
+  "parse": true,
+  "decode": {
+   "accept": true,
+   "hex": [
+    "0a017872150a06733363726574120b64622070617373776f7264"
+   ]
+  },
+  "stream": {
+   "accept": true,
+   "hex": [
+    "0a017872150a06733363726574120b64622070617373776f7264"
+   ]
+  }
+ },
+ "dataset/dotted-into-timestamp.pxf": {
+  "parse": true,
+  "decode": {
+   "accept": false
+  },
+  "stream": {
+   "accept": false
+  }
+ },
+ "dataset/dotted-into-wrapper.pxf": {
+  "parse": true,
+  "decode": {
+   "accept": false
+  },
+  "stream": {
+   "accept": false
+  }
+ },
+ "dataset/dotted-null-leaf.pxf": {
+  "parse": true,
+  "decode": {
+   "accept": true,
+   "hex": [
+    "0a016e1200"
+   ]
+  },
+  "stream": {
+   "accept": true,
+   "hex": [
+    "0a016e1200"
+   ]
+  }
+ },
+ "dataset/dotted-oneof-two-members.pxf": {
+  "parse": true,
+  "decode": {
+   "accept": false
+  },
+  "stream": {
+   "accept": false
+  }
+ },
+ "dataset/dotted-oneof.pxf": {
+  "parse": true,
+  "decode": {
+   "accept": true,
+   "hex": [
+    "32050a01781001",
+    "3a030a0179"
+   ]
+  },
+  "stream": {
+   "accept": true,
+   "hex": [
+    "32050a01781001",
+    "3a030a0179"
+   ]
+  }
+ },
+ "dataset/dotted-overlap-deep.pxf": {
+  "parse": false,
+  "decode": {
+   "accept": false
+  },
+  "stream": {
+   "accept": false
+  }
+ },
+ "dataset/dotted-overlap.pxf": {
+  "parse": false,
+  "decode": {
+   "accept": false
+  },
+  "stream": {
+   "accept": false
+  }
+ },
+ "dataset/dotted-required-missing.pxf": {
+  "parse": true,
+  "decode": {
+   "accept": false
+  },
+  "stream": {
+   "accept": false
+  }
+ },
+ "dataset/dotted-required.pxf": {
+  "parse": true,
+  "decode": {
+   "accept": true,
+   "hex": [
+    "0a06616273656e74",
+    "0a0373657442080805120464666c74"
+   ]
+  },
+  "stream": {
+   "accept": true,
+   "hex": [
+    "0a06616273656e74",
+    "0a0373657442080805120464666c74"
+   ]
+  }
+ },
+ "dataset/dotted-through-map.pxf": {
+  "parse": true,
+  "decode": {
+   "accept": false
+  },
+  "stream": {
+   "accept": false
+  }
+ },
+ "dataset/dotted-through-repeated.pxf": {
+  "parse": true,
+  "decode": {
+   "accept": false
+  },
+  "stream": {
+   "accept": false
+  }
+ },
+ "dataset/dotted-through-scalar.pxf": {
+  "parse": true,
+  "decode": {
+   "accept": false
+  },
+  "stream": {
+   "accept": false
+  }
+ },
+ "dataset/dotted-trailing-dot.pxf": {
+  "parse": false,
+  "decode": {
+   "accept": false
+  },
+  "stream": {
+   "accept": false
+  }
+ },
+ "dataset/dotted-unknown-segment.pxf": {
+  "parse": true,
+  "decode": {
+   "accept": false
+  },
+  "stream": {
+   "accept": false
+  }
+ },
+ "dataset/dotted-with-value-cells.pxf": {
+  "parse": true,
+  "decode": {
+   "accept": true,
+   "hex": [
+    "0a016d121309000000000000e03f1202083c1a01611a01621a030a0170"
+   ]
+  },
+  "stream": {
+   "accept": true,
+   "hex": [
+    "0a016d121309000000000000e03f1202083c1a01611a01621a030a0170"
+   ]
+  }
+ },
+ "dataset/duplicate-column.pxf": {
+  "parse": false,
+  "decode": {
+   "accept": false
+  },
+  "stream": {
+   "accept": false
+  }
+ },
+ "dataset/empty-rows.pxf": {
+  "parse": true,
+  "decode": {
+   "accept": true
+  },
+  "stream": {
+   "accept": true
+  }
+ },
+ "dataset/junk-between-rows.pxf": {
+  "parse": false,
+  "decode": {
+   "accept": false
+  },
+  "stream": {
+   "accept": false
+  }
+ },
+ "dataset/list-cell.pxf": {
+  "parse": true,
+  "decode": {
+   "accept": true,
+   "hex": [
+    "0a05726f772d316205616c706861620462657461"
+   ]
+  },
+  "stream": {
+   "accept": true,
+   "hex": [
+    "0a05726f772d316205616c706861620462657461"
+   ]
+  }
+ },
+ "dataset/nested-cells.pxf": {
+  "parse": true,
+  "decode": {
+   "accept": true,
+   "hex": [
+    "0a05726f772d3110015a060a026e3110016201616201626a030a01786a050a0179100272060a016b120176",
+    "0a05726f772d3210025a00",
+    "0a05726f772d331003",
+    "0a05726f772d341004"
+   ]
+  },
+  "stream": {
+   "accept": true,
+   "hex": [
+    "0a05726f772d3110015a060a026e3110016201616201626a030a01786a050a0179100272060a016b120176",
+    "0a05726f772d3210025a00",
+    "0a05726f772d331003",
+    "0a05726f772d341004"
+   ]
+  }
+ },
+ "dataset/null-on-optional-cell.pxf": {
+  "parse": true,
+  "decode": {
+   "accept": true,
+   "hex": [
+    "0a01617801",
+    "0a0162"
+   ]
+  },
+  "stream": {
+   "accept": true,
+   "hex": [
+    "0a01617801",
+    "0a0162"
+   ]
+  }
+ },
+ "dataset/null-on-scalar-cell.pxf": {
+  "parse": true,
+  "decode": {
+   "accept": false
+  },
+  "stream": {
+   "accept": false
+  }
+ },
+ "dataset/rows-end-at-directive.pxf": {
+  "parse": true,
+  "decode": {
+   "accept": true,
+   "hex": [
+    "0a05726f772d311001",
+    "0a05726f772d321002",
+    "0a05726f772d335001"
+   ]
+  },
+  "stream": {
+   "accept": true,
+   "hex": [
+    "0a05726f772d311001",
+    "0a05726f772d321002"
+   ]
+  }
+ },
+ "dataset/string-newline-in-cell.pxf": {
+  "parse": false,
+  "decode": {
+   "accept": false
+  },
+  "stream": {
+   "accept": false
+  }
+ },
+ "dataset/truncated-row-eof.pxf": {
+  "parse": false,
+  "decode": {
+   "accept": false
+  },
+  "stream": {
+   "accept": false
+  }
+ },
+ "dataset/truncated-row-then-rows.pxf": {
+  "parse": false,
+  "decode": {
+   "accept": false
+  },
+  "stream": {
+   "accept": false
+  }
+ },
+ "dataset/with-body.pxf": {
+  "parse": false,
+  "decode": {
+   "accept": false
+  },
+  "stream": {
+   "accept": false
+  }
+ },
+ "dataset/with-type.pxf": {
+  "parse": false,
+  "decode": {
+   "accept": false
+  },
+  "stream": {
+   "accept": false
+  }
+ },
+ "duplicates/err-map-key-twice-across-bindings.pxf": {
+  "parse": true,
+  "decode": {
+   "accept": false
+  }
+ },
+ "duplicates/err-map-key-twice-in-literal.pxf": {
+  "parse": true,
+  "decode": {
+   "accept": false
+  }
+ },
+ "duplicates/err-map-key-twice-int-spellings.pxf": {
+  "parse": true,
+  "decode": {
+   "accept": false
+  }
+ },
+ "duplicates/err-map-key-twice-message-values.pxf": {
+  "parse": true,
+  "decode": {
+   "accept": false
+  }
+ },
+ "duplicates/err-map-key-twice-same-value.pxf": {
+  "parse": true,
+  "decode": {
+   "accept": false
+  }
+ },
+ "duplicates/err-message-assign-then-block.pxf": {
+  "parse": true,
+  "decode": {
+   "accept": false
+  }
+ },
+ "duplicates/err-message-twice.pxf": {
+  "parse": true,
+  "decode": {
+   "accept": false
+  }
+ },
+ "duplicates/err-nested-scalar-twice.pxf": {
+  "parse": true,
+  "decode": {
+   "accept": false
+  }
+ },
+ "duplicates/err-null-then-value.pxf": {
+  "parse": true,
+  "decode": {
+   "accept": false
+  }
+ },
+ "duplicates/err-oneof-member-twice.pxf": {
+  "parse": true,
+  "decode": {
+   "accept": false
+  }
+ },
+ "duplicates/err-oneof-scalar-twice.pxf": {
+  "parse": true,
+  "decode": {
+   "accept": false
+  }
+ },
+ "duplicates/err-optional-twice.pxf": {
+  "parse": true,
+  "decode": {
+   "accept": false
+  }
+ },
+ "duplicates/err-scalar-same-value.pxf": {
+  "parse": true,
+  "decode": {
+   "accept": false
+  }
+ },
+ "duplicates/err-scalar-twice.pxf": {
+  "parse": true,
+  "decode": {
+   "accept": false
+  }
+ },
+ "duplicates/err-wrapper-twice.pxf": {
+  "parse": true,
+  "decode": {
+   "accept": false
+  }
+ },
+ "duplicates/map-key-once-per-body.pxf": {
+  "parse": true,
+  "decode": {
+   "accept": true,
+   "hex": [
+    "3a081a060a01611201313a081a060a0161120132"
+   ]
+  }
+ },
+ "duplicates/map-twice-distinct-keys.pxf": {
+  "parse": true,
+  "decode": {
+   "accept": true,
+   "hex": [
+    "4a060a01611201314a060a0162120132"
+   ]
+  }
+ },
+ "duplicates/once-per-body.pxf": {
+  "parse": true,
+  "decode": {
+   "accept": true,
+   "hex": [
+    "1a020801320208013a0208013a020802"
+   ]
+  }
+ },
+ "duplicates/repeated-twice.pxf": {
+  "parse": true,
+  "decode": {
+   "accept": true,
+   "hex": [
+    "3a0208013a020802"
+   ]
+  }
+ },
+ "duration/err-digit-led-identifier.pxf": {
+  "parse": false,
+  "decode": {
+   "accept": false
+  }
+ },
+ "duration/err-sign-per-segment.pxf": {
+  "parse": false,
+  "decode": {
+   "accept": false
+  }
+ },
+ "duration/err-unit-then-alpha.pxf": {
+  "parse": false,
+  "decode": {
+   "accept": false
+  }
+ },
+ "duration/negative-fractional.pxf": {
+  "parse": true,
+  "decode": {
+   "accept": true,
+   "hex": [
+    "0a1608ffffffffffffffffff011080b6ca91feffffffff01"
+   ]
+  }
+ },
+ "duration/negative-multi-segment.pxf": {
+  "parse": true,
+  "decode": {
+   "accept": true,
+   "hex": [
+    "0a0b08e8d5ffffffffffffff01"
+   ]
+  }
+ },
+ "duration/negative-seconds.pxf": {
+  "parse": true,
+  "decode": {
+   "accept": true,
+   "hex": [
+    "0a0b08e2ffffffffffffffff01"
+   ]
+  }
+ },
+ "duration/negative-zero.pxf": {
+  "parse": true,
+  "decode": {
+   "accept": true,
+   "hex": [
+    "0a00"
+   ]
+  }
+ },
+ "duration/roundtrip-negative.pxf": {
+  "parse": true,
+  "decode": {
+   "accept": true,
+   "hex": [
+    "0a1608ffffffffffffffffff011080b6ca91feffffffff01"
+   ]
+  }
+ },
+ "map-keys/bool-keys-integer.pxf": {
+  "parse": true,
+  "decode": {
+   "accept": true,
+   "hex": [
+    "0a100800120c696e7465676572207a65726f0a0f0801120b696e7465676572206f6e65"
+   ]
+  }
+ },
+ "map-keys/bool-keys-keyword.pxf": {
+  "parse": true,
+  "decode": {
+   "accept": true,
+   "hex": [
+    "0a0b080012076b6579776f72640a0b080112076b6579776f7264"
+   ]
+  }
+ },
+ "map-keys/bool-keys.pxf": {
+  "parse": true,
+  "decode": {
+   "accept": true,
+   "hex": [
+    "0a120800120e71756f746564206c69746572616c0a120801120e71756f746564206c69746572616c"
+   ]
+  }
+ },
+ "map-keys/fmt-bare-keys.pxf": {
+  "parse": true,
+  "decode": {
+   "accept": true,
+   "hex": [
+    "0a0b08001207696e74656765720a0b080112076b6579776f7264"
+   ]
+  }
+ },
+ "map-keys/fmt-dotted-keys.pxf": {
+  "parse": true,
+  "decode": {
+   "accept": true,
+   "hex": [
+    "0a110a022e65120b6c656164696e6720646f740a130a03312e35120c666c6f61742d7368617065640a140a03612e62120d71756f74656420646f747465640a120a03632e64120b6261726520646f74746564"
+   ]
+  }
+ },
+ "map-keys/fmt-keyword-keys.pxf": {
+  "parse": true,
+  "decode": {
+   "accept": true,
+   "hex": [
+    "0a150a03313233120e71756f74656420696e74656765720a170a0462617265120f62617265206964656e7469666965720a170a0566616c7365120e71756f746564206b6579776f72640a160a046e756c6c120e71756f746564206b6579776f72640a230a05706c61696e121a71756f746564206964656e7469666965722d73616665206b65790a160a0474727565120e71756f746564206b6579776f7264"
+   ]
+  }
+ },
+ "map-keys/invalid/identifier-lower-f.pxf": {
+  "parse": true,
+  "decode": {
+   "accept": false
+  }
+ },
+ "map-keys/invalid/identifier-lower-t.pxf": {
+  "parse": true,
+  "decode": {
+   "accept": false
+  }
+ },
+ "map-keys/invalid/identifier-title-False.pxf": {
+  "parse": true,
+  "decode": {
+   "accept": false
+  }
+ },
+ "map-keys/invalid/identifier-title-True.pxf": {
+  "parse": true,
+  "decode": {
+   "accept": false
+  }
+ },
+ "map-keys/invalid/identifier-upper-F.pxf": {
+  "parse": true,
+  "decode": {
+   "accept": false
+  }
+ },
+ "map-keys/invalid/identifier-upper-FALSE.pxf": {
+  "parse": true,
+  "decode": {
+   "accept": false
+  }
+ },
+ "map-keys/invalid/identifier-upper-T.pxf": {
+  "parse": true,
+  "decode": {
+   "accept": false
+  }
+ },
+ "map-keys/invalid/identifier-upper-TRUE.pxf": {
+  "parse": true,
+  "decode": {
+   "accept": false
+  }
+ },
+ "map-keys/invalid/identifier-word-yes.pxf": {
+  "parse": true,
+  "decode": {
+   "accept": false
+  }
+ },
+ "map-keys/invalid/string-lower-t.pxf": {
+  "parse": true,
+  "decode": {
+   "accept": false
+  }
+ },
+ "map-keys/invalid/string-one-1.pxf": {
+  "parse": true,
+  "decode": {
+   "accept": false
+  }
+ },
+ "map-keys/invalid/string-upper-TRUE.pxf": {
+  "parse": true,
+  "decode": {
+   "accept": false
+  }
+ },
+ "map-keys/invalid/string-zero-0.pxf": {
+  "parse": true,
+  "decode": {
+   "accept": false
+  }
+ },
+ "nulls/default-optional.pxf": {
+  "parse": true,
+  "decode": {
+   "accept": true,
+   "hex": [
+    ""
+   ]
+  }
+ },
+ "nulls/editions-explicit.pxf": {
+  "parse": true,
+  "decode": {
+   "accept": true,
+   "hex": [
+    ""
+   ]
+  }
+ },
+ "nulls/err-editions-implicit.pxf": {
+  "parse": true,
+  "decode": {
+   "accept": false
+  }
+ },
+ "nulls/err-list-element.pxf": {
+  "parse": true,
+  "decode": {
+   "accept": false
+  }
+ },
+ "nulls/err-map-message-value.pxf": {
+  "parse": true,
+  "decode": {
+   "accept": false
+  }
+ },
+ "nulls/err-map-value.pxf": {
+  "parse": true,
+  "decode": {
+   "accept": false
+  }
+ },
+ "nulls/err-map.pxf": {
+  "parse": true,
+  "decode": {
+   "accept": false
+  }
+ },
+ "nulls/err-nested-scalar.pxf": {
+  "parse": true,
+  "decode": {
+   "accept": false
+  }
+ },
+ "nulls/err-oneof-sibling.pxf": {
+  "parse": true,
+  "decode": {
+   "accept": false
+  }
+ },
+ "nulls/err-proto2-required.pxf": {
+  "parse": true,
+  "decode": {
+   "accept": false
+  }
+ },
+ "nulls/err-repeated.pxf": {
+  "parse": true,
+  "decode": {
+   "accept": false
+  }
+ },
+ "nulls/err-scalar.pxf": {
+  "parse": true,
+  "decode": {
+   "accept": false
+  }
+ },
+ "nulls/message.pxf": {
+  "parse": true,
+  "decode": {
+   "accept": true,
+   "hex": [
+    ""
+   ]
+  }
+ },
+ "nulls/oneof-message.pxf": {
+  "parse": true,
+  "decode": {
+   "accept": true,
+   "hex": [
+    ""
+   ]
+  }
+ },
+ "nulls/oneof-scalar.pxf": {
+  "parse": true,
+  "decode": {
+   "accept": true,
+   "hex": [
+    ""
+   ]
+  }
+ },
+ "nulls/optional-scalar.pxf": {
+  "parse": true,
+  "decode": {
+   "accept": true,
+   "hex": [
+    ""
+   ]
+  }
+ },
+ "nulls/proto2-scalar.pxf": {
+  "parse": true,
+  "decode": {
+   "accept": true,
+   "hex": [
+    ""
+   ]
+  }
+ },
+ "nulls/required-optional.pxf": {
+  "parse": true,
+  "decode": {
+   "accept": true,
+   "hex": [
+    ""
+   ]
+  }
+ },
+ "nulls/wrapper.pxf": {
+  "parse": true,
+  "decode": {
+   "accept": true,
+   "hex": [
+    ""
+   ]
+  }
+ },
+ "repeated/concat-lists.pxf": {
+  "parse": true,
+  "decode": {
+   "accept": true,
+   "hex": [
+    "6201616201626201636a040a026e316a060a026e321002"
+   ]
+  }
+ },
+ "repeated/err-assigned-block.pxf": {
+  "parse": true,
+  "decode": {
+   "accept": false
+  }
+ },
+ "repeated/err-block-entries.pxf": {
+  "parse": true,
+  "decode": {
+   "accept": false
+  }
+ },
+ "repeated/err-scalar-entries.pxf": {
+  "parse": true,
+  "decode": {
+   "accept": false
+  }
+ },
+ "strings/err-raw-newline.pxf": {
+  "parse": false,
+  "decode": {
+   "accept": false
+  }
+ },
+ "strings/escaped-newline.pxf": {
+  "parse": true,
+  "decode": {
+   "accept": true,
+   "hex": [
+    "0a03780a79"
+   ]
+  }
+ },
+ "strings/newline-after-string.pxf": {
+  "parse": true,
+  "decode": {
+   "accept": true,
+   "hex": [
+    "0a0178120179"
+   ]
+  }
+ },
+ "strings/triple-quoted.pxf": {
+  "parse": true,
+  "decode": {
+   "accept": true,
+   "hex": [
+    "0a03780a79"
+   ]
+  }
+ }
+}
