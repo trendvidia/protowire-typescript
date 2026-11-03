@@ -1,0 +1,3 @@
+@type bignum.v1.Holder
+
+i = 0

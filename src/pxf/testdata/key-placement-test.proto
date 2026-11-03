@@ -1,0 +1,25 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 TrendVidia, LLC.
+
+// Misplaced (pxf.key) annotations (draft -01 §3.13), one per rejection rule.
+
+syntax = "proto3";
+package test.v1.keyplacement;
+
+import "pxf/annotations.proto";
+
+message Elem {
+  string id = 1;
+  int32 num = 2;
+  repeated string tags = 3;
+}
+
+message Bad {
+  string on_scalar = 1 [(pxf.key) = "id"];
+  Elem on_singular = 2 [(pxf.key) = "id"];
+  map<string, Elem> on_map = 3 [(pxf.key) = "id"];
+  repeated string on_repeated_scalar = 4 [(pxf.key) = "id"];
+  repeated Elem unknown_key = 5 [(pxf.key) = "missing"];
+  repeated Elem int_key = 6 [(pxf.key) = "num"];
+  repeated Elem repeated_key = 7 [(pxf.key) = "tags"];
+}

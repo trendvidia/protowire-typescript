@@ -17,6 +17,83 @@ format changes.
 
 ## [Unreleased]
 
+### Added
+
+- **`pxf.BigInt` and `pxf.Decimal` literals** ([#87](https://github.com/trendvidia/protowire-typescript/issues/87)). They read and write as numbers, in fields, list elements, map values and `(pxf.default)`, with `MaxNumericLiteralDigits` enforced both ways. `pb.DecimalCodec` bounds `Decimal.scale` on the wire. `@default` on a big number is now read from the carrier.
+
+- **`scripts/check-decode.ts`**, the HARDENING corpus harness ([#55](https://github.com/trendvidia/protowire-typescript/issues/55)). The spec repo's security gate can run this port again.
+
+- **`@dataset` value cells and dotted column paths** ([#47](https://github.com/trendvidia/protowire-typescript/issues/47), [#49](https://github.com/trendvidia/protowire-typescript/issues/49), protowire#341, #342). A cell holds any value, and a column may be a path into a sub-message such as `desc.tempo.min_bpm`. A row groups its cells by path prefix into one block per prefix. The header is rejected for a repeated or overlapping column or an empty segment, and when a row binds for a path that names no field or goes through a repeated, map or scalar field or into a literal type. `bindRow` runs the post-decode pass when the row type needs it, takes a `typeResolver`, and names the column in its errors. `formatValue` is exported.
+
+- **`@type` as the first entry of an `Any` block** ([#48](https://github.com/trendvidia/protowire-typescript/issues/48), protowire#354). `parse` accepts it in any block and rejects it anywhere else, the decoder takes it in a list element or a map value too, and `format` keeps it. `Entry` gains `TypeEntry`.
+
+- **v1.11 bind-time checks over the import closure** ([#33](https://github.com/trendvidia/protowire-typescript/issues/33)). `validateDescriptor` and `unmarshal` report a misplaced `(pxf.default)` as the new `defaultOption` kind, two defaults in one oneof, `(pxf.required)` on a oneof member, and reserved names, in the bound file and everything it imports. Results are cached per descriptor. This narrows accepted schemas: one bad placement fails every file that imports it.
+
+- **`@required` and `@default` are read** ([#62](https://github.com/trendvidia/protowire-typescript/issues/62)), from the annotation carrier at extension 1327, alongside the bracket spelling. Different defaults in the two spellings are a `defaultOption` violation. `@default` on a big-number field is reported as a violation for now rather than dropped.
+- **`pxf.BigFloat` literals** ([#52](https://github.com/trendvidia/protowire-typescript/issues/52), protowire#393, #406, #410). A `pxf.BigFloat` field, list element or map value, or a `(pxf.default)`, reads a numeric literal with an optional precision suffix: `1.5p53` at 53 bits, `0.1` at 256 bits, round half even. `marshal` writes one, with enough digits to read back exactly: `0.10000000000000001p53`. The rounding is exact rational arithmetic on BigInt. The lexer takes the suffix on every number, `format` keeps it, and the decoder rejects it on any other field, naming the field, and on a map key. All 35 cases of the spec's `testdata/bigfloat/` are met, in `src/pxf/bigfloat.test.ts`. A value within a hair of a tie can bind differently from protowire-go v1.15.0, whose `big.Float.Parse` is not exactly rounded: this port follows the spec's rule.
+
+- **`MaxBigFloatExponent` and `MaxNumericLiteralDigits`** (protowire#281). A literal is rejected when its rounded value's binary exponent is past 16384 in magnitude, when its mantissa has more than 4096 significant digits, or when its suffix is `p0` or past `p13603`. `marshal` refuses a value past either limit, and also one that rounding to its precision carries past the exponent bound, whose literal nothing could read. `pb.BigFloatCodec` applies the exponent bound to the PB wire. `MAX_BIG_FLOAT_EXPONENT` and `MAX_NUMERIC_LITERAL_DIGITS` are exported, and `isBigFloat` from `pxf`.
+
+- **Conformance test against protowire-go.** `src/pxf/corpus.test.ts` holds this port to the reference on the spec repo's `any`, `blocks`, `dataset`, `duplicates`, `duration`, `map-keys`, `nulls`, `repeated` and `strings` fixtures: the same verdict on each leg, and the same bound message. `scripts/go-reference` records the reference's results for a pinned protowire-go, and CI regenerates them. Fixtures this port does not meet yet are listed with their issue. A `,` or `;` between block entries was already rejected ([#54](https://github.com/trendvidia/protowire-typescript/issues/54)).
+
+### Fixed
+
+- **`\x` and octal escapes in a string are UTF-8 bytes** ([#55](https://github.com/trendvidia/protowire-typescript/issues/55)). `"\xC3\xA9"` decoded to two characters instead of `é`, and `"\xFF"` decoded to `ÿ` instead of being rejected on a string field. Found by running the HARDENING corpus for the first time.
+
+- **A `pb` map entry always carries its key and value, zero-valued or not** ([#42](https://github.com/trendvidia/protowire-typescript/issues/42), protowire#295). A zero key or value was omitted, which is not the layout `protoc` and protobuf-go write. `dump-envelope` gains `--vector`.
+
+- **`discardUnknown` no longer accepts what `parse` rejects** ([#61](https://github.com/trendvidia/protowire-typescript/issues/61)). An unterminated or mismatched unknown value decoded without error.
+
+- **`(pxf.required)` and `(pxf.default)` apply inside list elements, map values and `Any` bodies** ([#58](https://github.com/trendvidia/protowire-typescript/issues/58), [#68](https://github.com/trendvidia/protowire-typescript/issues/68)). `Result` records those fields under their own paths (`items[0].a`, `by_key["k"].a`, `payload.a`), so a field inside one no longer makes a same-named field of the enclosing message look present.
+
+- **A keyed entry body may not undo its entry name** ([#69](https://github.com/trendvidia/protowire-typescript/issues/69), protowire#480): `null` on the key, and another member of the key's oneof, are rejected inside a named entry.
+
+- **A `(pxf.default)` on a oneof member no longer destroys the arm the document chose** ([#31](https://github.com/trendvidia/protowire-typescript/issues/31)). It applies only when no member is present, and a null member counts as present.
+
+- **`Violation.file` is the descriptor's path, extension included** ([#32](https://github.com/trendvidia/protowire-typescript/issues/32)), as in the other ports.
+
+- **Fractional and `µs` duration literals are read** ([#34](https://github.com/trendvidia/protowire-typescript/issues/34)). `1.5ms`, `2µs`, `1h30m0.5s` and `-2.5s` lexed as a number and an identifier, so this port could not read its own encoder's output for those values.
+
+- **Map keys follow the spec** ([#41](https://github.com/trendvidia/protowire-typescript/issues/41), [#43](https://github.com/trendvidia/protowire-typescript/issues/43), [#44](https://github.com/trendvidia/protowire-typescript/issues/44), protowire#284, #306, #313). A bool map takes `0` / `1` and the keyword `true` / `false`, and the keyword on a string map is rejected. `MapEntry.keyQuoted` records the spelling, so `format` keeps `"true"` and `"123"` quoted, keeps a bare `404` bare, and unquotes `"a.b"`. `marshal` writes a dotted string key bare.
+
+- **`null` binds only to a field that can be unset** ([#50](https://github.com/trendvidia/protowire-typescript/issues/50), protowire#339). It is now rejected on a plain scalar, a repeated or map field, a proto2 `required` field and a scalar with implicit presence under editions, in `@dataset` cells too.
+
+- **A raw line feed in a simple string is rejected** ([#50](https://github.com/trendvidia/protowire-typescript/issues/50), protowire#350), by the parser, the decoder and `@dataset` cells. `bindRow` now escapes a line feed that a cell wrote as `\n`.
+
+- **`DatasetReader` reports junk after a row** (protowire#336). It ended the row sequence there without an error, so the rows after it were silently lost.
+- **`node_modules` is no longer tracked** ([#66](https://github.com/trendvidia/protowire-typescript/issues/66)). `main` carried a symlink to an absolute path on one machine, and `npm ci` in a new worktree emptied that path through it. The `.gitignore` rule now matches a symlink as well as a directory.
+
+- **`Result` reports a keyed entry's name as setting the key field** (protowire-go#214). After `kd { alpha {} }`, `isSet("kd[0].name")` is `true` and `isAbsent("kd[0].name")` is `false`; they said the opposite, although the name was in the message. Decoded values do not change. `postDecode` does not walk list elements in this port yet (#58), so the reference's other symptoms, a default replacing the name and a required key reported absent, could not occur here. New tests pin the right answer for when it does.
+
+- **`pb` reads packed repeated scalars** ([#55](https://github.com/trendvidia/protowire-typescript/issues/55)), proto3's default wire form. A `repeated int32` from any standard writer failed to decode. Found by the HARDENING corpus.
+
+### Changed
+
+- **`MaxMessageSize`, `MaxBytesLiteralLength` and `MaxRepeatedCount` are enforced** ([#55](https://github.com/trendvidia/protowire-typescript/issues/55), HARDENING.md § Mandatory limits). The PXF, `pb` and SBE decoders reject input past them, at 64 MiB by default, and each takes options to lower them.
+
+- **A singular field or a map key bound twice in one message body is rejected** ([#51](https://github.com/trendvidia/protowire-typescript/issues/51), [#53](https://github.com/trendvidia/protowire-typescript/issues/53), protowire#347, #396). The last value used to win, and two blocks for a message field kept only the last. Map keys compare as values of the key type, so `1:` and `"1":` collide. Repeated fields still concatenate, and two map bindings with distinct keys still merge. This narrows accepted input.
+
+- **`Violation.name` holds the `(pxf.default)` literal for `(pxf.required)` with `(pxf.default)` on one field** (protowire-go#211). It was the bare field name, which `element` already gives.
+
+## [1.3.0] — 2026-10-31
+
+### Added
+
+- **Keyed repeated fields** (draft `-01` §3.13; [#29](https://github.com/trendvidia/protowire-typescript/issues/29), [trendvidia/protowire#116](https://github.com/trendvidia/protowire/issues/116)). A `repeated <Message>` field with `(pxf.key)` can be written as a block of named blocks, with the entry name as the key and entry order as list order.
+  - The grammar accepts a string as an entry name (`"us-east-1" { ... }`). `Assignment.keyQuoted` and `Block.nameQuoted` record the quoting, and `format` reproduces it.
+  - `(pxf.key)`, extension 1316, is back in `proto/pxf/annotations.proto`, which now matches protos v0.1.2. `validateDescriptor` reports a misplaced annotation as a `keyOption` violation, across the bound file's import closure, and `unmarshal` rejects it at bind time.
+  - The decoder reads the block form, its `name = { ... }` spelling and the anonymous list form. It rejects duplicate names (compared unquoted), empty keys, a key assignment that disagrees with its entry name, and a quoted name outside a keyed block.
+  - The encoder writes the keyed form whenever every key is present, non-empty and distinct, and the anonymous form otherwise.
+  - `canonicalizeKeyed(doc, desc)` is the schema-aware half of fmt: follow it with `format`. `keyField` and `identSafeEntryName` are exported.
+  - Elements of a keyed field get indexed `Result` paths (`children[0].type`), in the reference's form.
+  - The spec repo's `testdata/keyed/` corpus is vendored under `src/pxf/testdata/keyed/` and driven by `src/pxf/keyed.test.ts`.
+
+### Changed
+
+- **A quoted name in message context is now an error.** `"id" = "x"` used to decode as the field `id`. Draft `-01` §3.13 requires the schema layer to reject it, because a string entry name never names a field.
+
+- **The vendored shared schemas are re-synced with [trendvidia/protos](https://github.com/trendvidia/protos) v0.1.2** ([trendvidia/protowire#447](https://github.com/trendvidia/protowire/issues/447)). They gain protos' file options. Declarations and field numbers are unchanged, and so is this port's public API.
+
 ### Changed
 
 - **The vendored shared schemas are re-synced with [trendvidia/protos](https://github.com/trendvidia/protos) v0.1.2** ([trendvidia/protowire#447](https://github.com/trendvidia/protowire/issues/447)). They gain protos' file options. Declarations and field numbers are unchanged, and so is this port's public API.

@@ -1,0 +1,5 @@
+@type postdecode.v1.Root
+
+name = "r"
+by_key = { k: { name = "a" } }
+by_num = { 1: { name = "b" } }

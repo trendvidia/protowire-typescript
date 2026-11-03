@@ -237,3 +237,18 @@ describe("bindRow + scan", () => {
     expect((msg as unknown as { stringField: string }).stringField).toBe('she said "hi"');
   });
 });
+
+describe("bindRow — a string cell holding a line feed", () => {
+  it("keeps it: the rule is about a raw one, and \\n is not raw", () => {
+    const reader = DatasetReader.fromString('@dataset test.v1.AllTypes (string_field)\n("a\\nb")\n');
+    const m = reader.scan(AllTypes) as unknown as { stringField: string };
+    expect(m.stringField).toBe("a\nb");
+  });
+});
+
+describe("bindRow — errors", () => {
+  it("names the column a value fell in", () => {
+    const reader = DatasetReader.fromString('@dataset test.v1.AllTypes (string_field, int32_field)\n("a", { x = 1 })\n');
+    expect(() => reader.scan(AllTypes)).toThrow(/column int32_field: expected integer for field "int32_field"/);
+  });
+});

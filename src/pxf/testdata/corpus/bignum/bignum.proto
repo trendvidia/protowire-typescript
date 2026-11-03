@@ -1,0 +1,23 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 TrendVidia, LLC.
+// Written for this port, not vendored: the spec corpus has no BigInt or Decimal
+// text fixtures (#87). These go through the protowire-go comparison, both ways.
+syntax = "proto3";
+package bignum.v1;
+
+import "pxf/annotations.proto";
+import "pxf/bignum.proto";
+
+message Holder {
+  pxf.BigInt i = 1;
+  pxf.Decimal d = 2;
+  repeated pxf.BigInt is = 3;
+  repeated pxf.Decimal ds = 4;
+  map<string, pxf.BigInt> by_name = 5;
+  map<string, pxf.Decimal> dec_by_name = 6;
+}
+
+message Defaults {
+  pxf.BigInt i = 1 [(pxf.default) = "-42"];
+  pxf.Decimal d = 2 [(pxf.default) = "1.50"];
+}

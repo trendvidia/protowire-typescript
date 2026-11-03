@@ -339,3 +339,36 @@ nullable_name = "present"
     expect((byKey.labels as Assignment).value.kind).toBe("blockVal");
   });
 });
+
+describe("quoted entry names (draft -01 §3.13)", () => {
+  it("block form keeps the unquoted name and records the quoting", () => {
+    const doc = parse('regions {\n  "us-east-1" {\n    replicas = 3\n  }\n  bare { }\n}\n');
+    const regions = doc.entries[0] as Block;
+    const quoted = regions.entries[0] as Block;
+    expect(quoted.name).toBe("us-east-1");
+    expect(quoted.nameQuoted).toBe(true);
+    expect((regions.entries[1] as Block).nameQuoted).toBe(false);
+    expect(regions.nameQuoted).toBe(false);
+  });
+
+  it("assignment form keeps the unquoted key and records the quoting", () => {
+    const doc = parse('regions {\n  "us-east-1" = { replicas = 3 }\n  bare = { }\n}\n');
+    const regions = doc.entries[0] as Block;
+    const quoted = regions.entries[0] as Assignment;
+    expect(quoted.key).toBe("us-east-1");
+    expect(quoted.keyQuoted).toBe(true);
+    expect((regions.entries[1] as Assignment).keyQuoted).toBe(false);
+  });
+
+  it("parses at the top level too: the restriction is the schema layer's", () => {
+    const doc = parse('"a" { }\n"b" = 1\n');
+    expect((doc.entries[0] as Block).nameQuoted).toBe(true);
+    expect((doc.entries[1] as Assignment).keyQuoted).toBe(true);
+  });
+
+  it("an integer key still takes only the ':' tail", () => {
+    expect(() => parse('m {\n  1 = "x"\n}')).toThrow(/requires an identifier or string key/);
+    expect(() => parse("m {\n  1 { }\n}")).toThrow(/requires an identifier or string key/);
+    expect(() => parse('m {\n  1: "x"\n}')).not.toThrow();
+  });
+});

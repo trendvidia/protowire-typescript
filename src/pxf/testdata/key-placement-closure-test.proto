@@ -1,0 +1,27 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 TrendVidia, LLC.
+
+// Binds cleanly on its own, but imports a file with misplaced (pxf.key)
+// annotations it never refers to: the check covers the import closure.
+
+syntax = "proto3";
+package test.v1.keyclosure;
+
+import "key-placement-test.proto";
+import "pxf/annotations.proto";
+
+message Clean {
+  string name = 1;
+}
+
+// A keyed field reached through each non-keyed way into a message.
+message Tree {
+  string id = 1;
+  repeated Tree kids = 2 [(pxf.key) = "id"];
+}
+
+message Holder {
+  Tree single = 1;
+  map<string, Tree> by_name = 2;
+  repeated Tree plain = 3;
+}

@@ -1,0 +1,4 @@
+@type bignum.v1.Holder
+
+i = null
+d = null

@@ -1,0 +1,6 @@
+@type postdecode.v1.Root
+
+payload {
+  @type = "postdecode.v1.Leaf"
+  name = "inner"
+}

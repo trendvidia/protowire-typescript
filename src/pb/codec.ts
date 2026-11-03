@@ -16,7 +16,8 @@
  *   - float: fixed32; double: fixed64.
  *   - string and bytes: length-delimited.
  *   - nested messages: length-delimited.
- *   - repeated fields: one tag+value per element (non-packed).
+ *   - repeated fields: one tag+value per element when written; a reader also
+ *     takes the packed form.
  *
  * Maps follow the proto3 spec: `repeated MapEntry { key = 1; value = 2; }`.
  */
@@ -30,6 +31,33 @@ import { Reader, Writer, WireType } from "./wire.js";
  * rejected (HARDENING.md § Recursion).
  */
 export const MAX_NESTING_DEPTH = 100;
+
+/** MaxMessageSize (HARDENING.md § Mandatory limits), also the default
+ * MaxRepeatedCount. */
+export const MAX_MESSAGE_SIZE = 64 << 20;
+
+export interface UnmarshalOptions {
+  /** Bytes of input a call may read. Default {@link MAX_MESSAGE_SIZE}. */
+  readonly maxMessageSize?: number;
+  /** Elements of one repeated or map field. Default {@link MAX_MESSAGE_SIZE}. */
+  readonly maxRepeatedCount?: number;
+}
+
+function readerFor(data: Uint8Array, options: UnmarshalOptions | undefined): Reader {
+  const max = options?.maxMessageSize ?? MAX_MESSAGE_SIZE;
+  if (data.length > max) throw new Error(`input of ${data.length} bytes exceeds MaxMessageSize=${max}`);
+  const r = new Reader(data);
+  r.maxRepeated = options?.maxRepeatedCount ?? MAX_MESSAGE_SIZE;
+  return r;
+}
+
+/**
+ * Bounds the magnitude of a `pxf.BigFloat`'s binary exponent, the wire exponent
+ * plus the mantissa's bit length (HARDENING.md § Mandatory limits,
+ * protowire#281). Rendering the value in decimal costs time that grows with
+ * the square of it.
+ */
+export const MAX_BIG_FLOAT_EXPONENT = 16384;
 
 export type ScalarKind =
   | "bool"
@@ -82,7 +110,7 @@ export interface CodecBase {
 export interface MessageCodec<T> extends CodecBase {
   create(): T;
   marshal(value: T): Uint8Array;
-  unmarshal(data: Uint8Array): T;
+  unmarshal(data: Uint8Array, options?: UnmarshalOptions): T;
 }
 
 export interface DefineMessageOpts<T> {
@@ -127,8 +155,8 @@ export function defineMessage<T extends object>(
       marshalMessageInto(w, value, this);
       return w.finish();
     },
-    unmarshal(data) {
-      const r = new Reader(data);
+    unmarshal(data, options) {
+      const r = readerFor(data, options);
       const obj = create();
       unmarshalMessageFrom(r, data.length, obj, this);
       return obj;
@@ -137,12 +165,98 @@ export function defineMessage<T extends object>(
   return codec;
 }
 
+/** A `pxf.BigFloat`: value = (-1)^negative × mantissa × 2^exponent, rounded to prec bits. */
+export interface BigFloatValue {
+  mantissa?: Uint8Array;
+  exponent?: number;
+  prec?: number;
+  negative?: boolean;
+}
+
+function checkBigFloat(v: BigFloatValue): void {
+  // Precision 0 is zero, and a zero mantissa is zero at any exponent.
+  const m = v.mantissa;
+  if (!v.prec || !m) return;
+  const first = m.findIndex((b) => b !== 0);
+  if (first < 0) return;
+  const e = (v.exponent ?? 0) + 8 * (m.length - first - 1) + (32 - Math.clz32(m[first]!));
+  if (e > MAX_BIG_FLOAT_EXPONENT || e < -MAX_BIG_FLOAT_EXPONENT) {
+    throw new Error(`pxf.BigFloat binary exponent ${e} exceeds MaxBigFloatExponent=${MAX_BIG_FLOAT_EXPONENT}`);
+  }
+}
+
+const bigFloatFields = defineMessage<BigFloatValue>({
+  fields: [
+    { number: 1, name: "mantissa", kind: "bytes" },
+    { number: 2, name: "exponent", kind: "int32" },
+    { number: 3, name: "prec", kind: "uint32" },
+    { number: 4, name: "negative", kind: "bool" },
+  ],
+});
+
+/**
+ * The codec of a `pxf.BigFloat`, for a field's `{ message: BigFloatCodec }`.
+ * It rejects a value past {@link MAX_BIG_FLOAT_EXPONENT}, nested or not.
+ */
+export const BigFloatCodec: MessageCodec<BigFloatValue> = {
+  ...bigFloatFields,
+  unmarshalFrom(r, end, into) {
+    bigFloatFields.unmarshalFrom(r, end, into);
+    checkBigFloat(into as BigFloatValue);
+  },
+  unmarshal(data, options) {
+    const v = bigFloatFields.unmarshal(data, options);
+    checkBigFloat(v);
+    return v;
+  },
+};
+
+/** The shape of a `pxf.Decimal` on the wire. */
+export interface DecimalValue {
+  unscaled?: Uint8Array;
+  scale?: number;
+  negative?: boolean;
+}
+
+function checkDecimal(v: DecimalValue): void {
+  const scale = v.scale ?? 0;
+  if (scale > 4096 || scale < -4096) {
+    throw new Error(`pxf.Decimal scale ${scale} exceeds MaxNumericLiteralDigits=4096`);
+  }
+}
+
+const decimalFields = defineMessage<DecimalValue>({
+  fields: [
+    { number: 1, name: "unscaled", kind: "bytes" },
+    { number: 2, name: "scale", kind: "int32" },
+    { number: 3, name: "negative", kind: "bool" },
+  ],
+});
+
+/**
+ * The codec of a `pxf.Decimal`, for a field's `{ message: DecimalCodec }`. It
+ * rejects a scale past MaxNumericLiteralDigits, nested or not, before anything
+ * is materialised from it.
+ */
+export const DecimalCodec: MessageCodec<DecimalValue> = {
+  ...decimalFields,
+  unmarshalFrom(r, end, into) {
+    decimalFields.unmarshalFrom(r, end, into);
+    checkDecimal(into as DecimalValue);
+  },
+  unmarshal(data) {
+    const v = decimalFields.unmarshal(data);
+    checkDecimal(v);
+    return v;
+  },
+};
+
 export function marshal<T>(value: T, codec: MessageCodec<T>): Uint8Array {
   return codec.marshal(value);
 }
 
-export function unmarshal<T>(data: Uint8Array, codec: MessageCodec<T>): T {
-  return codec.unmarshal(data);
+export function unmarshal<T>(data: Uint8Array, codec: MessageCodec<T>, options?: UnmarshalOptions): T {
+  return codec.unmarshal(data, options);
 }
 
 // ---------------------------------------------------------------------------
@@ -296,21 +410,21 @@ function writeMapField(w: Writer, f: FieldSpec, v: unknown): void {
   const valueIsMessage = typeof f.kind !== "string";
   for (const [key, val] of mapEntries(v, keyKind)) {
     const inner = new Writer();
-    if (!isZero(keyKind, key)) {
-      inner.tag(1, wireTypeOf(keyKind));
-      writeScalarValue(inner, keyKind, key);
-    }
+    // Both, zero-valued or not, as protoc and protobuf-go write them
+    // (protowire#295).
+    inner.tag(1, wireTypeOf(keyKind));
+    writeScalarValue(inner, keyKind, key);
     if (valueIsMessage) {
+      inner.tag(2, WireType.LengthDelimited);
       if (val !== undefined && val !== null) {
-        inner.tag(2, WireType.LengthDelimited);
         writeNestedMessage(inner, (f.kind as { message: CodecBase }).message, val);
+      } else {
+        inner.varint(0);
       }
     } else {
       const sk = f.kind as ScalarKind;
-      if (!isZero(sk, val)) {
-        inner.tag(2, wireTypeOf(sk));
-        writeScalarValue(inner, sk, val);
-      }
+      inner.tag(2, wireTypeOf(sk));
+      writeScalarValue(inner, sk, val);
     }
     const blob = inner.finish();
     w.tag(f.number, WireType.LengthDelimited);
@@ -373,6 +487,7 @@ function unmarshalMessageFrom(
     }
   }
 
+  const mapEntries = new Map<number, number>();
   while (r.pos < end) {
     const { fieldNumber, wireType } = r.tag();
     const f = codec.byNumber.get(fieldNumber);
@@ -382,12 +497,40 @@ function unmarshalMessageFrom(
     }
 
     if (f.mapKey !== undefined) {
+      // Counted as read: measuring the object per entry would be quadratic.
+      const seen = mapEntries.get(fieldNumber) ?? 0;
+      if (seen >= r.maxRepeated) {
+        throw new Error(`map field '${f.name}' exceeds MaxRepeatedCount=${r.maxRepeated}`);
+      }
+      mapEntries.set(fieldNumber, seen + 1);
       readMapEntry(r, obj, f);
       continue;
     }
 
     if (f.repeated) {
       const arr = obj[f.name] as unknown[];
+      // Packed, proto3's default for a numeric scalar: one length-delimited
+      // run of values. A reader takes either form.
+      if (
+        wireType === WireType.LengthDelimited &&
+        typeof f.kind === "string" &&
+        wireTypeOf(f.kind) !== WireType.LengthDelimited
+      ) {
+        const length = r.varint();
+        const stop = r.pos + length;
+        if (stop > end) throw new Error(`packed field '${f.name}' overruns its message`);
+        while (r.pos < stop) {
+          if (arr.length >= r.maxRepeated) {
+            throw new Error(`repeated field '${f.name}' exceeds MaxRepeatedCount=${r.maxRepeated}`);
+          }
+          arr.push(readScalarValue(r, f.kind));
+        }
+        if (r.pos !== stop) throw new Error(`packed field '${f.name}' overran its length`);
+        continue;
+      }
+      if (arr.length >= r.maxRepeated) {
+        throw new Error(`repeated field '${f.name}' exceeds MaxRepeatedCount=${r.maxRepeated}`);
+      }
       if (typeof f.kind === "string") {
         arr.push(readScalarValue(r, f.kind));
       } else {

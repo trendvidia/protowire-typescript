@@ -22,11 +22,13 @@ import {
   type Entry,
   type ListVal,
   type MapEntry,
+  type TypeEntry,
   type DatasetDirective,
   type DatasetRow,
   type ProtoDirective,
   type Value,
 } from "./ast.js";
+import { clipLiteral } from "./bigfloat.js";
 import { FUTURE_RESERVED_DIRECTIVES } from "./schema.js";
 import { PxfError } from "./errors.js";
 import { Lexer } from "./lexer.js";
@@ -44,14 +46,51 @@ export function parse(input: string): Document {
   return new Parser(input).parseDocument();
 }
 
+/**
+ * Parse the `@dataset` directive at `offset`, so the decoder shares one row
+ * grammar with `parse`. Returns the directive and the offset past it.
+ */
+export function parseDatasetAt(input: string, offset: number): { table: DatasetDirective; endOffset: number } {
+  return new Parser(input, offset).parseDatasetDirective();
+}
+
+/**
+ * The header rules that need no schema: no path has an empty segment, none
+ * appears twice, and no column is a prefix of another, since a row could then
+ * set one sub-message twice (draft §3.4.4).
+ */
+export function columnPathError(cols: readonly string[]): { index: number; message: string } | undefined {
+  const isPrefix = (prefix: string, path: string): boolean => path.startsWith(`${prefix}.`);
+  for (let i = 0; i < cols.length; i++) {
+    const c = cols[i]!;
+    if (c.startsWith(".") || c.endsWith(".") || c.includes("..")) {
+      return { index: i, message: `@dataset column ${JSON.stringify(c)}: a column path has an empty segment (draft §3.4.4)` };
+    }
+    for (let j = 0; j < i; j++) {
+      const prev = cols[j]!;
+      if (prev === c) {
+        return { index: i, message: `@dataset column ${JSON.stringify(c)} appears twice (draft §3.4.4)` };
+      }
+      if (isPrefix(prev, c) || isPrefix(c, prev)) {
+        return {
+          index: i,
+          message: `@dataset column ${JSON.stringify(c)} overlaps column ${JSON.stringify(prev)}: a field and a path inside it cannot both be columns (draft §3.4.4)`,
+        };
+      }
+    }
+  }
+  return undefined;
+}
+
 class Parser {
   private readonly lex: Lexer;
   private current!: Token;
   private pendingComments: Comment[] = [];
   private depth = 0;
 
-  constructor(input: string) {
+  constructor(input: string, offset = 0) {
     this.lex = new Lexer(input);
+    this.lex.repositionTo(offset);
     this.advance();
   }
 
@@ -264,7 +303,7 @@ class Parser {
    * parseDatasetDirective reads `@dataset <type> ( col1, col2, ... ) row*`.
    * AT_DATASET is current on entry. See draft §3.4.4.
    */
-  private parseDatasetDirective(): { table: DatasetDirective; endOffset: number } {
+  parseDatasetDirective(): { table: DatasetDirective; endOffset: number } {
     const leadingComments = this.flushComments();
     const atPos = this.current.pos;
     this.advance(); // consume @dataset
@@ -293,6 +332,7 @@ class Parser {
       );
     }
     const columns: string[] = [];
+    const columnPositions: Position[] = [];
     for (;;) {
       if (this.current.kind !== TokenKind.IDENT) {
         throw new PxfError(
@@ -301,14 +341,7 @@ class Parser {
         );
       }
       const col = this.current.value;
-      // v1: column entries are unqualified field names; dotted paths
-      // reserved for a future revision.
-      if (col.includes(".")) {
-        throw new PxfError(
-          this.current.pos,
-          `@dataset column ${JSON.stringify(col)}: dotted column paths are not supported in v1 (draft §3.4.4)`,
-        );
-      }
+      columnPositions.push(this.current.pos);
       columns.push(col);
       this.advance();
       if ((this.current.kind as TokenKind) === TokenKind.COMMA) {
@@ -321,6 +354,8 @@ class Parser {
         `expected ',' or ')' in @dataset column list, got ${tokenKindName(this.current.kind)}`,
       );
     }
+    const bad = columnPathError(columns);
+    if (bad) throw new PxfError(columnPositions[bad.index]!, bad.message);
     let endOffset = this.current.pos.offset + 1; // past `)`
     this.advance(); // consume )
 
@@ -463,25 +498,14 @@ class Parser {
 
   /**
    * parseRowCell consumes one cell of a @dataset row. Returns null for an
-   * empty cell (no value between two commas, or at row start/end).
-   * Rejects list ('[ ... ]') and block ('{ ... }') values per v1
-   * cell-grammar (draft §3.4.4).
+   * empty cell (no value between two commas, or at row start/end). A cell
+   * holds any value (draft §3.4.4, protowire#341).
    */
   private parseRowCell(): Value | null {
     switch (this.current.kind) {
       case TokenKind.COMMA:
       case TokenKind.RPAREN:
         return null;
-      case TokenKind.LBRACKET:
-        throw new PxfError(
-          this.current.pos,
-          "@dataset cells cannot contain list values in v1 (draft §3.4.4)",
-        );
-      case TokenKind.LBRACE:
-        throw new PxfError(
-          this.current.pos,
-          "@dataset cells cannot contain block values in v1 (draft §3.4.4)",
-        );
       default:
         return this.parseValue();
     }
@@ -492,7 +516,8 @@ class Parser {
     const pos = this.current.pos;
     const k = this.current.kind;
 
-    if (k !== TokenKind.IDENT && k !== TokenKind.STRING && k !== TokenKind.INT) {
+    // A bool is a key only in a map entry (map-key in draft -01).
+    if (k !== TokenKind.IDENT && k !== TokenKind.STRING && k !== TokenKind.INT && k !== TokenKind.BOOL) {
       throw new PxfError(
         pos,
         `expected identifier, string, or integer, got ${tokenKindName(k)} (${JSON.stringify(this.current.value)})`,
@@ -500,17 +525,26 @@ class Parser {
     }
     const keyKind = k;
     const key = this.current.value;
+    const keyPrec = this.current.prec;
     this.advance();
+    if (keyKind === TokenKind.BOOL && (this.current.kind !== TokenKind.COLON || !opts.allowMapEntry)) {
+      throw new PxfError(
+        pos,
+        `expected identifier, string, or integer, got ${tokenKindName(k)} (${JSON.stringify(key)})`,
+      );
+    }
 
     switch (this.current.kind) {
       case TokenKind.EQUALS: {
-        // `=` denotes a field assignment on a proto message; the key must be
-        // an identifier (= proto field name). Map-style keys (string/integer)
+        // `=` denotes a field assignment on a proto message; the key is an
+        // identifier (= proto field name) or a string literal (quoted entry
+        // name, draft -01 §3.13: the grammar accepts it everywhere and the
+        // schema layer restricts it to keyed repeated fields). Integer keys
         // are only valid with `:`. See docs/grammar.ebnf → field_entry.
-        if (keyKind !== TokenKind.IDENT) {
+        if (keyKind === TokenKind.INT) {
           throw new PxfError(
             pos,
-            `field assignment with '=' requires an identifier key, got ${tokenKindName(keyKind)} (${JSON.stringify(key)}); use ':' for map entries`,
+            `field assignment with '=' requires an identifier or string key, got ${tokenKindName(keyKind)} (${JSON.stringify(key)}); use ':' for map entries`,
           );
         }
         this.advance();
@@ -519,6 +553,7 @@ class Parser {
           kind: "assignment",
           pos,
           key,
+          keyQuoted: keyKind === TokenKind.STRING,
           value,
           leadingComments,
           trailingComment: "",
@@ -534,12 +569,17 @@ class Parser {
             `map entry (':' form) is only allowed inside a '{ … }' block; use '=' for top-level field assignments`,
           );
         }
+        // A map key is an integer without a suffix (draft -01, protowire#406).
+        if (keyPrec !== undefined) {
+          throw new PxfError(pos, `map key ${key}: a key cannot carry a precision suffix (p${clipLiteral(keyPrec)})`);
+        }
         this.advance();
         const value = this.parseValue();
         const m: MapEntry = {
           kind: "mapEntry",
           pos,
           key,
+          keyQuoted: keyKind === TokenKind.STRING,
           value,
           leadingComments,
           trailingComment: "",
@@ -547,12 +587,12 @@ class Parser {
         return m;
       }
       case TokenKind.LBRACE: {
-        // `{ ... }` denotes a submessage field; same identifier-only rule
-        // as `=` applies. See docs/grammar.ebnf → field_entry.
-        if (keyKind !== TokenKind.IDENT) {
+        // `{ ... }` denotes a submessage field; same key rule as `=`
+        // applies. See docs/grammar.ebnf → field_entry.
+        if (keyKind === TokenKind.INT) {
           throw new PxfError(
             pos,
-            `submessage block requires an identifier key, got ${tokenKindName(keyKind)} (${JSON.stringify(key)})`,
+            `submessage block requires an identifier or string key, got ${tokenKindName(keyKind)} (${JSON.stringify(key)})`,
           );
         }
         this.descend(this.current.pos);
@@ -563,6 +603,7 @@ class Parser {
           kind: "block",
           pos,
           name: key,
+          nameQuoted: keyKind === TokenKind.STRING,
           entries,
           leadingComments,
         };
@@ -587,11 +628,11 @@ class Parser {
       }
       case TokenKind.INT: {
         this.advance();
-        return { kind: "int", pos, raw: tok.value };
+        return { kind: "int", pos, raw: tok.value, ...(tok.prec === undefined ? {} : { prec: tok.prec }) };
       }
       case TokenKind.FLOAT: {
         this.advance();
-        return { kind: "float", pos, raw: tok.value };
+        return { kind: "float", pos, raw: tok.value, ...(tok.prec === undefined ? {} : { prec: tok.prec }) };
       }
       case TokenKind.BOOL: {
         this.advance();
@@ -663,13 +704,40 @@ class Parser {
     return { kind: "blockVal", pos, entries };
   }
 
+  /** A schema-less parser takes this as the first entry of any block. */
+  private parseTypeEntry(first: boolean): TypeEntry {
+    const leadingComments = this.flushComments();
+    const pos = this.current.pos;
+    if (!first) {
+      throw new PxfError(pos, "@type must be the first entry of a block (draft -01 \"Any Blocks\")");
+    }
+    this.advance();
+    if (this.current.kind !== TokenKind.EQUALS) {
+      throw new PxfError(this.current.pos, `expected '=' after @type, got ${tokenKindName(this.current.kind)}`);
+    }
+    this.advance();
+    if ((this.current.kind as TokenKind) !== TokenKind.STRING) {
+      throw new PxfError(
+        this.current.pos,
+        `expected a string type URL after @type =, got ${tokenKindName(this.current.kind)}`,
+      );
+    }
+    const url = this.current.value;
+    this.advance();
+    return { kind: "typeEntry", pos, url, leadingComments, trailingComment: "" };
+  }
+
   private parseBody(): Entry[] {
     const entries: Entry[] = [];
     while (
       this.current.kind !== TokenKind.RBRACE &&
       this.current.kind !== TokenKind.EOF
     ) {
-      entries.push(this.parseEntry());
+      if (this.current.kind === TokenKind.AT_TYPE) {
+        entries.push(this.parseTypeEntry(entries.length === 0));
+      } else {
+        entries.push(this.parseEntry());
+      }
     }
     if (this.current.kind !== TokenKind.RBRACE) {
       throw new PxfError(

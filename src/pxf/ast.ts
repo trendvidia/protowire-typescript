@@ -150,13 +150,29 @@ export interface ProtoDirective {
 // Entries — what appears in a message or map body
 // ---------------------------------------------------------------------------
 
-export type Entry = Assignment | MapEntry | Block;
+export type Entry = Assignment | MapEntry | Block | TypeEntry;
+
+/** `@type = "<url>"`, the first entry of a `google.protobuf.Any` block
+ * (draft -01 "Any Blocks"). */
+export interface TypeEntry {
+  readonly kind: "typeEntry";
+  readonly pos: Position;
+  /** The type URL as written, unquoted. */
+  readonly url: string;
+  readonly leadingComments: Comment[];
+  readonly trailingComment: string;
+}
 
 /** `key = value` — a field assignment in a message context. */
 export interface Assignment {
   readonly kind: "assignment";
   readonly pos: Position;
+  /** The denoted name: unquoted, even when written as a string literal. */
   readonly key: string;
+  /** True when `key` was written as a string literal (`"name" = { ... }`,
+   * a quoted entry name, draft -01 §3.13). Only meaningful inside a keyed
+   * repeated field's block; the schema layer rejects it elsewhere. */
+  readonly keyQuoted?: boolean;
   readonly value: Value;
   readonly leadingComments: Comment[];
   /** Inline comment after the value on the same source line, if any. */
@@ -167,7 +183,10 @@ export interface Assignment {
 export interface MapEntry {
   readonly kind: "mapEntry";
   readonly pos: Position;
+  /** The denoted key: unquoted, even when written as a string literal. */
   readonly key: string;
+  /** The key was a string literal. Unset on an entry built in code. */
+  readonly keyQuoted?: boolean;
   readonly value: Value;
   readonly leadingComments: Comment[];
   readonly trailingComment: string;
@@ -177,7 +196,12 @@ export interface MapEntry {
 export interface Block {
   readonly kind: "block";
   readonly pos: Position;
+  /** The denoted name: unquoted, even when written as a string literal. */
   readonly name: string;
+  /** True when `name` was written as a string literal (`"us-east-1" { ... }`,
+   * a quoted entry name, draft -01 §3.13). Only meaningful inside a keyed
+   * repeated field's block; the schema layer rejects it elsewhere. */
+  readonly nameQuoted?: boolean;
   readonly entries: Entry[];
   readonly leadingComments: Comment[];
 }
@@ -211,6 +235,8 @@ export interface IntVal {
   readonly kind: "int";
   readonly pos: Position;
   readonly raw: string;
+  /** The precision suffix digits (`53` for `7p53`). Absent without one. */
+  readonly prec?: string;
 }
 
 /** Floating-point literal, raw text. */
@@ -218,6 +244,8 @@ export interface FloatVal {
   readonly kind: "float";
   readonly pos: Position;
   readonly raw: string;
+  /** The precision suffix digits (`53` for `1.5p53`). Absent without one. */
+  readonly prec?: string;
 }
 
 export interface BoolVal {
