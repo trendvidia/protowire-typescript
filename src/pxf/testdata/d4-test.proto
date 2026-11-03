@@ -33,3 +33,18 @@ message Inner {
   string label = 1 [(pxf.default) = "fallback"];
   int32 num = 2;
 }
+
+// A null needs a field that can be unset (protowire#339).
+message NullableRequired {
+  optional string name = 1 [(pxf.required) = true];
+}
+
+message NullableDefault {
+  optional string name = 1 [(pxf.default) = "anonymous"];
+}
+
+message NullableMask {
+  string name = 1;
+  optional int32 value = 2;
+  google.protobuf.FieldMask _null = 100;
+}

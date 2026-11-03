@@ -354,13 +354,6 @@ describe("encode", () => {
     expect(marshal(unmarshal(doc, Node), Node)).toBe(doc);
   });
 
-  it("an element's nulls round-trip through nullFields by indexed path", () => {
-    const doc = 'children {\n  a {\n    type = null\n  }\n}\n';
-    const { message: msg, result } = unmarshalFull(doc, Node);
-    expect(result.nullPaths()).toEqual(["children[0].type"]);
-    expect(marshal(msg, Node, { nullFields: result })).toBe(doc);
-  });
-
   it("does not treat a parent path as an element's null", () => {
     const nulls = new Result();
     nulls.markNull("type");

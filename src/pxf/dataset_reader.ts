@@ -155,6 +155,13 @@ export class DatasetReader implements IterableIterator<DatasetRow> {
       }
       break;
     }
+    // Rows end only at end of input or at the next directive (protowire#336).
+    if (i < this.input.length && this.input[i] !== "(" && this.input[i] !== "@") {
+      throw new PxfError(
+        positionAt(this.input, i),
+        "@dataset directive cannot coexist with top-level field entries (draft §3.4.4)",
+      );
+    }
     if (i >= this.input.length || this.input[i] !== "(") {
       this.done = true;
       this.offset = i;
@@ -276,7 +283,8 @@ function cellToPxf(cell: NonNullable<DatasetRow["cells"][number]>, pos: Position
     case "null":
       return "null";
     case "string":
-      return `"${cell.value.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+      // A raw line feed would be an error in the body this builds.
+      return `"${cell.value.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\n/g, "\\n")}"`;
     case "int":
     case "float":
     case "timestamp":

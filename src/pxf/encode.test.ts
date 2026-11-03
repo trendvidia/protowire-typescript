@@ -333,7 +333,7 @@ describe("pxf.marshal — Any sugar", () => {
 });
 
 describe("pxf.marshal — null emission", () => {
-  const WithNullMask = getMessage(d4Registry, "d4_test.v1.WithNullMask");
+  const WithNullMask = getMessage(d4Registry, "d4_test.v1.NullableMask");
 
   it("reads null paths from the in-message _null FieldMask", () => {
     const { message } = unmarshalFull(

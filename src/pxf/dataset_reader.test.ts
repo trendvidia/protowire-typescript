@@ -237,3 +237,11 @@ describe("bindRow + scan", () => {
     expect((msg as unknown as { stringField: string }).stringField).toBe('she said "hi"');
   });
 });
+
+describe("bindRow — a string cell holding a line feed", () => {
+  it("keeps it: the rule is about a raw one, and \\n is not raw", () => {
+    const reader = DatasetReader.fromString('@dataset test.v1.AllTypes (string_field)\n("a\\nb")\n');
+    const m = reader.scan(AllTypes) as unknown as { stringField: string };
+    expect(m.stringField).toBe("a\nb");
+  });
+});

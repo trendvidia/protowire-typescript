@@ -19,6 +19,7 @@ import {
   create,
   toBinary,
 } from "@bufbuild/protobuf";
+import { FeatureSet_FieldPresence } from "@bufbuild/protobuf/wkt";
 import {
   type ReflectList,
   type ReflectMap,
@@ -649,6 +650,7 @@ class Decoder {
           }
           this.checkOneof(fd, setOneofs, pos);
           if (this.peek() === TokenKind.NULL) {
+            if (!nullable(fd)) throw nullNotAllowed(this.current.pos, fd);
             this.markNull(fd);
             this.advance();
             continue;
@@ -1490,6 +1492,28 @@ function decodeMapKey(kind: ScalarType, key: string, pos: Position): unknown {
     default:
       throw new PxfError(pos, `unsupported map key kind: ${kind}`);
   }
+}
+
+/** A null needs an unset state to bind to: explicit presence, and not required. */
+function nullable(fd: DescField): boolean {
+  return (
+    fd.fieldKind !== "list" &&
+    fd.fieldKind !== "map" &&
+    fd.presence === FeatureSet_FieldPresence.EXPLICIT
+  );
+}
+
+function nullNotAllowed(pos: Position, fd: DescField): PxfError {
+  const name = JSON.stringify(fd.name);
+  if (fd.fieldKind === "map") return new PxfError(pos, `null is not allowed on map field ${name}`);
+  if (fd.fieldKind === "list") return new PxfError(pos, `null is not allowed on repeated field ${name}`);
+  if (fd.presence === FeatureSet_FieldPresence.LEGACY_REQUIRED) {
+    return new PxfError(pos, `null is not allowed on required field ${name}: it must be set`);
+  }
+  return new PxfError(
+    pos,
+    `null is not allowed on scalar field ${name}: declare it optional, or as a wrapper type, to make it nullable`,
+  );
 }
 
 /**
