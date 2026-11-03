@@ -1,0 +1,41 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 TrendVidia, LLC.
+// Bind-time placement checks (draft -01 "Default Placement", "Oneof Members")
+// and the oneof rule at decode time (#31).
+syntax = "proto3";
+package bindcheck.v1;
+
+import "bind-imported-test.proto";
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/wrappers.proto";
+import "pxf/annotations.proto";
+
+message Other {
+  string a = 1;
+}
+
+message BadDefaults {
+  repeated string list = 1 [(pxf.default) = "x"];
+  map<string, string> map = 2 [(pxf.default) = "x"];
+  Other msg = 3 [(pxf.default) = "x"];
+  google.protobuf.Timestamp ok_ts = 4 [(pxf.default) = "2026-01-01T00:00:00Z"];
+  google.protobuf.Int32Value ok_wrap = 5 [(pxf.default) = "1"];
+}
+
+message TwoOneofDefaults {
+  oneof choice {
+    string a = 1 [(pxf.default) = "x"];
+    string b = 2 [(pxf.default) = "y"];
+  }
+}
+
+message RequiredMember {
+  oneof choice {
+    string a = 1 [(pxf.required) = true];
+    string b = 2;
+  }
+}
+
+message UsesImported {
+  Imported imported = 1;
+}
