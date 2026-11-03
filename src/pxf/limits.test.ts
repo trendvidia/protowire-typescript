@@ -15,6 +15,7 @@ import {
 import { describe, expect, it } from "vitest";
 
 import { unmarshal, unmarshalFull } from "./decode.js";
+import { marshal } from "./encode.js";
 import { PxfError } from "./errors.js";
 import { MAX_NESTING_DEPTH, parse } from "./parser.js";
 
@@ -195,5 +196,50 @@ describe("MaxNestingDepth per call", () => {
     expect(() => unmarshal(blocks(5), tree, { maxNestingDepth: 5 })).not.toThrow();
     expect(() => unmarshal(blocks(150), tree)).toThrow(/MaxNestingDepth=100/);
     expect(() => unmarshal(blocks(150), tree, { maxNestingDepth: 150 })).not.toThrow();
+  });
+});
+
+describe("marshal refuses a message nested past MaxNestingDepth (protowire#502)", () => {
+  const deep = (n: number) => unmarshal(blocks(n), tree, { maxNestingDepth: n + 5 });
+
+  it("writes 100 levels and refuses 101, as a reader counts them", () => {
+    expect(() => marshal(deep(100), tree)).not.toThrow();
+    expect(() => marshal(deep(101), tree)).toThrow(/MaxNestingDepth=100/);
+  });
+
+  it("writes deeper when the option is raised, and reads it back at the same limit", () => {
+    const text = marshal(deep(130), tree, { maxNestingDepth: 130 });
+    expect(() => unmarshal(text, tree, { maxNestingDepth: 130 })).not.toThrow();
+  });
+
+  it("counts a list's [ and a map's {", () => {
+    const listy = unmarshal(lists(50, 0), tree);
+    const mappy = unmarshal(maps(50, 0), tree);
+    expect(() => marshal(listy, tree)).not.toThrow();
+    expect(() => marshal(mappy, tree)).not.toThrow();
+    expect(() => marshal(unmarshal(lists(50, 0), tree), tree, { maxNestingDepth: 99 })).toThrow(/MaxNestingDepth=99/);
+    expect(() => marshal(unmarshal(maps(50, 0), tree), tree, { maxNestingDepth: 99 })).toThrow(/MaxNestingDepth=99/);
+  });
+});
+
+describe("an Any too deep for a body", () => {
+  it("is written as type_url and value, not refused", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { fromBinary: fb, create: mk, toBinary } = await import("@bufbuild/protobuf");
+    const { FileDescriptorSetSchema } = await import("@bufbuild/protobuf/wkt");
+    const { AnySchema } = await import("@bufbuild/protobuf/wkt");
+    const reg = createFileRegistry(
+      fb(FileDescriptorSetSchema, new Uint8Array(readFileSync("src/pxf/testdata/corpus/any/any.binpb"))),
+    );
+    const Holder = reg.getMessage("any.v1.Holder")!;
+    let msg = mk(Holder);
+    for (let i = 0; i < 120; i++) {
+      const any = mk(AnySchema, { typeUrl: "type.googleapis.com/any.v1.Holder", value: toBinary(Holder, msg) });
+      msg = mk(Holder, { payload: any } as never);
+    }
+    const typeResolver = { findMessageByURL: (u: string) => reg.getMessage(u.slice(u.lastIndexOf("/") + 1)) };
+    const text = marshal(msg, Holder, { typeResolver });
+    expect(text).toContain("type_url = ");
+    expect(text).toContain("@type = ");
   });
 });

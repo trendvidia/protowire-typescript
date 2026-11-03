@@ -23,6 +23,10 @@ const textEncoder = new TextEncoder();
 const textDecoder = new TextDecoder("utf-8", { fatal: true });
 
 export class Writer {
+  /** Descents above this writer's bytes, counted as a decoder counts them. */
+  public depth = 0;
+  /** The deepest a message may nest; 100 is MaxNestingDepth. */
+  public maxDepth = 100;
   private buf: Uint8Array;
   private pos = 0;
 

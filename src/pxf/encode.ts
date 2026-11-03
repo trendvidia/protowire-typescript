@@ -25,6 +25,7 @@ import {
 
 import { findNullMaskField, keyField } from "./annotations.js";
 import { formatBigFloat } from "./bigfloat.js";
+import { MAX_NESTING_DEPTH } from "./parser.js";
 import { formatBigInt, formatDecimal } from "./bignum.js";
 import { type TypeResolver } from "./decode.js";
 import {
@@ -75,6 +76,22 @@ export interface MarshalOptions {
    * and s) are preserved — the Go format requires them.
    */
   compactDuration?: boolean;
+  /**
+   * The deepest document `marshal` writes, counted as a decoder counts it: the
+   * root is depth 0, and every `{` or `[` is one descent. A message that needs
+   * more is an error, because a reader at the same limit would refuse the
+   * document (protowire#502). An Any too deep to write as a body is written as
+   * `type_url` and `value` instead. Default {@link MAX_NESTING_DEPTH}; raise it
+   * only with `maxNestingDepth` on every reader.
+   */
+  maxNestingDepth?: number;
+}
+
+class NestingError extends Error {
+  constructor(limit: number) {
+    super(`pxf: nesting depth exceeds MaxNestingDepth=${limit}`);
+    this.name = "NestingError";
+  }
 }
 
 export function marshal<Desc extends DescMessage>(
@@ -89,6 +106,7 @@ export function marshal<Desc extends DescMessage>(
     options?.emitDefaults ?? false,
     options?.typeResolver,
     options?.compactDuration ?? false,
+    options?.maxNestingDepth ?? MAX_NESTING_DEPTH,
   );
   enc.primeNullSet(root, options?.nullFields);
   if (options?.typeURL) {
@@ -109,7 +127,13 @@ class Encoder {
     private readonly emitDefaults: boolean,
     private readonly resolver: TypeResolver | undefined,
     private readonly compactDuration: boolean,
+    private readonly maxDepth: number,
   ) {}
+
+  /** Refuse a block or list whose contents sit at `level`, a decoder's depth there. */
+  private checkDepth(level: number): void {
+    if (level > this.maxDepth) throw new NestingError(this.maxDepth);
+  }
 
   /**
    * Discover the top-level `_null` FieldMask (if any) and snapshot its
@@ -149,6 +173,7 @@ class Encoder {
    * carries it, so it is not emitted inside the block (draft -01 §3.13).
    */
   encodeMessage(parent: ReflectMessage, level: number, skipKey?: DescField): void {
+    this.checkDepth(level);
     for (const fd of parent.desc.fields) {
       if (skipKey && fd.number === skipKey.number) continue;
 
@@ -248,6 +273,7 @@ class Encoder {
     }
     const list = parent.get(fd) as ReflectList;
     if (list.size === 0 && !this.emitDefaults) return;
+    this.checkDepth(level + 1);
 
     // Keyed repeated field (draft -01 §3.13): the keyed block form whenever
     // every key is present, non-empty and distinct; otherwise anonymous.
@@ -344,6 +370,7 @@ class Encoder {
     }
     const map = parent.get(fd) as ReflectMap;
     if (map.size === 0 && !this.emitDefaults) return;
+    this.checkDepth(level + 1);
 
     this.writeFieldPrefix(level, fd.name);
     this.buf += "{\n";
@@ -467,14 +494,24 @@ class Encoder {
     }
     const innerRefl = reflect(innerDesc, inner);
 
-    this.writeIndent(level);
-    this.buf += `${fd.name} {\n`;
-    this.writeIndent(level + 1);
-    this.buf += `@type = ${writeQuotedString(typeURL)}\n`;
+    // An Any is never refused for what its bytes hold: one too deep to write
+    // as a body goes back to type_url and value.
+    const start = this.buf.length;
     const saved = this.pathPrefix;
-    this.pathPrefix = saved + fd.name + ".";
-    this.encodeMessage(innerRefl, level + 1);
-    this.pathPrefix = saved;
+    try {
+      this.writeIndent(level);
+      this.buf += `${fd.name} {\n`;
+      this.writeIndent(level + 1);
+      this.buf += `@type = ${writeQuotedString(typeURL)}\n`;
+      this.pathPrefix = saved + fd.name + ".";
+      this.encodeMessage(innerRefl, level + 1);
+    } catch (e) {
+      if (!(e instanceof NestingError)) throw e;
+      this.buf = this.buf.slice(0, start);
+      return false;
+    } finally {
+      this.pathPrefix = saved;
+    }
     this.writeIndent(level);
     this.buf += "}\n";
     return true;

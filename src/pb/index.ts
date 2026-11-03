@@ -15,6 +15,7 @@ export type {
   CodecBase,
   DefineMessageOpts,
   FieldSpec,
+  MarshalOptions,
   UnmarshalOptions,
   Kind,
   MapKeyKind,
