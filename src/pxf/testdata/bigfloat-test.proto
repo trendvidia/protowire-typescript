@@ -1,0 +1,37 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 TrendVidia, LLC.
+
+// The places a pxf.BigFloat literal goes, and the kinds of field a precision
+// suffix is rejected on, for bigfloat.test.ts. Regenerate with
+// `npm run gen:testdata:bigfloat`.
+
+syntax = "proto3";
+
+package bftest.v1;
+
+import "google/protobuf/wrappers.proto";
+import "pxf/annotations.proto";
+import "pxf/bignum.proto";
+
+enum Color {
+  COLOR_UNSPECIFIED = 0;
+  COLOR_RED = 1;
+}
+
+message Holder {
+  pxf.BigFloat bf = 1;
+  repeated pxf.BigFloat list = 2;
+  map<string, pxf.BigFloat> by_name = 3;
+  pxf.BigFloat with_default = 4 [(pxf.default) = "1.5p53"];
+
+  int32 i32 = 10;
+  int64 i64 = 11;
+  uint32 u32 = 12;
+  uint64 u64 = 13;
+  float f32 = 14;
+  double f64 = 15;
+  Color color = 16;
+  google.protobuf.Int32Value wrapped = 17;
+  repeated int32 numbers = 18;
+  map<int32, string> by_id = 19;
+}

@@ -24,10 +24,12 @@ import {
 } from "@bufbuild/protobuf/reflect";
 
 import { findNullMaskField, keyField } from "./annotations.js";
+import { formatBigFloat } from "./bigfloat.js";
 import { type TypeResolver } from "./decode.js";
 import {
   findFieldByProtoName,
   isAny,
+  isBigFloat,
   isDuration,
   isTimestamp,
   isWrapperType,
@@ -217,6 +219,12 @@ class Encoder {
       this.buf += "\n";
       return;
     }
+    if (isBigFloat(mdesc)) {
+      this.writeFieldPrefix(level, fd.name);
+      this.buf += formatBigFloatFromReflect(sub);
+      this.buf += "\n";
+      return;
+    }
     if (isAny(mdesc) && this.resolver && this.tryEncodeAny(fd, sub, level)) {
       return;
     }
@@ -267,6 +275,9 @@ class Encoder {
           }
           this.writeIndent(level + 1);
           this.writeScalarValue(innerFd.scalar, sub.get(innerFd) as unknown);
+        } else if (isBigFloat(mdesc)) {
+          this.writeIndent(level + 1);
+          this.buf += formatBigFloatFromReflect(sub);
         } else {
           this.writeIndent(level + 1);
           this.buf += "{\n";
@@ -341,7 +352,10 @@ class Encoder {
     entries.sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
 
     for (const [keyStr, val] of entries) {
-      if (fd.mapKind === "message") {
+      if (fd.mapKind === "message" && isBigFloat(fd.message)) {
+        this.writeIndent(level + 1);
+        this.buf += `${keyStr}: ${formatBigFloatFromReflect(val as ReflectMessage)}\n`;
+      } else if (fd.mapKind === "message") {
         this.writeIndent(level + 1);
         this.buf += `${keyStr}: {\n`;
         this.encodeMessage(val as ReflectMessage, level + 2);
@@ -573,6 +587,15 @@ function pad2(n: number): string {
 
 function pad4(n: number): string {
   return String(n).padStart(4, "0");
+}
+
+function formatBigFloatFromReflect(m: ReflectMessage): string {
+  return formatBigFloat({
+    mantissa: m.get(findFieldByProtoName(m.desc, "mantissa")!) as Uint8Array,
+    exponent: m.get(findFieldByProtoName(m.desc, "exponent")!) as number,
+    prec: m.get(findFieldByProtoName(m.desc, "prec")!) as number,
+    negative: m.get(findFieldByProtoName(m.desc, "negative")!) as boolean,
+  });
 }
 
 /**

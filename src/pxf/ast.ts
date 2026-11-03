@@ -235,6 +235,8 @@ export interface IntVal {
   readonly kind: "int";
   readonly pos: Position;
   readonly raw: string;
+  /** The precision suffix digits (`53` for `7p53`). Absent without one. */
+  readonly prec?: string;
 }
 
 /** Floating-point literal, raw text. */
@@ -242,6 +244,8 @@ export interface FloatVal {
   readonly kind: "float";
   readonly pos: Position;
   readonly raw: string;
+  /** The precision suffix digits (`53` for `1.5p53`). Absent without one. */
+  readonly prec?: string;
 }
 
 export interface BoolVal {

@@ -9,6 +9,7 @@ export {
 } from "./token.js";
 export { PxfError } from "./errors.js";
 export { Lexer } from "./lexer.js";
+export { MAX_BIG_FLOAT_EXPONENT, MAX_NUMERIC_LITERAL_DIGITS } from "./bigfloat.js";
 export { MAX_NESTING_DEPTH, parse } from "./parser.js";
 export { format, type FormatOptions } from "./format.js";
 export { keyField } from "./annotations.js";
@@ -47,6 +48,7 @@ export {
   isTimestamp,
   isDuration,
   isAny,
+  isBigFloat,
   isFieldMask,
 } from "./descriptor.js";
 export type {
