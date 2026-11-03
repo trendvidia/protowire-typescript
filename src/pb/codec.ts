@@ -512,8 +512,15 @@ function writeRepeatedField(w: Writer, f: FieldSpec, v: unknown): void {
     }
   } else {
     for (const item of v) {
-      if (item === undefined || item === null) continue;
       w.tag(f.number, WireType.LengthDelimited);
+      if (item === undefined || item === null) {
+        // A null element is written as an empty message, the zero value's
+        // record, so the list keeps its length: what protowire-go writes for a
+        // nil element (protowire#509). It reads back as the zero value.
+        childWriter(w);
+        w.varint(0);
+        continue;
+      }
       writeNestedMessage(w, f.kind.message, item);
     }
   }

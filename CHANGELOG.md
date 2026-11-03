@@ -40,6 +40,8 @@ format changes.
 
 ### Fixed
 
+- **`pb` writes a null element of a message list as an empty message** ([#98](https://github.com/trendvidia/protowire-typescript/issues/98)), as protowire-go writes a nil element. It was dropped, so `[1n, null]` wrote one element and the list came back shorter. It reads back as the zero value.
+
 - **SBE XML import and export keep a fixed-length array that is not text** ([#102](https://github.com/trendvidia/protowire-typescript/issues/102), protowire-go#249). `xmlToProto` read a `uint8` or `int8` array of length N as one narrowed `uint32`, so a 16-byte field took 1 byte and every later field in the block moved; it now imports as `bytes` with `(sbe.length) = N`. An array of a wider primitive is refused, naming the message, group, field or composite that holds it. `protoToXml` wrote a `bytes` field as a `char` array, which imports back as a `string`; it now writes a `uint8` array, declared once per length as `bytesN`. A `bytes` field of length 1 exports as one `uint8` and comes back as `uint32 [(sbe.encoding) = "uint8"]`, the same byte in the block. The wire bytes do not change.
 
 - **`pb` keeps the low 32 bits of a 32-bit varint** ([#95](https://github.com/trendvidia/protowire-typescript/issues/95)), as a protobuf reader does. A `uint32` past 32 bits read as the whole number, and any varint past 2^53 threw, for `uint32`, `bool` and `sint32`. A BigFloat `prec` is read the same way, from the wire and from the `@default` carrier, and `BigFloatCodec` now rejects a `prec` above 13603, the bound a precision suffix has (protowire#499).

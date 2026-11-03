@@ -116,6 +116,10 @@ const TWINS: Record<string, [MessageCodec<never>, unknown]> = {
     defineMessage({ fields: [{ number: 1, name: "is", kind: { message: BigIntValueCodec }, repeated: true }] }) as never,
     { is: [0n, 1n] },
   ],
+  BigIntsNullElement: [
+    defineMessage({ fields: [{ number: 1, name: "is", kind: { message: BigIntValueCodec }, repeated: true }] }) as never,
+    { is: [1n, null] },
+  ],
 };
 
 const FIELD_LEVEL: Record<string, string> = {
@@ -129,7 +133,6 @@ const FIELD_LEVEL: Record<string, string> = {
   DecimalsNullElement: "pxf.Decimal is bound field by field here",
   BigNumsZero: "it holds a pxf.Decimal and a pxf.BigFloat, bound field by field here",
   BigNumsNegative: "it holds a pxf.Decimal and a pxf.BigFloat, bound field by field here",
-  BigIntsNullElement: "a JavaScript bigint has no null; a list of them cannot hold one",
   BigFloatMapNullValue: "pxf.BigFloat is bound field by field here",
   BigFloatPrec64: "pxf.BigFloat is bound field by field here",
 };

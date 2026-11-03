@@ -149,6 +149,16 @@ describe("singular nested message presence", () => {
     expect(unmarshal(data, WrapPb).inner).toEqual({ name: "x", value: 9 });
   });
 
+  it("a null element of a message list is an empty message, so the list keeps its length", () => {
+    const ListPb = defineMessage<{ items: (Inner | null)[] }>({
+      fields: [{ number: 1, name: "items", kind: { message: InnerPb }, repeated: true }],
+    });
+    const data = marshal({ items: [{ name: "a", value: 0 }, null] }, ListPb);
+    // As protowire-go writes a nil element: its zero record (protowire#509).
+    expect(Buffer.from(data).toString("hex")).toBe("0a030a0161" + "0a00");
+    expect(unmarshal(data, ListPb).items).toHaveLength(2);
+  });
+
   it("an empty inner message still emits a tag with zero-length blob", () => {
     const data = marshal({ inner: { name: "", value: 0 } }, WrapPb);
     // tag(1, LengthDelim) = 0x0A, then length 0
