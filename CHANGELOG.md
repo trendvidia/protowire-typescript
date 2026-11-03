@@ -32,7 +32,6 @@ format changes.
 - **A raw line feed in a simple string is rejected** ([#50](https://github.com/trendvidia/protowire-typescript/issues/50), protowire#350), by the parser, the decoder and `@dataset` cells. `bindRow` now escapes a line feed that a cell wrote as `\n`.
 
 - **`DatasetReader` reports junk after a row** (protowire#336). It ended the row sequence there without an error, so the rows after it were silently lost.
-
 - **`node_modules` is no longer tracked** ([#66](https://github.com/trendvidia/protowire-typescript/issues/66)). `main` carried a symlink to an absolute path on one machine, and `npm ci` in a new worktree emptied that path through it. The `.gitignore` rule now matches a symlink as well as a directory.
 
 - **`Result` reports a keyed entry's name as setting the key field** (protowire-go#214). After `kd { alpha {} }`, `isSet("kd[0].name")` is `true` and `isAbsent("kd[0].name")` is `false`; they said the opposite, although the name was in the message. Decoded values do not change. `postDecode` does not walk list elements in this port yet (#58), so the reference's other symptoms, a default replacing the name and a required key reported absent, could not occur here. New tests pin the right answer for when it does.
