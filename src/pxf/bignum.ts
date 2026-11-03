@@ -5,7 +5,7 @@
  * `parseBigInt`, `parseDecimal`, `formatBigInt` and `readDecimalStr`.
  */
 
-import { MAX_NUMERIC_LITERAL_DIGITS } from "./bigfloat.js";
+import { DEFAULT_NUMERIC_LIMITS, MAX_NUMERIC_LITERAL_DIGITS, type NumericLimits } from "./bigfloat.js";
 
 export interface BigIntFields {
   readonly abs: Uint8Array;
@@ -31,11 +31,11 @@ function countDigits(s: string): number {
   return n;
 }
 
-function checkDigits(s: string): void {
-  if (s.length <= MAX_NUMERIC_LITERAL_DIGITS) return;
+function checkDigits(s: string, max: number): void {
+  if (s.length <= max) return;
   const n = countDigits(s);
-  if (n > MAX_NUMERIC_LITERAL_DIGITS) {
-    throw new Error(`numeric literal has ${n} digits; MaxNumericLiteralDigits=${MAX_NUMERIC_LITERAL_DIGITS}`);
+  if (n > max) {
+    throw new Error(`numeric literal has ${n} digits; MaxNumericLiteralDigits=${max}`);
   }
 }
 
@@ -60,8 +60,8 @@ function bounded(kind: string, s: string): string {
   return s;
 }
 
-export function parseBigInt(s: string): BigIntFields {
-  checkDigits(s);
+export function parseBigInt(s: string, lim: NumericLimits = DEFAULT_NUMERIC_LIMITS): BigIntFields {
+  checkDigits(s, lim.maxDigits);
   if (!/^-?[0-9]+$/.test(s)) throw new Error(`invalid big integer: ${s}`);
   const negative = s.startsWith("-");
   const abs = BigInt(negative ? s.slice(1) : s);
@@ -74,13 +74,13 @@ export function formatBigInt(f: BigIntFields): string {
 }
 
 /** The scale counts the digits after the point, so `1.00` has scale 2. */
-export function parseDecimal(s: string): DecimalFields {
-  checkDigits(s);
+export function parseDecimal(s: string, lim: NumericLimits = DEFAULT_NUMERIC_LIMITS): DecimalFields {
+  checkDigits(s, lim.maxDigits);
   const m = /^(-?)([0-9]+)(?:\.([0-9]*))?$/.exec(s);
   if (!m) throw new Error(`invalid decimal: ${s}`);
   const frac = m[3] ?? "";
-  if (frac.length > MAX_NUMERIC_LITERAL_DIGITS) {
-    throw new Error(`pxf.Decimal scale ${frac.length} exceeds MaxNumericLiteralDigits=${MAX_NUMERIC_LITERAL_DIGITS}`);
+  if (frac.length > lim.maxDigits) {
+    throw new Error(`pxf.Decimal scale ${frac.length} exceeds MaxNumericLiteralDigits=${lim.maxDigits}`);
   }
   return { unscaled: toBytes(BigInt(m[2]! + frac)), scale: frac.length, negative: m[1] === "-" };
 }

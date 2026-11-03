@@ -41,6 +41,12 @@ export interface UnmarshalOptions {
   readonly maxMessageSize?: number;
   /** Elements of one repeated or map field. Default {@link MAX_MESSAGE_SIZE}. */
   readonly maxRepeatedCount?: number;
+  /** How deep a message may nest. Default {@link MAX_NESTING_DEPTH}. */
+  readonly maxNestingDepth?: number;
+  /** The bound on a Decimal's scale. Default 4096. */
+  readonly maxNumericLiteralDigits?: number;
+  /** The bound on a BigFloat's binary exponent. Default {@link MAX_BIG_FLOAT_EXPONENT}. */
+  readonly maxBigFloatExponent?: number;
 }
 
 function readerFor(data: Uint8Array, options: UnmarshalOptions | undefined): Reader {
@@ -48,6 +54,9 @@ function readerFor(data: Uint8Array, options: UnmarshalOptions | undefined): Rea
   if (data.length > max) throw new Error(`input of ${data.length} bytes exceeds MaxMessageSize=${max}`);
   const r = new Reader(data);
   r.maxRepeated = options?.maxRepeatedCount ?? MAX_MESSAGE_SIZE;
+  r.maxDepth = options?.maxNestingDepth ?? MAX_NESTING_DEPTH;
+  r.maxDigits = options?.maxNumericLiteralDigits ?? 4096;
+  r.maxBigFloatExponent = options?.maxBigFloatExponent ?? MAX_BIG_FLOAT_EXPONENT;
   return r;
 }
 
@@ -173,15 +182,15 @@ export interface BigFloatValue {
   negative?: boolean;
 }
 
-function checkBigFloat(v: BigFloatValue): void {
+function checkBigFloat(v: BigFloatValue, max: number): void {
   // Precision 0 is zero, and a zero mantissa is zero at any exponent.
   const m = v.mantissa;
   if (!v.prec || !m) return;
   const first = m.findIndex((b) => b !== 0);
   if (first < 0) return;
   const e = (v.exponent ?? 0) + 8 * (m.length - first - 1) + (32 - Math.clz32(m[first]!));
-  if (e > MAX_BIG_FLOAT_EXPONENT || e < -MAX_BIG_FLOAT_EXPONENT) {
-    throw new Error(`pxf.BigFloat binary exponent ${e} exceeds MaxBigFloatExponent=${MAX_BIG_FLOAT_EXPONENT}`);
+  if (e > max || e < -max) {
+    throw new Error(`pxf.BigFloat binary exponent ${e} exceeds MaxBigFloatExponent=${max}`);
   }
 }
 
@@ -202,11 +211,11 @@ export const BigFloatCodec: MessageCodec<BigFloatValue> = {
   ...bigFloatFields,
   unmarshalFrom(r, end, into) {
     bigFloatFields.unmarshalFrom(r, end, into);
-    checkBigFloat(into as BigFloatValue);
+    checkBigFloat(into as BigFloatValue, r.maxBigFloatExponent);
   },
   unmarshal(data, options) {
     const v = bigFloatFields.unmarshal(data, options);
-    checkBigFloat(v);
+    checkBigFloat(v, options?.maxBigFloatExponent ?? MAX_BIG_FLOAT_EXPONENT);
     return v;
   },
 };
@@ -218,10 +227,10 @@ export interface DecimalValue {
   negative?: boolean;
 }
 
-function checkDecimal(v: DecimalValue): void {
+function checkDecimal(v: DecimalValue, max: number): void {
   const scale = v.scale ?? 0;
-  if (scale > 4096 || scale < -4096) {
-    throw new Error(`pxf.Decimal scale ${scale} exceeds MaxNumericLiteralDigits=4096`);
+  if (scale > max || scale < -max) {
+    throw new Error(`pxf.Decimal scale ${scale} exceeds MaxNumericLiteralDigits=${max}`);
   }
 }
 
@@ -242,11 +251,11 @@ export const DecimalCodec: MessageCodec<DecimalValue> = {
   ...decimalFields,
   unmarshalFrom(r, end, into) {
     decimalFields.unmarshalFrom(r, end, into);
-    checkDecimal(into as DecimalValue);
+    checkDecimal(into as DecimalValue, r.maxDigits);
   },
-  unmarshal(data) {
-    const v = decimalFields.unmarshal(data);
-    checkDecimal(v);
+  unmarshal(data, options) {
+    const v = decimalFields.unmarshal(data, options);
+    checkDecimal(v, options?.maxNumericLiteralDigits ?? 4096);
     return v;
   },
 };
@@ -583,8 +592,8 @@ function readScalarValue(r: Reader, kind: ScalarKind): unknown {
 }
 
 function descend(r: Reader): void {
-  if (++r.depth > MAX_NESTING_DEPTH) {
-    throw new Error(`nesting depth exceeds MaxNestingDepth=${MAX_NESTING_DEPTH}`);
+  if (++r.depth > r.maxDepth) {
+    throw new Error(`nesting depth exceeds MaxNestingDepth=${r.maxDepth}`);
   }
 }
 

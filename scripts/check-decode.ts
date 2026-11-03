@@ -7,8 +7,8 @@
 //                --proto <path/adversarial.proto> --input <path>
 //                [--limit NAME=VALUE]...
 //
-// --limit takes MaxMessageSize, MaxBytesLiteralLength and MaxRepeatedCount,
-// the three the corpus lowers.
+// --limit takes the six limits the reference's harness takes. MaxBytesLiteralLength
+// reaches only the PXF decoder.
 //
 // Exit 0 when the input is accepted, 1 when it is rejected with a clean error,
 // and 2 for a fault in the harness. Anything else is a bug in the decoder.
@@ -27,12 +27,22 @@ import { unmarshal as pxfUnmarshal } from "../src/pxf/decode.js";
 import { marshal as pxfMarshal } from "../src/pxf/encode.js";
 import { Codec, unmarshal as sbeUnmarshal } from "../src/sbe/index.js";
 
-type Limits = { maxMessageSize?: number; maxBytesLiteralLength?: number; maxRepeatedCount?: number };
+type Limits = {
+  maxMessageSize?: number;
+  maxBytesLiteralLength?: number;
+  maxRepeatedCount?: number;
+  maxNestingDepth?: number;
+  maxNumericLiteralDigits?: number;
+  maxBigFloatExponent?: number;
+};
 
 const LIMITS: Record<string, keyof Limits> = {
   MaxMessageSize: "maxMessageSize",
   MaxBytesLiteralLength: "maxBytesLiteralLength",
   MaxRepeatedCount: "maxRepeatedCount",
+  MaxNestingDepth: "maxNestingDepth",
+  MaxNumericLiteralDigits: "maxNumericLiteralDigits",
+  MaxBigFloatExponent: "maxBigFloatExponent",
 };
 
 interface Args {

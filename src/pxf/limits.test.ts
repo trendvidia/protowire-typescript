@@ -188,3 +188,12 @@ describe("MaxMessageSize, MaxBytesLiteralLength and MaxRepeatedCount", () => {
     expect(() => unmarshal(doc, Holder, { maxRepeatedCount: 2 })).not.toThrow();
   });
 });
+
+describe("MaxNestingDepth per call", () => {
+  it("can be lowered and raised", () => {
+    expect(() => unmarshal(blocks(5), tree, { maxNestingDepth: 4 })).toThrow(/MaxNestingDepth=4/);
+    expect(() => unmarshal(blocks(5), tree, { maxNestingDepth: 5 })).not.toThrow();
+    expect(() => unmarshal(blocks(150), tree)).toThrow(/MaxNestingDepth=100/);
+    expect(() => unmarshal(blocks(150), tree, { maxNestingDepth: 150 })).not.toThrow();
+  });
+});

@@ -33,6 +33,9 @@ import {
 } from "./ast.js";
 import {
   type BigFloatFields,
+  MAX_BIG_FLOAT_EXPONENT,
+  MAX_NUMERIC_LITERAL_DIGITS,
+  type NumericLimits,
   clipLiteral,
   parseBigFloatLiteral,
   parseBigFloatString,
@@ -113,6 +116,13 @@ export interface UnmarshalOptions {
   maxBytesLiteralLength?: number;
   /** Elements of one repeated or map field. Default {@link MAX_MESSAGE_SIZE}. */
   maxRepeatedCount?: number;
+  /** How deep a document may nest. Default {@link MAX_NESTING_DEPTH}. */
+  maxNestingDepth?: number;
+  /** Significant digits one number literal may hold, and the bound on a
+   * Decimal's scale. Default {@link MAX_NUMERIC_LITERAL_DIGITS}. */
+  maxNumericLiteralDigits?: number;
+  /** The bound on a BigFloat's binary exponent. Default {@link MAX_BIG_FLOAT_EXPONENT}. */
+  maxBigFloatExponent?: number;
 }
 
 /** MaxMessageSize (HARDENING.md § Mandatory limits). The bytes-literal and
@@ -122,6 +132,8 @@ export const MAX_MESSAGE_SIZE = 64 << 20;
 interface Limits {
   readonly maxBytesLiteral: number;
   readonly maxRepeated: number;
+  readonly maxDepth: number;
+  readonly numeric: NumericLimits;
 }
 
 function limitsFor(data: string, options: UnmarshalOptions | undefined): Limits {
@@ -133,6 +145,11 @@ function limitsFor(data: string, options: UnmarshalOptions | undefined): Limits 
   return {
     maxBytesLiteral: options?.maxBytesLiteralLength ?? MAX_MESSAGE_SIZE,
     maxRepeated: options?.maxRepeatedCount ?? MAX_MESSAGE_SIZE,
+    maxDepth: options?.maxNestingDepth ?? MAX_NESTING_DEPTH,
+    numeric: {
+      maxDigits: options?.maxNumericLiteralDigits ?? MAX_NUMERIC_LITERAL_DIGITS,
+      maxBigFloatExponent: options?.maxBigFloatExponent ?? MAX_BIG_FLOAT_EXPONENT,
+    },
   };
 }
 
@@ -249,13 +266,13 @@ class Decoder {
    * only the normal path has to balance.
    */
   private descend(): void {
-    if (++this.depth > MAX_NESTING_DEPTH) {
+    if (++this.depth > this.limits.maxDepth) {
       throw this.nestingError();
     }
   }
 
   private nestingError(): PxfError {
-    return this.err(this.current.pos, `nesting depth exceeds MaxNestingDepth=${MAX_NESTING_DEPTH}`);
+    return this.err(this.current.pos, `nesting depth exceeds MaxNestingDepth=${this.limits.maxDepth}`);
   }
 
   /**
@@ -799,20 +816,20 @@ class Decoder {
     }
     if (isBigInt(mdesc) && this.peek() === TokenKind.INT) {
       this.rejectLiteralPrecision(mdesc);
-      setFields(target, this.literal(() => parseBigInt(this.current.value)));
+      setFields(target, this.literal(() => parseBigInt(this.current.value, this.limits.numeric)));
       this.advance();
       return true;
     }
     if (isDecimal(mdesc) && (this.peek() === TokenKind.INT || this.peek() === TokenKind.FLOAT)) {
       this.rejectLiteralPrecision(mdesc);
-      setFields(target, this.literal(() => parseDecimal(this.current.value)));
+      setFields(target, this.literal(() => parseDecimal(this.current.value, this.limits.numeric)));
       this.advance();
       return true;
     }
     if (isBigFloat(mdesc) && (this.peek() === TokenKind.INT || this.peek() === TokenKind.FLOAT)) {
       let fields: BigFloatFields;
       try {
-        fields = parseBigFloatLiteral(this.current.value, this.current.prec);
+        fields = parseBigFloatLiteral(this.current.value, this.current.prec, this.limits.numeric);
       } catch (e) {
         throw this.err(this.current.pos, (e as Error).message);
       }
@@ -1356,12 +1373,12 @@ class Decoder {
   private skipNested(open: TokenKind, close: TokenKind): number {
     let matching = 1; // `open`s not yet closed: decides where the skip ends
     let nesting = 1; // `{` and `[` not yet closed: what the limit counts
-    if (this.depth + nesting > MAX_NESTING_DEPTH) throw this.nestingError();
+    if (this.depth + nesting > this.limits.maxDepth) throw this.nestingError();
     while (this.peek() !== TokenKind.EOF) {
       const tk = this.peek();
       if (tk === TokenKind.LBRACE || tk === TokenKind.LBRACKET) {
         nesting++;
-        if (this.depth + nesting > MAX_NESTING_DEPTH) throw this.nestingError();
+        if (this.depth + nesting > this.limits.maxDepth) throw this.nestingError();
       } else if (tk === TokenKind.RBRACE || tk === TokenKind.RBRACKET) {
         nesting--;
       }
