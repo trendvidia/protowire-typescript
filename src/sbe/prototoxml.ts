@@ -28,9 +28,18 @@ import { snakeToCamel, stripEnumPrefix } from "./xmlschema.js";
 
 interface SbeTypeInfo {
   primitiveType: string;
+  /**
+   * What a `<field>` names: the primitive, or for a fixed-length array the
+   * `<types>` entry declared for its length.
+   */
   xmlType: string;
   length: number;
 }
+
+/** The `<types>` entry a string field of that fixed length refers to. */
+const strTypeName = (length: number): string => `str${length}`;
+/** The `<types>` entry a bytes field of that fixed length refers to. */
+const bytesTypeName = (length: number): string => `bytes${length}`;
 
 export function protoToXml(file: DescFile): string {
   const schemaId = getFileUint32(file, EXT_SCHEMA_ID);
@@ -41,6 +50,7 @@ export function protoToXml(file: DescFile): string {
 
   // Pre-collect types referenced by template messages.
   const strLengths = new Set<number>();
+  const bytesLengths = new Set<number>();
   const composites: DescMessage[] = [];
   const compositesSeen = new Set<string>();
   const enums: DescEnum[] = [];
@@ -53,14 +63,12 @@ export function protoToXml(file: DescFile): string {
 
   for (const md of file.messages) {
     if (getMessageUint32(md, EXT_TEMPLATE_ID) !== undefined) {
-      collectTypes(md, strLengths, composites, compositesSeen, enums, enumsSeen);
+      collectTypes(md, strLengths, bytesLengths, composites, compositesSeen, enums, enumsSeen);
     } else if (!compositesSeen.has(md.typeName)) {
       compositesSeen.add(md.typeName);
       composites.push(md);
     }
   }
-
-  const lengths = [...strLengths].sort((a, b) => a - b);
 
   let out = "";
   out += `<?xml version="1.0" encoding="UTF-8"?>\n`;
@@ -82,8 +90,12 @@ export function protoToXml(file: DescFile): string {
   out += `            <type name="numInGroup" primitiveType="uint16"/>\n`;
   out += `        </composite>\n`;
 
-  for (const l of lengths) {
-    out += `        <type name="str${l}" primitiveType="char" length="${l}"/>\n`;
+  // Named string and bytes types, sorted for deterministic output.
+  for (const l of sortedLengths(strLengths)) {
+    out += `        <type name="${strTypeName(l)}" primitiveType="char" length="${l}"/>\n`;
+  }
+  for (const l of sortedLengths(bytesLengths)) {
+    out += `        <type name="${bytesTypeName(l)}" primitiveType="uint8" length="${l}"/>\n`;
   }
   for (const e of enums) out += writeEnum(e);
   for (const md of composites) out += writeComposite(md);
@@ -99,9 +111,14 @@ export function protoToXml(file: DescFile): string {
   return out;
 }
 
+function sortedLengths(set: Set<number>): number[] {
+  return [...set].sort((a, b) => a - b);
+}
+
 function collectTypes(
   md: DescMessage,
   strLengths: Set<number>,
+  bytesLengths: Set<number>,
   composites: DescMessage[],
   compositesSeen: Set<string>,
   enums: DescEnum[],
@@ -117,7 +134,7 @@ function collectTypes(
   for (const f of md.fields) {
     if (f.fieldKind === "scalar" && (f.scalar === ScalarType.STRING || f.scalar === ScalarType.BYTES)) {
       const len = getFieldUint32(f, EXT_LENGTH);
-      if (len !== undefined) strLengths.add(len);
+      if (len !== undefined) (f.scalar === ScalarType.STRING ? strLengths : bytesLengths).add(len);
     }
     if (f.fieldKind === "enum") {
       const ed = f.enum;
@@ -131,11 +148,11 @@ function collectTypes(
       if (!compositesSeen.has(sub.typeName)) {
         compositesSeen.add(sub.typeName);
         composites.push(sub);
-        collectTypes(sub, strLengths, composites, compositesSeen, enums, enumsSeen);
+        collectTypes(sub, strLengths, bytesLengths, composites, compositesSeen, enums, enumsSeen);
       }
     }
     if (f.fieldKind === "list" && f.listKind === "message") {
-      collectTypes(f.message, strLengths, composites, compositesSeen, enums, enumsSeen);
+      collectTypes(f.message, strLengths, bytesLengths, composites, compositesSeen, enums, enumsSeen);
     }
   }
 }
@@ -187,9 +204,6 @@ function writeField(fd: DescField, indent: string): string {
     return `${indent}<field name="${fieldName}" id="${fieldId}" type="${fd.message.name}"/>\n`;
   }
   const info = protoFieldToSBEType(fd);
-  if (info.length > 0) {
-    return `${indent}<field name="${fieldName}" id="${fieldId}" type="str${info.length}"/>\n`;
-  }
   return `${indent}<field name="${fieldName}" id="${fieldId}" type="${info.xmlType}"/>\n`;
 }
 
@@ -213,9 +227,17 @@ function protoFieldToSBEType(fd: DescField): SbeTypeInfo {
     return { primitiveType: enc, xmlType: enc, length: 0 };
   }
   if (fd.fieldKind === "scalar") {
+    // A bytes field is a uint8 array, not a char array: a char array imports
+    // back as a string, and a char in a non-UTF-8 encoding as bytes only
+    // because nothing carries the encoding. Both are the same N bytes on the
+    // wire.
     if (fd.scalar === ScalarType.STRING || fd.scalar === ScalarType.BYTES) {
       const length = getFieldUint32(fd, EXT_LENGTH) ?? 0;
-      return { primitiveType: "char", xmlType: "char", length };
+      if (length === 0) return { primitiveType: "char", xmlType: "char", length: 0 };
+      if (fd.scalar === ScalarType.BYTES) {
+        return { primitiveType: "uint8", xmlType: bytesTypeName(length), length };
+      }
+      return { primitiveType: "char", xmlType: strTypeName(length), length };
     }
     switch (fd.scalar) {
       case ScalarType.BOOL:
