@@ -86,7 +86,7 @@ function exceedsExponentBound(e: number, max: number): boolean {
   return e > max || e < -max;
 }
 
-function bitLength(n: bigint): number {
+export function bitLength(n: bigint): number {
   const hex = n.toString(16);
   return (hex.length - 1) * 4 + (32 - Math.clz32(Number.parseInt(hex[0]!, 16)));
 }
@@ -95,7 +95,7 @@ function bitLength(n: bigint): number {
  * Rounds num/den, both positive, half to even to an integer of exactly `prec`
  * bits. Returns it with the shift that scaled it: value ≈ q × 2^-shift.
  */
-function roundToPrec(num: bigint, den: bigint, prec: number): { q: bigint; shift: number } {
+export function roundToPrec(num: bigint, den: bigint, prec: number): { q: bigint; shift: number } {
   const top = 1n << BigInt(prec);
   // num/den lies in (2^(l-1), 2^(l+1)), so at this shift q has prec or prec+1 bits.
   const l = bitLength(num) - bitLength(den);
@@ -120,12 +120,12 @@ function roundToPrec(num: bigint, den: bigint, prec: number): { q: bigint; shift
   return { q, shift };
 }
 
-function bytesOf(n: bigint): Uint8Array {
+export function bytesOf(n: bigint): Uint8Array {
   const hex = n.toString(16);
   return Uint8Array.from(Buffer.from(hex.length % 2 === 0 ? hex : `0${hex}`, "hex"));
 }
 
-function bigIntOf(bytes: Uint8Array): bigint {
+export function bigIntOf(bytes: Uint8Array): bigint {
   if (bytes.length === 0) return 0n;
   return BigInt(`0x${Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength).toString("hex")}`);
 }
