@@ -31,11 +31,18 @@ import { findNullMaskField, getDefault, isRequired, keyField } from "./annotatio
 import {
   type Directive,
 } from "./ast.js";
+import {
+  type BigFloatFields,
+  clipLiteral,
+  parseBigFloatLiteral,
+  parseBigFloatString,
+} from "./bigfloat.js";
 import { parseGoDuration } from "./duration.js";
 import { findMatchingBrace, MAX_NESTING_DEPTH, parse, parseDatasetAt } from "./parser.js";
 import {
   findFieldByProtoName,
   isAny,
+  isBigFloat,
   isDuration,
   isTimestamp,
   isWrapperType,
@@ -608,6 +615,12 @@ class Decoder {
     const sub = create(fd.message);
     const subRefl = reflect(fd.message, sub);
     if (this.tryDecodeWkt(subRefl)) {
+      // A BigFloat literal sets every field the block form would.
+      if (isBigFloat(fd.message) && this.result) {
+        for (const inner of fd.message.fields) {
+          this.result.markPresent(`${this.pathPrefix}${fd.name}.${inner.name}`);
+        }
+      }
       parent.set(fd, subRefl);
       return;
     }
@@ -748,6 +761,17 @@ class Decoder {
       }
       const v = this.consumeScalar(innerFd, innerFd.scalar);
       target.set(innerFd, v);
+      return true;
+    }
+    if (isBigFloat(mdesc) && (this.peek() === TokenKind.INT || this.peek() === TokenKind.FLOAT)) {
+      let fields: BigFloatFields;
+      try {
+        fields = parseBigFloatLiteral(this.current.value, this.current.prec);
+      } catch (e) {
+        throw this.err(this.current.pos, (e as Error).message);
+      }
+      setBigFloatFields(target, fields);
+      this.advance();
       return true;
     }
     return false;
@@ -992,6 +1016,12 @@ class Decoder {
       }
       if (this.current.invalidUtf8) throw this.err(pos, "invalid UTF-8 in string map key");
       const keyStr = this.current.value;
+      if (this.current.prec !== undefined) {
+        throw this.err(
+          pos,
+          `map field ${JSON.stringify(fd.name)}: a key cannot carry a precision suffix (p${clipLiteral(this.current.prec)})`,
+        );
+      }
       this.advance();
 
       switch (this.peek()) {
@@ -1055,8 +1085,18 @@ class Decoder {
     this.depth--;
   }
 
+  /** The suffix lexes on any number, and only a BigFloat reads it. */
+  private rejectPrecision(fd: DescField): void {
+    if (this.current.prec === undefined) return;
+    throw this.err(
+      this.current.pos,
+      `precision suffix p${clipLiteral(this.current.prec)} is allowed only on a pxf.BigFloat, not on field ${JSON.stringify(fd.name)}`,
+    );
+  }
+
   private consumeScalar(fd: DescField, kind: ScalarType): unknown {
     const pos = this.current.pos;
+    this.rejectPrecision(fd);
 
     const tk = this.peek();
     switch (kind) {
@@ -1170,6 +1210,7 @@ class Decoder {
     if (!enumDesc) {
       throw this.err(pos, `internal: missing enum descriptor for field ${JSON.stringify(fd.name)}`);
     }
+    this.rejectPrecision(fd);
     const tk = this.peek();
     if (tk === TokenKind.IDENT) {
       const found = enumDesc.values.find((ev) => ev.name === this.current.value);
@@ -1325,6 +1366,18 @@ function parseRfc3339(s: string): { seconds: bigint; nanos: number } {
   // Floor toward -∞ so `nanos` stays in [0, 1e9), matching proto Timestamp.
   const seconds = BigInt(Math.floor(ms / 1000));
   return { seconds, nanos };
+}
+
+/** A zero's mantissa is empty and its exponent 0, and the proto3 zeros stay unset. */
+function setBigFloatFields(target: ReflectMessage, f: BigFloatFields): void {
+  const set = (name: string, value: Uint8Array | number | boolean): void => {
+    const fd = findFieldByProtoName(target.desc, name);
+    if (fd) target.set(fd, value);
+  };
+  if (f.mantissa.length > 0) set("mantissa", f.mantissa);
+  if (f.exponent !== 0) set("exponent", f.exponent);
+  if (f.prec !== 0) set("prec", f.prec);
+  if (f.negative) set("negative", true);
 }
 
 function setSecondsNanos(target: ReflectMessage, seconds: bigint, nanos: number): void {
@@ -1619,6 +1672,15 @@ function applyMessageDefault(
       throw new PxfError(pos, `internal: wrapper ${mdesc.typeName} missing 'value' field`);
     }
     subRefl.set(innerFd, parseScalarDefault(innerFd.scalar, def, fd, pos));
+    parent.set(fd, subRefl);
+    return;
+  }
+  if (isBigFloat(mdesc)) {
+    try {
+      setBigFloatFields(subRefl, parseBigFloatString(def));
+    } catch (e) {
+      throw new PxfError(pos, `invalid default for field ${JSON.stringify(fd.name)}: ${(e as Error).message}`);
+    }
     parent.set(fd, subRefl);
     return;
   }
