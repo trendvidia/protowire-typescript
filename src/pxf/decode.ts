@@ -604,6 +604,8 @@ class Decoder {
   ): void {
     const desc = parent.desc;
     const setOneofs = new Map<string, string>();
+    const bound = new Set<number>();
+    const mapKeys = new Map<number, Set<unknown>>();
     // inBlock means the caller consumed a `{`, whichever kind of value it opens.
     if (inBlock) this.descend();
 
@@ -648,6 +650,7 @@ class Decoder {
             }
             throw this.err(pos, `unknown field ${JSON.stringify(key)} in ${desc.typeName}`);
           }
+          this.bindOnce(fd, bound, pos);
           this.checkOneof(fd, setOneofs, pos);
           if (this.peek() === TokenKind.NULL) {
             if (!nullable(fd)) throw nullNotAllowed(this.current.pos, fd);
@@ -662,7 +665,7 @@ class Decoder {
           if (fd.fieldKind === "message" && this.result) {
             this.decodeMessageWithPath(parent, fd);
           } else {
-            this.decodeFieldValue(parent, fd);
+            this.decodeFieldValue(parent, fd, mapKeys);
           }
           break;
         }
@@ -706,6 +709,7 @@ class Decoder {
               `field ${JSON.stringify(key)} is not a message type, cannot use block syntax`,
             );
           }
+          this.bindOnce(fd, bound, pos);
           this.checkOneof(fd, setOneofs, pos);
           this.markPresent(fd);
           const sub = create(fd.message);
@@ -797,6 +801,15 @@ class Decoder {
     parent.set(fd, subRefl);
   }
 
+  /** A singular field is bound at most once in one message body. */
+  private bindOnce(fd: DescField, bound: Set<number>, pos: Position): void {
+    if (fd.fieldKind === "list" || fd.fieldKind === "map") return;
+    if (bound.has(fd.number)) {
+      throw this.err(pos, `field ${JSON.stringify(fd.name)} is already set`);
+    }
+    bound.add(fd.number);
+  }
+
   private checkOneof(
     fd: DescField,
     setOneofs: Map<string, string>,
@@ -819,7 +832,11 @@ class Decoder {
     setOneofs.set(oo.name, fd.name);
   }
 
-  private decodeFieldValue(parent: ReflectMessage, fd: DescField): void {
+  private decodeFieldValue(
+    parent: ReflectMessage,
+    fd: DescField,
+    mapKeys: Map<number, Set<unknown>>,
+  ): void {
     if (fd.fieldKind === "list") {
       // Keyed repeated field written `name = { ... }`: a block-tail is an
       // abbreviation of `= { ... }` (draft -01 §3.13).
@@ -833,7 +850,12 @@ class Decoder {
       return;
     }
     if (fd.fieldKind === "map") {
-      this.decodeMapInline(parent, fd);
+      let seen = mapKeys.get(fd.number);
+      if (!seen) {
+        seen = new Set();
+        mapKeys.set(fd.number, seen);
+      }
+      this.decodeMapInline(parent, fd, seen);
       return;
     }
     if (fd.fieldKind === "message") {
@@ -1103,7 +1125,7 @@ class Decoder {
     this.pathPrefix = saved;
   }
 
-  private decodeMapInline(parent: ReflectMessage, fd: DescField): void {
+  private decodeMapInline(parent: ReflectMessage, fd: DescField, seen: Set<unknown>): void {
     if (fd.fieldKind !== "map") {
       throw this.err(this.current.pos, "internal: decodeMapInline called on non-map field");
     }
@@ -1150,6 +1172,11 @@ class Decoder {
       }
 
       const k = decodeMapKey(keyKind, keyStr, pos);
+      // Compared as values of the key type: `1:` and `"1":` are one key.
+      if (seen.has(k)) {
+        throw this.err(pos, `map key ${JSON.stringify(keyStr)} of field ${JSON.stringify(fd.name)} is already set`);
+      }
+      seen.add(k);
 
       if (this.peek() === TokenKind.NULL) {
         throw this.err(
