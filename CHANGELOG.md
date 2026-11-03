@@ -35,6 +35,8 @@ format changes.
 
 ### Changed
 
+- **A singular field or a map key bound twice in one message body is rejected** ([#51](https://github.com/trendvidia/protowire-typescript/issues/51), [#53](https://github.com/trendvidia/protowire-typescript/issues/53), protowire#347, #396). The last value used to win, and two blocks for a message field kept only the last. Map keys compare as values of the key type, so `1:` and `"1":` collide. Repeated fields still concatenate, and two map bindings with distinct keys still merge. This narrows accepted input.
+
 - **`Violation.name` holds the `(pxf.default)` literal for `(pxf.required)` with `(pxf.default)` on one field** (protowire-go#211). It was the bare field name, which `element` already gives.
 
 ## [1.3.0] — 2026-10-31
