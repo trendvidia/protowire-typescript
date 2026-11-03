@@ -177,3 +177,18 @@ function hasKnownShape(desc: DescMessage): boolean {
   }
   return ok;
 }
+
+/** `pxf.BigInt`, by its shape as well as its name. */
+export function isBigInt(desc: DescMessage): boolean {
+  return desc.typeName === "pxf.BigInt" && findFieldByProtoName(desc, "abs")?.fieldKind === "scalar";
+}
+
+/** `pxf.Decimal`, by its shape as well as its name. */
+export function isDecimal(desc: DescMessage): boolean {
+  return desc.typeName === "pxf.Decimal" && findFieldByProtoName(desc, "unscaled")?.fieldKind === "scalar";
+}
+
+/** A type written as a number literal. */
+export function isBigNumber(desc: DescMessage): boolean {
+  return isBigInt(desc) || isDecimal(desc) || isBigFloat(desc);
+}

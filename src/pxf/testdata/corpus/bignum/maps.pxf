@@ -1,0 +1,4 @@
+@type bignum.v1.Holder
+
+by_name = { a: 7 b: -8 }
+dec_by_name = { x: 2.50 }

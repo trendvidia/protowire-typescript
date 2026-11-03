@@ -25,11 +25,14 @@ import {
 
 import { findNullMaskField, keyField } from "./annotations.js";
 import { formatBigFloat } from "./bigfloat.js";
+import { formatBigInt, formatDecimal } from "./bignum.js";
 import { type TypeResolver } from "./decode.js";
 import {
   findFieldByProtoName,
   isAny,
-  isBigFloat,
+  isBigInt,
+  isBigNumber,
+  isDecimal,
   isDuration,
   isTimestamp,
   isWrapperType,
@@ -219,9 +222,9 @@ class Encoder {
       this.buf += "\n";
       return;
     }
-    if (isBigFloat(mdesc)) {
+    if (isBigNumber(mdesc)) {
       this.writeFieldPrefix(level, fd.name);
-      this.buf += formatBigFloatFromReflect(sub);
+      this.buf += formatBigNumberFromReflect(sub);
       this.buf += "\n";
       return;
     }
@@ -275,9 +278,9 @@ class Encoder {
           }
           this.writeIndent(level + 1);
           this.writeScalarValue(innerFd.scalar, sub.get(innerFd) as unknown);
-        } else if (isBigFloat(mdesc)) {
+        } else if (isBigNumber(mdesc)) {
           this.writeIndent(level + 1);
-          this.buf += formatBigFloatFromReflect(sub);
+          this.buf += formatBigNumberFromReflect(sub);
         } else {
           this.writeIndent(level + 1);
           this.buf += "{\n";
@@ -352,9 +355,9 @@ class Encoder {
     entries.sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
 
     for (const [keyStr, val] of entries) {
-      if (fd.mapKind === "message" && isBigFloat(fd.message)) {
+      if (fd.mapKind === "message" && isBigNumber(fd.message)) {
         this.writeIndent(level + 1);
-        this.buf += `${keyStr}: ${formatBigFloatFromReflect(val as ReflectMessage)}\n`;
+        this.buf += `${keyStr}: ${formatBigNumberFromReflect(val as ReflectMessage)}\n`;
       } else if (fd.mapKind === "message") {
         this.writeIndent(level + 1);
         this.buf += `${keyStr}: {\n`;
@@ -589,7 +592,12 @@ function pad4(n: number): string {
   return String(n).padStart(4, "0");
 }
 
-function formatBigFloatFromReflect(m: ReflectMessage): string {
+function formatBigNumberFromReflect(m: ReflectMessage): string {
+  const get = <T>(name: string): T => m.get(findFieldByProtoName(m.desc, name)!) as T;
+  if (isBigInt(m.desc)) return formatBigInt({ abs: get("abs"), negative: get("negative") });
+  if (isDecimal(m.desc)) {
+    return formatDecimal({ unscaled: get("unscaled"), scale: get("scale"), negative: get("negative") });
+  }
   return formatBigFloat({
     mantissa: m.get(findFieldByProtoName(m.desc, "mantissa")!) as Uint8Array,
     exponent: m.get(findFieldByProtoName(m.desc, "exponent")!) as number,

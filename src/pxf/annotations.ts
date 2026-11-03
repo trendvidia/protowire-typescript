@@ -11,6 +11,9 @@
 
 import { type DescField, type DescMessage, ScalarType } from "@bufbuild/protobuf";
 
+import { formatBigFloat } from "./bigfloat.js";
+import { formatBigInt, formatDecimal } from "./bignum.js";
+
 const EXT_REQUIRED = 1314;
 const EXT_DEFAULT = 1315;
 const EXT_KEY = 1316;
@@ -320,9 +323,51 @@ function argLiteral(arg: Uint8Array, fd: DescField): { literal: string } | { pro
         if (f.bytes) return literalValue(f.bytes);
         break;
       case ARG_BIG_INT:
+        if (f.bytes) {
+          const parts = wireFields(f.bytes);
+          return {
+            literal: formatBigInt({
+              abs: parts.find((x) => x.no === 1)?.bytes ?? new Uint8Array(),
+              negative: (parts.find((x) => x.no === 2)?.int ?? 0n) !== 0n,
+            }),
+          };
+        }
+        break;
       case ARG_DECIMAL:
+        if (f.bytes) {
+          const parts = wireFields(f.bytes);
+          const scale = Number(BigInt.asIntN(32, parts.find((x) => x.no === 2)?.int ?? 0n));
+          try {
+            return {
+              literal: formatDecimal({
+                unscaled: parts.find((x) => x.no === 1)?.bytes ?? new Uint8Array(),
+                scale,
+                negative: (parts.find((x) => x.no === 3)?.int ?? 0n) !== 0n,
+              }),
+            };
+          } catch (e) {
+            return { problem: `@default's decimal_value: ${(e as Error).message}` };
+          }
+        }
+        break;
       case ARG_BIG_FLOAT:
-        if (f.bytes) return { problem: "@default on a big number is not supported in this port yet" };
+        if (f.bytes) {
+          const parts = wireFields(f.bytes);
+          const prec = Number(parts.find((x) => x.no === 3)?.int ?? 0n);
+          if (prec === 0) return { problem: "@default's big_float_value declares no precision" };
+          try {
+            return {
+              literal: formatBigFloat({
+                mantissa: parts.find((x) => x.no === 1)?.bytes ?? new Uint8Array(),
+                exponent: Number(BigInt.asIntN(32, parts.find((x) => x.no === 2)?.int ?? 0n)),
+                prec,
+                negative: (parts.find((x) => x.no === 4)?.int ?? 0n) !== 0n,
+              }),
+            };
+          } catch (e) {
+            return { problem: `@default's big_float_value: ${(e as Error).message}` };
+          }
+        }
         break;
     }
   }

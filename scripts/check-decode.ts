@@ -19,7 +19,7 @@ import { dirname, join } from "node:path";
 import { type Registry, create, createFileRegistry, fromBinary } from "@bufbuild/protobuf";
 import { FileDescriptorSetSchema } from "@bufbuild/protobuf/wkt";
 
-import { BigFloatCodec, type MessageCodec, defineMessage, unmarshal as pbUnmarshal } from "../src/pb/index.js";
+import { BigFloatCodec, DecimalCodec, type MessageCodec, defineMessage, unmarshal as pbUnmarshal } from "../src/pb/index.js";
 import { unmarshal as pxfUnmarshal } from "../src/pxf/decode.js";
 import { marshal as pxfMarshal } from "../src/pxf/encode.js";
 import { Codec, unmarshal as sbeUnmarshal } from "../src/sbe/index.js";
@@ -105,10 +105,11 @@ const ListHolderPb = defineMessage<{ values: number[] }>({
   create: () => ({ values: [] }),
 });
 
-// Only big_float is bounded here: this port has no pb codec for BigInt or
-// Decimal yet (#87), and the manifest skips those rows for it.
-const BigNumHolderPb = defineMessage<{ bigFloat?: unknown }>({
-  fields: [{ number: 3, name: "bigFloat", kind: { message: BigFloatCodec } }],
+const BigNumHolderPb = defineMessage<{ decimal?: unknown; bigFloat?: unknown }>({
+  fields: [
+    { number: 2, name: "decimal", kind: { message: DecimalCodec } },
+    { number: 3, name: "bigFloat", kind: { message: BigFloatCodec } },
+  ],
   create: () => ({}),
 });
 
