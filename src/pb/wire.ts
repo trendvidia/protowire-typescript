@@ -179,6 +179,8 @@ export class Reader {
   public pos = 0;
   /** Descents so far, kept here so every nested decoder shares one count. */
   public depth = 0;
+  /** Elements one repeated or map field may hold. */
+  public maxRepeated = Number.MAX_SAFE_INTEGER;
   private dv: DataView;
 
   constructor(public readonly data: Uint8Array, start = 0, end?: number) {

@@ -11,17 +11,31 @@ import { type ReflectList, type ReflectMessage, reflect } from "@bufbuild/protob
 import { Codec, GROUP_HEADER_SIZE, HEADER_SIZE } from "./sbe.js";
 import type { FieldTemplate, GroupTemplate, MessageTemplate } from "./template.js";
 
+/** MaxMessageSize (HARDENING.md § Mandatory limits), also the default
+ * MaxRepeatedCount. */
+export const MAX_MESSAGE_SIZE = 64 << 20;
+
+export interface UnmarshalOptions {
+  /** Bytes of input a call may read. Default {@link MAX_MESSAGE_SIZE}. */
+  readonly maxMessageSize?: number;
+  /** Entries of one repeating group. Default {@link MAX_MESSAGE_SIZE}. */
+  readonly maxRepeatedCount?: number;
+}
+
 export function unmarshal<Desc extends DescMessage>(
   codec: Codec,
   desc: Desc,
   msg: MessageShape<Desc>,
   data: Uint8Array,
+  options?: UnmarshalOptions,
 ): void {
+  const max = options?.maxMessageSize ?? MAX_MESSAGE_SIZE;
+  if (data.length > max) throw new Error(`sbe: input of ${data.length} bytes exceeds MaxMessageSize=${max}`);
   const tmpl = codec.template(desc.typeName);
-  unmarshalMessage(reflect(desc, msg), tmpl, data);
+  unmarshalMessage(reflect(desc, msg), tmpl, data, options?.maxRepeatedCount ?? MAX_MESSAGE_SIZE);
 }
 
-function unmarshalMessage(refl: ReflectMessage, tmpl: MessageTemplate, data: Uint8Array): void {
+function unmarshalMessage(refl: ReflectMessage, tmpl: MessageTemplate, data: Uint8Array, maxRepeated: number): void {
   if (data.length < HEADER_SIZE) {
     throw new Error(`sbe: data too short for header: ${data.length} bytes`);
   }
@@ -44,7 +58,7 @@ function unmarshalMessage(refl: ReflectMessage, tmpl: MessageTemplate, data: Uin
 
   let pos = end;
   for (const gt of tmpl.groups) {
-    pos += unmarshalGroup(view, data, pos, refl, gt);
+    pos += unmarshalGroup(view, data, pos, refl, gt, maxRepeated);
   }
 }
 
@@ -123,12 +137,16 @@ function unmarshalGroup(
   pos: number,
   parent: ReflectMessage,
   gt: GroupTemplate,
+  maxRepeated: number,
 ): number {
   if (data.length < pos + GROUP_HEADER_SIZE) {
     throw new Error(`sbe: data too short for group header`);
   }
   const blockLength = view.getUint16(pos, true);
   const numInGroup = view.getUint16(pos + 2, true);
+  if (numInGroup > maxRepeated) {
+    throw new Error(`sbe: group count ${numInGroup} exceeds MaxRepeatedCount=${maxRepeated}`);
+  }
 
   const total = GROUP_HEADER_SIZE + numInGroup * blockLength;
   if (data.length < pos + total) {
