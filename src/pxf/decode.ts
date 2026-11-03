@@ -990,6 +990,7 @@ class Decoder {
       ) {
         throw this.err(pos, `expected map key, got ${tokenKindName(tk)}`);
       }
+      if (this.current.invalidUtf8) throw this.err(pos, "invalid UTF-8 in string map key");
       const keyStr = this.current.value;
       this.advance();
 
@@ -1062,6 +1063,9 @@ class Decoder {
       case ScalarType.STRING: {
         if (tk !== TokenKind.STRING) {
           throw this.err(pos, `expected string for field ${JSON.stringify(fd.name)}`);
+        }
+        if (this.current.invalidUtf8) {
+          throw this.err(pos, `invalid UTF-8 in string field ${JSON.stringify(fd.name)} (use b"…" for raw bytes)`);
         }
         const v = this.current.value;
         this.advance();
