@@ -1,0 +1,10 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 TrendVidia, LLC.
+// Imported by bind-checks-test.proto: the closure rule (draft -01 "Scope of
+// Bind-Time Checks") reports what is wrong here against this file.
+syntax = "proto3";
+package bindcheck.v1;
+
+message Imported {
+  string null = 1;
+}

@@ -106,6 +106,9 @@ const REJECT: [string, string][] = [
   ["err-empty-key.pxf", 'empty entry name in keyed field "children": the empty string is not a valid key'],
   ["err-empty-key-anonymous.pxf", 'explicit empty-string assignment to key field "id" of keyed field "children": the empty string is not a valid key'],
   ["err-quoted-name-unkeyed.pxf", `quoted entry name "a" is only valid inside a keyed repeated field's block (draft -01 §3.13)`],
+  ["err-key-null.pxf", 'null on key field "name" conflicts with entry name "alpha" in keyed field "tags"'],
+  ["err-key-oneof-sibling.pxf", 'field "other" shares oneof "pick" with key field "name", which entry name "alpha" already set in keyed field "choices"'],
+  ["err-key-oneof-sibling-null.pxf", 'field "other" shares oneof "pick" with key field "name", which entry name "alpha" already set in keyed field "choices"'],
 ];
 const FMT_PAIRS = ["fmt-unquote", "fmt-anonymous-to-keyed"];
 
@@ -179,9 +182,14 @@ describe("keyed fixture corpus", () => {
   });
 
   // Runs last: a fixture added upstream and vendored must get a verdict here.
+  it.each(["key-oneof-ok.pxf", "key-null-anonymous-ok.pxf"])("%s: decodes", (name) => {
+    const data = fixture(name);
+    expect(() => unmarshal(data, descOf(data))).not.toThrow();
+  });
+
   it("every .pxf in the corpus is covered", () => {
     const onDisk = readdirSync(fixtureDir).filter((f) => f.endsWith(".pxf")).sort();
-    expect(onDisk).toHaveLength(15);
+    expect(onDisk).toHaveLength(20);
     expect([...ran].sort()).toEqual(onDisk);
   });
 
@@ -352,13 +360,6 @@ describe("encode", () => {
   it("nests without repeating keys", () => {
     const doc = 'id = "root"\nchildren {\n  outer {\n    children {\n      inner {\n        type = "Leaf"\n      }\n    }\n  }\n}\n';
     expect(marshal(unmarshal(doc, Node), Node)).toBe(doc);
-  });
-
-  it("an element's nulls round-trip through nullFields by indexed path", () => {
-    const doc = 'children {\n  a {\n    type = null\n  }\n}\n';
-    const { message: msg, result } = unmarshalFull(doc, Node);
-    expect(result.nullPaths()).toEqual(["children[0].type"]);
-    expect(marshal(msg, Node, { nullFields: result })).toBe(doc);
   });
 
   it("does not treat a parent path as an element's null", () => {

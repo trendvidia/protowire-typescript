@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 TrendVidia, LLC.
+import { Envelope, EnvelopePb, newAppError } from "../envelope/index.js";
 import { describe, it, expect } from "vitest";
 import {
   defineMessage,
@@ -286,5 +287,13 @@ describe("MAX_NESTING_DEPTH", () => {
     const t = wrap(MAX_NESTING_DEPTH - 1, { tags });
     const got = unmarshal(marshal(t, TreePb), TreePb);
     expect(got.child).toBeDefined();
+  });
+});
+
+describe("a map entry carries key and value, zero-valued or not (protowire#295)", () => {
+  it("matches the golden from protoc and protobuf-go", () => {
+    const error = newAppError("", "").withMeta("", "");
+    const bytes = EnvelopePb.marshal(new Envelope({ error }));
+    expect(Buffer.from(bytes).toString("hex")).toBe("22062a040a001200");
   });
 });

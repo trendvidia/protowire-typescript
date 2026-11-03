@@ -150,7 +150,18 @@ export interface ProtoDirective {
 // Entries — what appears in a message or map body
 // ---------------------------------------------------------------------------
 
-export type Entry = Assignment | MapEntry | Block;
+export type Entry = Assignment | MapEntry | Block | TypeEntry;
+
+/** `@type = "<url>"`, the first entry of a `google.protobuf.Any` block
+ * (draft -01 "Any Blocks"). */
+export interface TypeEntry {
+  readonly kind: "typeEntry";
+  readonly pos: Position;
+  /** The type URL as written, unquoted. */
+  readonly url: string;
+  readonly leadingComments: Comment[];
+  readonly trailingComment: string;
+}
 
 /** `key = value` — a field assignment in a message context. */
 export interface Assignment {
@@ -172,7 +183,10 @@ export interface Assignment {
 export interface MapEntry {
   readonly kind: "mapEntry";
   readonly pos: Position;
+  /** The denoted key: unquoted, even when written as a string literal. */
   readonly key: string;
+  /** The key was a string literal. Unset on an entry built in code. */
+  readonly keyQuoted?: boolean;
   readonly value: Value;
   readonly leadingComments: Comment[];
   readonly trailingComment: string;

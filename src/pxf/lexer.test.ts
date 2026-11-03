@@ -17,6 +17,21 @@ function kinds(input: string): TokenKind[] {
   return tokens(input).map((t) => t.kind);
 }
 
+describe("byte escapes in a string", () => {
+  it("decode as UTF-8 together", () => {
+    expect(tokens('"\\xC3\\xA9"')[0]).toMatchObject({ kind: TokenKind.STRING, value: "é" });
+    expect(tokens('"\\303\\251"')[0]).toMatchObject({ kind: TokenKind.STRING, value: "é" });
+    expect(tokens('"a\\xE2\\x82\\xACb"')[0]?.value).toBe("a€b");
+  });
+
+  it("flag what is not UTF-8, and stay legal syntax", () => {
+    const t = tokens('"\\xFF\\xFE"')[0]!;
+    expect(t.kind).toBe(TokenKind.STRING);
+    expect(t.invalidUtf8).toBe(true);
+    expect(tokens('"\\x41"')[0]?.invalidUtf8).toBeUndefined();
+  });
+});
+
 describe("punctuation and whitespace", () => {
   it("emits braces, brackets, equals, colon, comma", () => {
     expect(kinds("{}[]=:,")).toEqual([
@@ -245,11 +260,8 @@ describe("durations", () => {
     expect(ts.map((t) => t.kind)).toEqual([TokenKind.INT, TokenKind.IDENT]);
   });
 
-  it("`1.5s` lexes as FLOAT then IDENT (float branch wins over duration)", () => {
-    // Go's lexer takes the same path: a `.` after digits commits to lexFloat,
-    // which doesn't know about durations. Realistic PXF uses integer durations.
-    const ts = tokens("1.5s");
-    expect(ts.map((t) => t.kind)).toEqual([TokenKind.FLOAT, TokenKind.IDENT]);
+  it("`1.5s` is one duration token (draft -01 §3.3)", () => {
+    expect(kinds("1.5s")).toEqual([TokenKind.DURATION]);
   });
 
   it("malformed duration is ILLEGAL once a unit letter triggers duration lex", () => {
@@ -382,8 +394,8 @@ describe("escape sequences (full set)", () => {
     expect(lexOne('"\\x41"')).toBe("A");
     expect(lexOne('"\\x00"')).toBe("\x00");
     expect(lexOne('"\\xff"')).toBe("\xff");
-    // Two adjacent \x escapes — JS strings store byte values as code units.
-    expect(lexOne('"\\xc3\\xa9"')).toBe("\xc3\xa9");
+    // Two adjacent \x escapes are one UTF-8 sequence.
+    expect(lexOne('"\\xc3\\xa9"')).toBe("é");
   });
 
   it("octal byte escapes (\\nnn)", () => {

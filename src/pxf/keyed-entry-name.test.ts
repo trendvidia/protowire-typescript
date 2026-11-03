@@ -6,10 +6,6 @@
  * (protowire-go#214). Mirrors the reference's
  * `keyed_entry_name_presence_test.go`.
  *
- * This port's `postDecode` does not walk list elements yet (#58), so a default
- * or a required check on an element's field cannot misfire today. The value
- * checks below pin the answer the reference gives for when it does. The oneof
- * rows also need the sibling check of #31 by then.
  * `keyed-entry-name-test.binpb` comes from `npm run gen:testdata:keyed:buf`.
  */
 
@@ -22,6 +18,7 @@ import { FileDescriptorSetSchema } from "@bufbuild/protobuf/wkt";
 import { describe, expect, it } from "vitest";
 
 import { unmarshal, unmarshalFull } from "./decode.js";
+import { marshal } from "./encode.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const registry = createFileRegistry(
@@ -107,5 +104,14 @@ describe("a keyed entry's name supplies the key field", () => {
   it("leaves unmarshal, which records no presence, decoding the key", () => {
     const m = unmarshal("kd { alpha {} }", P) as unknown as Doc;
     expect(m.kd[0]?.name).toBe("alpha");
+  });
+});
+
+describe("an element's nulls", () => {
+  it("round-trip through nullFields by indexed path", () => {
+    const doc = 'kn {\n  a {\n    note = null\n  }\n}\n';
+    const { message: msg, result } = unmarshalFull(doc, P);
+    expect(result.nullPaths()).toEqual(["kn[0].note"]);
+    expect(marshal(msg, P, { nullFields: result })).toBe(doc);
   });
 });

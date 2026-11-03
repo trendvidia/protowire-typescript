@@ -573,7 +573,8 @@ describe("pxf.unmarshalFull — pxf.required annotation", () => {
   });
 
   it("treats null as present (does not trigger required error)", () => {
-    const { result } = unmarshalFull(`name = null`, WithRequired);
+    const Nullable = d4Registry.getMessage("d4_test.v1.NullableRequired")!;
+    const { result } = unmarshalFull(`name = null`, Nullable);
     expect(result.isNull("name")).toBe(true);
     expect(result.isAbsent("name")).toBe(false);
   });
@@ -602,9 +603,10 @@ describe("pxf.unmarshalFull — pxf.default annotation", () => {
   });
 
   it("does NOT apply default when field is null", () => {
-    const { message, result } = unmarshalFull(`name = null`, WithDefault);
+    const Nullable = d4Registry.getMessage("d4_test.v1.NullableDefault")!;
+    const { message, result } = unmarshalFull(`name = null`, Nullable);
     expect(result.isNull("name")).toBe(true);
-    expect(get(message, WithDefault, "name")).toBe("");
+    expect(get(message, Nullable, "name")).toBe("");
   });
 
   it("does not apply default when field is set explicitly", () => {
@@ -621,8 +623,8 @@ describe("pxf.unmarshalFull — pxf.default annotation", () => {
 });
 
 describe("pxf.unmarshalFull — _null FieldMask", () => {
-  const WithNullMask = d4Registry.getMessage("d4_test.v1.WithNullMask");
-  if (!WithNullMask) throw new Error("missing WithNullMask descriptor");
+  const WithNullMask = d4Registry.getMessage("d4_test.v1.NullableMask");
+  if (!WithNullMask) throw new Error("missing NullableMask descriptor");
 
   it("appends paths of null-set fields to _null.paths", () => {
     const { message, result } = unmarshalFull(

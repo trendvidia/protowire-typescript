@@ -14,7 +14,9 @@
  *    Use a `bytes` field for arbitrary binary data.
  */
 
+import { identSafeEntryName } from "./keyed.js";
 import type {
+  MapEntry,
   Comment,
   Document,
   Entry,
@@ -39,6 +41,13 @@ export function format(doc: Document, options: FormatOptions = {}): string {
   f.writeComments(doc.leadingComments, 0);
   f.formatEntries(doc.entries, 0);
 
+  return f.finish();
+}
+
+/** One value as PXF text. Mirrors the reference's `FormatValue`. */
+export function formatValue(v: Value): string {
+  const f = new Formatter("  ");
+  f.formatValue(v, 0);
   return f.finish();
 }
 
@@ -85,9 +94,20 @@ class Formatter {
         case "mapEntry": {
           this.writeComments(e.leadingComments, level);
           this.writeIndent(level);
-          this.write(needsQuoting(e.key) ? quoteString(e.key) : e.key);
+          this.write(mapKeyNeedsQuotes(e) ? quoteString(e.key) : e.key);
           this.write(": ");
           this.formatValue(e.value, level);
+          if (e.trailingComment !== "") {
+            this.write(" ");
+            this.write(e.trailingComment);
+          }
+          this.write("\n");
+          break;
+        }
+        case "typeEntry": {
+          this.writeComments(e.leadingComments, level);
+          this.writeIndent(level);
+          this.write(`@type = ${quoteString(e.url)}`);
           if (e.trailingComment !== "") {
             this.write(" ");
             this.write(e.trailingComment);
@@ -197,31 +217,18 @@ function quoteString(s: string): string {
   return out;
 }
 
+const BARE_MAP_KEY_RE = /^(?:[A-Za-z_][A-Za-z0-9_.]*|-?[0-9]+)$/;
+
 /**
- * A map key needs quoting when it isn't a valid identifier — first char
- * must be `[A-Za-z_]`, subsequent chars must be `[A-Za-z0-9_]`. Numeric
- * keys (e.g. `404`) are emitted unquoted by their string form too, but
- * the parser accepts them as INT tokens, so this fast-path is fine.
+ * A key written quoted stays quoted unless it is identifier-safe. A key written
+ * bare stays bare, since quoting `true` or `404` would change what it denotes
+ * (draft -01 § Entries and Keys, protowire#306). An entry built in code has no
+ * spelling: it goes bare when it reads back as one bare key.
  */
-function needsQuoting(s: string): boolean {
-  if (s === "") return true;
-  for (let i = 0; i < s.length; i++) {
-    const ch = s[i]!;
-    if (i === 0) {
-      if (!isIdentStart(ch)) return true;
-    } else {
-      if (!isIdentStart(ch) && !isDigit(ch)) return true;
-    }
-  }
-  return false;
-}
-
-function isIdentStart(ch: string): boolean {
-  return (ch >= "a" && ch <= "z") || (ch >= "A" && ch <= "Z") || ch === "_";
-}
-
-function isDigit(ch: string): boolean {
-  return ch >= "0" && ch <= "9";
+function mapKeyNeedsQuotes(e: MapEntry): boolean {
+  if (e.keyQuoted === true) return !identSafeEntryName(e.key);
+  if (e.keyQuoted === false) return false;
+  return !BARE_MAP_KEY_RE.test(e.key) || e.key === "null";
 }
 
 function encodeBase64(bytes: Uint8Array): string {

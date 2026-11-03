@@ -19,6 +19,7 @@ import {
   create,
   toBinary,
 } from "@bufbuild/protobuf";
+import { FeatureSet_FieldPresence } from "@bufbuild/protobuf/wkt";
 import {
   type ReflectList,
   type ReflectMap,
@@ -29,12 +30,9 @@ import {
 import { findNullMaskField, getDefault, isRequired, keyField } from "./annotations.js";
 import {
   type Directive,
-  type DatasetDirective,
-  type DatasetRow,
-  type Value,
 } from "./ast.js";
 import { parseGoDuration } from "./duration.js";
-import { findMatchingBrace, MAX_NESTING_DEPTH } from "./parser.js";
+import { findMatchingBrace, MAX_NESTING_DEPTH, parse, parseDatasetAt } from "./parser.js";
 import {
   findFieldByProtoName,
   isAny,
@@ -45,6 +43,7 @@ import {
 import { PxfError } from "./errors.js";
 import {
   type KeyedElemState,
+  checkEntryNameKept,
   checkExplicitKey,
   keyedDuplicateKeyError,
   keyedEmptyNameError,
@@ -244,61 +243,6 @@ class Decoder {
   }
 
   /**
-   * parseScalarCellValue consumes one scalar token at `this.current`
-   * and builds the corresponding Value. Mirrors the scalar branches of
-   * the AST parser's parseValue. Used by @dataset row parsing in
-   * consumeDirectives — list / block / unparseable cell tokens are
-   * already rejected by the caller.
-   */
-  private parseScalarCellValue(): Value {
-    const pos = this.current.pos;
-    const tok = this.current;
-    switch (tok.kind) {
-      case TokenKind.STRING: {
-        this.advance();
-        return { kind: "string", pos, value: tok.value };
-      }
-      case TokenKind.INT: {
-        this.advance();
-        return { kind: "int", pos, raw: tok.value };
-      }
-      case TokenKind.FLOAT: {
-        this.advance();
-        return { kind: "float", pos, raw: tok.value };
-      }
-      case TokenKind.BOOL: {
-        this.advance();
-        return { kind: "bool", pos, value: tok.value === "true" };
-      }
-      case TokenKind.BYTES: {
-        this.advance();
-        return { kind: "bytes", pos, value: decodeBase64(tok.value) };
-      }
-      case TokenKind.TIMESTAMP: {
-        this.advance();
-        return { kind: "timestamp", pos, raw: tok.value };
-      }
-      case TokenKind.DURATION: {
-        this.advance();
-        return { kind: "duration", pos, raw: tok.value };
-      }
-      case TokenKind.NULL: {
-        this.advance();
-        return { kind: "null", pos };
-      }
-      case TokenKind.IDENT: {
-        this.advance();
-        return { kind: "ident", pos, name: tok.value };
-      }
-      default:
-        throw this.err(
-          pos,
-          `unsupported @dataset cell value: ${tokenKindName(tok.kind)}`,
-        );
-    }
-  }
-
-  /**
    * consumeDirectives drains any leading `@type` / `@<name>` / `@dataset`
    * directives, leaving `this.current` at the first body token. When
    * `result` is non-null (unmarshalFull path), populates
@@ -396,121 +340,14 @@ class Decoder {
               "@dataset directive cannot coexist with @type (draft §3.4.4)",
             );
           }
-          const tablePos = this.current.pos;
           if (!hasTable) {
-            firstTablePos = tablePos;
+            firstTablePos = this.current.pos;
             hasTable = true;
           }
-          this.advance(); // consume @dataset
-          // Optional row message type; MAY be omitted when an anonymous
-          // @proto precedes the @dataset (draft §3.4.4 Anonymous binding).
-          let tableType = "";
-          if (this.peek() === TokenKind.IDENT) {
-            tableType = this.current.value;
-            this.advance();
-          }
-          if ((this.peek() as TokenKind) !== TokenKind.LPAREN) {
-            throw this.err(
-              this.current.pos,
-              "expected '(' to start @dataset column list",
-            );
-          }
+          const { table, endOffset } = parseDatasetAt(this.lex.inputView(), this.current.pos.offset);
+          this.lex.repositionTo(endOffset);
           this.advance();
-          if (this.peek() !== TokenKind.IDENT) {
-            throw this.err(
-              this.current.pos,
-              "@dataset column list must contain at least one field name",
-            );
-          }
-          const columns: string[] = [];
-          for (;;) {
-            if (this.peek() !== TokenKind.IDENT) {
-              throw this.err(this.current.pos, "expected column field name");
-            }
-            if (this.current.value.includes(".")) {
-              throw this.err(
-                this.current.pos,
-                "@dataset column has dotted path; not supported in v1 (draft §3.4.4)",
-              );
-            }
-            columns.push(this.current.value);
-            this.advance();
-            if ((this.peek() as TokenKind) === TokenKind.COMMA) {
-              this.advance();
-              continue;
-            }
-            if ((this.peek() as TokenKind) === TokenKind.RPAREN) break;
-            throw this.err(
-              this.current.pos,
-              "expected ',' or ')' in @dataset column list",
-            );
-          }
-          this.advance(); // consume )
-          const nCols = columns.length;
-          const rows: DatasetRow[] = [];
-          // Zero or more rows; each cell is a single scalar token (or empty).
-          while ((this.peek() as TokenKind) === TokenKind.LPAREN) {
-            const rowPos = this.current.pos;
-            this.advance(); // (
-            const cells: (Value | null)[] = [];
-            // First cell.
-            if (
-              (this.peek() as TokenKind) === TokenKind.COMMA ||
-              (this.peek() as TokenKind) === TokenKind.RPAREN
-            ) {
-              cells.push(null);
-            } else if (
-              (this.peek() as TokenKind) === TokenKind.LBRACKET ||
-              (this.peek() as TokenKind) === TokenKind.LBRACE
-            ) {
-              throw this.err(
-                this.current.pos,
-                "@dataset cells cannot contain list/block values in v1 (draft §3.4.4)",
-              );
-            } else {
-              cells.push(this.parseScalarCellValue());
-            }
-            while ((this.peek() as TokenKind) === TokenKind.COMMA) {
-              this.advance();
-              if (
-                (this.peek() as TokenKind) === TokenKind.COMMA ||
-                (this.peek() as TokenKind) === TokenKind.RPAREN
-              ) {
-                cells.push(null);
-              } else if (
-                (this.peek() as TokenKind) === TokenKind.LBRACKET ||
-                (this.peek() as TokenKind) === TokenKind.LBRACE
-              ) {
-                throw this.err(
-                  this.current.pos,
-                  "@dataset cells cannot contain list/block values in v1 (draft §3.4.4)",
-                );
-              } else {
-                cells.push(this.parseScalarCellValue());
-              }
-            }
-            if ((this.peek() as TokenKind) !== TokenKind.RPAREN) {
-              throw this.err(this.current.pos, "expected ',' or ')' in @dataset row");
-            }
-            if (cells.length !== nCols) {
-              throw this.err(
-                rowPos,
-                `@dataset row has ${cells.length} cells, expected ${nCols} (column count)`,
-              );
-            }
-            this.advance(); // consume )
-            rows.push({ pos: rowPos, cells });
-          }
-          if (this.result !== null) {
-            const table: DatasetDirective = {
-              pos: tablePos,
-              type: tableType,
-              columns,
-              rows,
-              leadingComments: [],
-            };
-            this.result.addDataset(table);
-          }
+          if (this.result !== null) this.result.addDataset(table);
           break;
         }
         case TokenKind.AT_PROTO: {
@@ -603,6 +440,8 @@ class Decoder {
   ): void {
     const desc = parent.desc;
     const setOneofs = new Map<string, string>();
+    const bound = new Set<number>();
+    const mapKeys = new Map<number, Set<unknown>>();
     // inBlock means the caller consumed a `{`, whichever kind of value it opens.
     if (inBlock) this.descend();
 
@@ -647,8 +486,11 @@ class Decoder {
             }
             throw this.err(pos, `unknown field ${JSON.stringify(key)} in ${desc.typeName}`);
           }
+          this.bindOnce(fd, bound, pos);
           this.checkOneof(fd, setOneofs, pos);
+          if (ke) checkEntryNameKept(ke, fd, this.peek() === TokenKind.NULL, pos);
           if (this.peek() === TokenKind.NULL) {
+            if (!nullable(fd)) throw nullNotAllowed(this.current.pos, fd);
             this.markNull(fd);
             this.advance();
             continue;
@@ -660,17 +502,19 @@ class Decoder {
           if (fd.fieldKind === "message" && this.result) {
             this.decodeMessageWithPath(parent, fd);
           } else {
-            this.decodeFieldValue(parent, fd);
+            this.decodeFieldValue(parent, fd, mapKeys);
           }
           break;
         }
         case TokenKind.LBRACE: {
           if (keyKind === TokenKind.STRING) throw quotedNameUnkeyedError(pos, key);
+          const skipStart = this.current.pos.offset;
           this.advance();
           const fd = findFieldByProtoName(desc, key);
           if (!fd) {
             if (this.discardUnknown) {
               this.skipBraced();
+              this.checkSkipped(pos, skipStart);
               continue;
             }
             throw this.err(pos, `unknown field ${JSON.stringify(key)} in ${desc.typeName}`);
@@ -704,22 +548,16 @@ class Decoder {
               `field ${JSON.stringify(key)} is not a message type, cannot use block syntax`,
             );
           }
+          this.bindOnce(fd, bound, pos);
           this.checkOneof(fd, setOneofs, pos);
+          if (ke) checkEntryNameKept(ke, fd, false, pos);
           this.markPresent(fd);
           const sub = create(fd.message);
           const subRefl = reflect(fd.message, sub);
-          if (
-            isAny(fd.message) &&
-            this.typeResolver &&
-            this.peek() === TokenKind.AT_TYPE
-          ) {
-            this.decodeAnyInner(subRefl);
-          } else {
-            const saved = this.pathPrefix;
-            if (this.result) this.pathPrefix = saved + fd.name + ".";
-            this.decodeFields(subRefl, true);
-            this.pathPrefix = saved;
-          }
+          const saved = this.pathPrefix;
+          if (this.result) this.pathPrefix = saved + fd.name + ".";
+          this.decodeBody(subRefl);
+          this.pathPrefix = saved;
           parent.set(fd, subRefl);
           break;
         }
@@ -780,19 +618,29 @@ class Decoder {
       );
     }
     this.advance();
-    if (
-      isAny(fd.message) &&
-      this.typeResolver &&
-      this.peek() === TokenKind.AT_TYPE
-    ) {
-      this.decodeAnyInner(subRefl);
-    } else {
-      const saved = this.pathPrefix;
-      this.pathPrefix = saved + fd.name + ".";
-      this.decodeFields(subRefl, true);
-      this.pathPrefix = saved;
-    }
+    const saved = this.pathPrefix;
+    this.pathPrefix = saved + fd.name + ".";
+    this.decodeBody(subRefl);
+    this.pathPrefix = saved;
     parent.set(fd, subRefl);
+  }
+
+  /** A message body, the opening `{` consumed: an Any with a type entry, or fields. */
+  private decodeBody(target: ReflectMessage): void {
+    if (isAny(target.desc) && this.typeResolver && this.peek() === TokenKind.AT_TYPE) {
+      this.decodeAnyInner(target);
+    } else {
+      this.decodeFields(target, true);
+    }
+  }
+
+  /** A singular field is bound at most once in one message body. */
+  private bindOnce(fd: DescField, bound: Set<number>, pos: Position): void {
+    if (fd.fieldKind === "list" || fd.fieldKind === "map") return;
+    if (bound.has(fd.number)) {
+      throw this.err(pos, `field ${JSON.stringify(fd.name)} is already set`);
+    }
+    bound.add(fd.number);
   }
 
   private checkOneof(
@@ -817,7 +665,11 @@ class Decoder {
     setOneofs.set(oo.name, fd.name);
   }
 
-  private decodeFieldValue(parent: ReflectMessage, fd: DescField): void {
+  private decodeFieldValue(
+    parent: ReflectMessage,
+    fd: DescField,
+    mapKeys: Map<number, Set<unknown>>,
+  ): void {
     if (fd.fieldKind === "list") {
       // Keyed repeated field written `name = { ... }`: a block-tail is an
       // abbreviation of `= { ... }` (draft -01 §3.13).
@@ -831,7 +683,12 @@ class Decoder {
       return;
     }
     if (fd.fieldKind === "map") {
-      this.decodeMapInline(parent, fd);
+      let seen = mapKeys.get(fd.number);
+      if (!seen) {
+        seen = new Set();
+        mapKeys.set(fd.number, seen);
+      }
+      this.decodeMapInline(parent, fd, seen);
       return;
     }
     if (fd.fieldKind === "message") {
@@ -848,15 +705,7 @@ class Decoder {
         );
       }
       this.advance();
-      if (
-        isAny(fd.message) &&
-        this.typeResolver &&
-        this.peek() === TokenKind.AT_TYPE
-      ) {
-        this.decodeAnyInner(subRefl);
-      } else {
-        this.decodeFields(subRefl, true);
-      }
+      this.decodeBody(subRefl);
       parent.set(fd, subRefl);
       return;
     }
@@ -938,6 +787,9 @@ class Decoder {
     const inner = create(innerDesc);
     const innerRefl = reflect(innerDesc, inner);
     this.decodeFields(innerRefl, true);
+    // The body is packed below, out of reach of the pass over the root, so it
+    // takes the pass here, under the Any's own path.
+    if (this.result) postDecode(innerRefl, this.result, undefined, this.pathPrefix);
 
     const packed = toBinary(innerDesc, inner);
 
@@ -985,10 +837,10 @@ class Decoder {
           }
           this.advance();
           if (keyFd) {
-            const ke = { field: fd.name, keyName: keyFd.name };
+            const ke = { field: fd.name, keyName: keyFd.name, keyField: keyFd };
             this.decodeKeyedElement(elemRefl, fd, list.size, ke);
           } else {
-            this.decodeFields(elemRefl, true);
+            this.decodeElement(elemRefl, `${fd.name}[${list.size}]`);
           }
         }
         list.add(elemRefl);
@@ -1073,7 +925,7 @@ class Decoder {
 
       const elem = reflect(fd.message, create(fd.message));
       elem.set(keyFd, name);
-      const ke = { field: fd.name, keyName: keyFd.name, entryName: name };
+      const ke = { field: fd.name, keyName: keyFd.name, keyField: keyFd, entryName: name };
       this.decodeKeyedElement(elem, fd, list.size, ke);
       list.add(elem);
     }
@@ -1101,7 +953,17 @@ class Decoder {
     this.pathPrefix = saved;
   }
 
-  private decodeMapInline(parent: ReflectMessage, fd: DescField): void {
+  /** A list element's or map value's body, its Result paths under `segment`. */
+  private decodeElement(elem: ReflectMessage, segment: string): void {
+    const saved = this.pathPrefix;
+    if (this.result) this.pathPrefix = `${saved}${segment}.`;
+    this.elemDepth++;
+    this.decodeBody(elem);
+    this.elemDepth--;
+    this.pathPrefix = saved;
+  }
+
+  private decodeMapInline(parent: ReflectMessage, fd: DescField, seen: Set<unknown>): void {
     if (fd.fieldKind !== "map") {
       throw this.err(this.current.pos, "internal: decodeMapInline called on non-map field");
     }
@@ -1128,6 +990,7 @@ class Decoder {
       ) {
         throw this.err(pos, `expected map key, got ${tokenKindName(tk)}`);
       }
+      if (this.current.invalidUtf8) throw this.err(pos, "invalid UTF-8 in string map key");
       const keyStr = this.current.value;
       this.advance();
 
@@ -1147,7 +1010,12 @@ class Decoder {
           );
       }
 
-      const k = decodeMapKey(keyKind, keyStr, pos);
+      const k = decodeMapKey(fd.name, keyKind, keyStr, tk, pos);
+      // Compared as values of the key type: `1:` and `"1":` are one key.
+      if (seen.has(k)) {
+        throw this.err(pos, `map key ${JSON.stringify(keyStr)} of field ${JSON.stringify(fd.name)} is already set`);
+      }
+      seen.add(k);
 
       if (this.peek() === TokenKind.NULL) {
         throw this.err(
@@ -1165,7 +1033,7 @@ class Decoder {
             throw this.err(this.current.pos, "expected '{' for map message value");
           }
           this.advance();
-          this.decodeFields(elemRefl, true);
+          this.decodeElement(elemRefl, `${fd.name}[${mapKeyForPath(k)}]`);
         }
         v = elemRefl;
       } else if (fd.mapKind === "enum") {
@@ -1195,6 +1063,9 @@ class Decoder {
       case ScalarType.STRING: {
         if (tk !== TokenKind.STRING) {
           throw this.err(pos, `expected string for field ${JSON.stringify(fd.name)}`);
+        }
+        if (this.current.invalidUtf8) {
+          throw this.err(pos, `invalid UTF-8 in string field ${JSON.stringify(fd.name)} (use b"…" for raw bytes)`);
         }
         const v = this.current.value;
         this.advance();
@@ -1322,19 +1193,32 @@ class Decoder {
     throw this.err(pos, `expected enum name or number for field ${JSON.stringify(fd.name)}`);
   }
 
+  /**
+   * What `discardUnknown` skips must still be a value: the bracket count finds
+   * its end, and the parser decides, so a skip accepts only what `parse` does.
+   */
+  private checkSkipped(pos: Position, start: number): void {
+    const text = this.lex.inputView().slice(start, this.current.pos.offset);
+    try {
+      parse(`_ = ${text}`);
+    } catch (e) {
+      throw this.err(pos, `invalid value of unknown field: ${(e as Error).message}`);
+    }
+  }
+
   private skipValue(): void {
+    const pos = this.current.pos;
     const tk = this.peek();
     if (tk === TokenKind.LBRACE) {
       this.advance();
       this.skipBraced();
-      return;
-    }
-    if (tk === TokenKind.LBRACKET) {
+    } else if (tk === TokenKind.LBRACKET) {
       this.advance();
       this.skipBracketed();
-      return;
+    } else if (tk !== TokenKind.EOF) {
+      this.advance();
     }
-    this.advance();
+    this.checkSkipped(pos, pos.offset);
   }
 
   private skipBraced(): void {
@@ -1453,9 +1337,21 @@ function setSecondsNanos(target: ReflectMessage, seconds: bigint, nanos: number)
   target.set(nf, nanos);
 }
 
-function decodeMapKey(kind: ScalarType, key: string, pos: Position): unknown {
+function decodeMapKey(
+  field: string,
+  kind: ScalarType,
+  key: string,
+  token: TokenKind,
+  pos: Position,
+): unknown {
   switch (kind) {
     case ScalarType.STRING:
+      if (token === TokenKind.BOOL) {
+        throw new PxfError(
+          pos,
+          `invalid string map key ${key} for field ${JSON.stringify(field)}: the keyword ${key} is a bool key; write ${JSON.stringify(key)} for the string`,
+        );
+      }
       return key;
     case ScalarType.INT32:
     case ScalarType.SINT32:
@@ -1484,12 +1380,44 @@ function decodeMapKey(kind: ScalarType, key: string, pos: Position): unknown {
       return v;
     }
     case ScalarType.BOOL:
-      if (key === "true") return true;
-      if (key === "false") return false;
-      throw new PxfError(pos, `invalid bool map key: ${key}`);
+      // The keyword, the integer 0 / 1, or the quoted literal. An identifier
+      // and a quoted "1" are neither (draft -01, protowire#284).
+      if (token === TokenKind.BOOL || token === TokenKind.STRING) {
+        if (key === "true") return true;
+        if (key === "false") return false;
+      } else if (token === TokenKind.INT) {
+        if (key === "1") return true;
+        if (key === "0") return false;
+      }
+      throw new PxfError(
+        pos,
+        `invalid bool map key ${key} for field ${JSON.stringify(field)}: a bool key is true, false, 0, 1, "true" or "false"`,
+      );
     default:
       throw new PxfError(pos, `unsupported map key kind: ${kind}`);
   }
+}
+
+/** A null needs an unset state to bind to: explicit presence, and not required. */
+function nullable(fd: DescField): boolean {
+  return (
+    fd.fieldKind !== "list" &&
+    fd.fieldKind !== "map" &&
+    fd.presence === FeatureSet_FieldPresence.EXPLICIT
+  );
+}
+
+function nullNotAllowed(pos: Position, fd: DescField): PxfError {
+  const name = JSON.stringify(fd.name);
+  if (fd.fieldKind === "map") return new PxfError(pos, `null is not allowed on map field ${name}`);
+  if (fd.fieldKind === "list") return new PxfError(pos, `null is not allowed on repeated field ${name}`);
+  if (fd.presence === FeatureSet_FieldPresence.LEGACY_REQUIRED) {
+    return new PxfError(pos, `null is not allowed on required field ${name}: it must be set`);
+  }
+  return new PxfError(
+    pos,
+    `null is not allowed on scalar field ${name}: declare it optional, or as a wrapper type, to make it nullable`,
+  );
 }
 
 /**
@@ -1508,6 +1436,10 @@ function postDecode(
     if (nullMaskFd && fd.number === nullMaskFd.number) continue;
     const path = pathPrefix + fd.name;
     if (result.isAbsent(path)) {
+      // Setting one member of a oneof clears the others, so a member is absent
+      // precisely when a sibling was chosen. Presence comes from the document:
+      // a default applied in this pass does not count (draft -01 "Oneof Members").
+      if (siblingPresent(fd, result, pathPrefix)) continue;
       if (isRequired(fd)) {
         throw new PxfError({ line: 1, column: 1, offset: 0 }, `required field ${JSON.stringify(path)} is absent`);
       }
@@ -1519,18 +1451,44 @@ function postDecode(
     }
     // Field is present. Skip nulls (don't recurse into a null subtree).
     if (result.isNull(path)) continue;
-    if (
-      fd.fieldKind === "message" &&
-      parent.isSet(fd) &&
-      !isTimestamp(fd.message) &&
-      !isDuration(fd.message) &&
-      !isWrapperType(fd.message) &&
-      !isAny(fd.message)
-    ) {
-      const sub = parent.get(fd) as ReflectMessage;
-      postDecode(sub, result, undefined, path + ".");
-    }
+    postDecodeBodies(parent, fd, result, path);
   }
+}
+
+/** Run the pass on the message bodies `fd` holds, under the paths they were decoded at. */
+function postDecodeBodies(parent: ReflectMessage, fd: DescField, result: Result, path: string): void {
+  if (fd.fieldKind === "message") {
+    if (parent.isSet(fd) && hasFieldBody(fd.message)) {
+      postDecode(parent.get(fd) as ReflectMessage, result, undefined, path + ".");
+    }
+  } else if (fd.fieldKind === "list" && fd.listKind === "message" && hasFieldBody(fd.message)) {
+    let i = 0;
+    for (const elem of parent.get(fd) as ReflectList) {
+      postDecode(elem as ReflectMessage, result, undefined, `${path}[${i}].`);
+      i++;
+    }
+  } else if (fd.fieldKind === "map" && fd.mapKind === "message" && hasFieldBody(fd.message)) {
+    // Key order, so the first error is the same on every run.
+    const entries = [...(parent.get(fd) as ReflectMap<unknown, ReflectMessage>)]
+      .map(([k, v]): [string, ReflectMessage] => [`${path}[${mapKeyForPath(k)}].`, v])
+      .sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
+    for (const [prefix, value] of entries) postDecode(value, result, undefined, prefix);
+  }
+}
+
+/** Literal-form types hold no annotated fields, and an Any took the pass when decoded. */
+function hasFieldBody(desc: DescMessage): boolean {
+  return !isTimestamp(desc) && !isDuration(desc) && !isWrapperType(desc) && !isAny(desc);
+}
+
+function mapKeyForPath(key: unknown): string {
+  return typeof key === "string" ? JSON.stringify(key) : String(key);
+}
+
+function siblingPresent(fd: DescField, result: Result, pathPrefix: string): boolean {
+  if (fd.fieldKind !== "scalar" && fd.fieldKind !== "enum" && fd.fieldKind !== "message") return false;
+  const oo = fd.oneof;
+  return oo !== undefined && oo.fields.some((f) => f !== fd && !result.isAbsent(pathPrefix + f.name));
 }
 
 function applyDefault(parent: ReflectMessage, fd: DescField, def: string): void {

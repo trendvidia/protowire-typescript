@@ -71,6 +71,8 @@ export interface KeyedElemState {
   readonly field: string;
   /** The element message's key field name. */
   readonly keyName: string;
+  /** The element message's key field. */
+  readonly keyField: DescField;
   /** The entry name; undefined for an anonymous list element. */
   readonly entryName?: string;
 }
@@ -86,6 +88,28 @@ export function checkExplicitKey(ke: KeyedElemState, value: string, pos: Positio
     throw new PxfError(
       pos,
       `key field ${JSON.stringify(ke.keyName)} = ${JSON.stringify(value)} conflicts with entry name ${JSON.stringify(ke.entryName)} in keyed field ${JSON.stringify(ke.field)}`,
+    );
+  }
+}
+
+/**
+ * An entry name binds the key field, so a body inside a named entry may not
+ * undo it: not with `null` on the key, and not by binding another member of
+ * the key's oneof (protowire#480). The anonymous form has no name to undo.
+ */
+export function checkEntryNameKept(ke: KeyedElemState, fd: DescField, isNull: boolean, pos: Position): void {
+  if (ke.entryName === undefined) return;
+  const sibling =
+    fd !== ke.keyField &&
+    ke.keyField.oneof !== undefined &&
+    (fd.fieldKind === "scalar" || fd.fieldKind === "enum" || fd.fieldKind === "message") &&
+    fd.oneof === ke.keyField.oneof;
+  if (sibling || (fd === ke.keyField && isNull)) {
+    throw new PxfError(
+      pos,
+      sibling
+        ? `field ${JSON.stringify(fd.name)} shares oneof ${JSON.stringify(ke.keyField.oneof!.name)} with key field ${JSON.stringify(ke.keyName)}, which entry name ${JSON.stringify(ke.entryName)} already set in keyed field ${JSON.stringify(ke.field)}`
+        : `null on key field ${JSON.stringify(fd.name)} conflicts with entry name ${JSON.stringify(ke.entryName)} in keyed field ${JSON.stringify(ke.field)}`,
     );
   }
 }
@@ -114,7 +138,7 @@ export function canonicalizeKeyed(doc: Document, desc: DescMessage): Document {
 
 function canonEntries(entries: readonly Entry[], desc: DescMessage): Entry[] {
   return entries.map((e) => {
-    if (e.kind === "mapEntry") return e;
+    if (e.kind === "mapEntry" || e.kind === "typeEntry") return e;
     if (e.kind === "assignment") {
       if (e.keyQuoted) return e; // invalid outside keyed blocks; leave untouched
       const fd = findFieldByProtoName(desc, e.key);

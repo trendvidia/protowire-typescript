@@ -1,0 +1,2503 @@
+{
+ "fixtures": {
+  "any/assignment.pxf": {
+   "parse": true,
+   "format": "@type any.v1.Holder\n\n# Accept: the = { } spelling of the same value.\npayload = {\n  @type = \"any.v1.Leaf\"\n  tag = \"t\"\n}\n",
+   "decode": {
+    "accept": true,
+    "hex": [
+     "0a120a0b616e792e76312e4c65616612030a0174"
+    ]
+   },
+   "full": {
+    "accept": true,
+    "hex": [
+     "0a120a0b616e792e76312e4c65616612030a0174"
+    ]
+   },
+   "discard": true,
+   "marshal": "payload {\n  @type = \"any.v1.Leaf\"\n  tag = \"t\"\n}\n"
+  },
+  "any/block.pxf": {
+   "parse": true,
+   "format": "@type any.v1.Holder\n\n# Accept: a type entry opens the block; the rest is a body of any.v1.Leaf.\npayload {\n  @type = \"any.v1.Leaf\"\n  tag = \"t\"\n  n = 7\n}\n",
+   "decode": {
+    "accept": true,
+    "hex": [
+     "0a140a0b616e792e76312e4c65616612050a01741007"
+    ]
+   },
+   "full": {
+    "accept": true,
+    "hex": [
+     "0a140a0b616e792e76312e4c65616612050a01741007"
+    ]
+   },
+   "discard": true,
+   "marshal": "payload {\n  @type = \"any.v1.Leaf\"\n  tag = \"t\"\n  n = 7\n}\n"
+  },
+  "any/err-not-any.pxf": {
+   "parse": true,
+   "format": "@type any.v1.Holder\n\n# Reject: leaf is an any.v1.Leaf, not a google.protobuf.Any.\nleaf {\n  @type = \"any.v1.Leaf\"\n  tag = \"t\"\n}\n",
+   "decode": {
+    "accept": false
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": false
+  },
+  "any/err-not-first.pxf": {
+   "parse": false,
+   "decode": {
+    "accept": false
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": false
+  },
+  "any/err-twice.pxf": {
+   "parse": false,
+   "decode": {
+    "accept": false
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": false
+  },
+  "any/err-unquoted-url.pxf": {
+   "parse": false,
+   "decode": {
+    "accept": false
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": false
+  },
+  "any/err-unresolved.pxf": {
+   "parse": true,
+   "format": "@type any.v1.Holder\n\n# Reject: the type URL names no type the resolver knows.\npayload {\n  @type = \"any.v1.Nope\"\n  tag = \"t\"\n}\n",
+   "decode": {
+    "accept": false
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": false
+  },
+  "any/list-element.pxf": {
+   "parse": true,
+   "format": "@type any.v1.Holder\n\n# Accept: each element of a repeated Any may open with a type entry.\nanys = [\n  {\n    @type = \"any.v1.Leaf\"\n    tag = \"a\"\n  },\n  {\n    @type = \"any.v1.Leaf\"\n    n = 2\n  }\n]\n",
+   "decode": {
+    "accept": true,
+    "hex": [
+     "12120a0b616e792e76312e4c65616612030a016112110a0b616e792e76312e4c65616612021002"
+    ]
+   },
+   "full": {
+    "accept": true,
+    "hex": [
+     "12120a0b616e792e76312e4c65616612030a016112110a0b616e792e76312e4c65616612021002"
+    ]
+   },
+   "discard": true,
+   "marshal": "anys = [\n  {\n    type_url = \"any.v1.Leaf\"\n    value = b\"CgFh\"\n  },\n  {\n    type_url = \"any.v1.Leaf\"\n    value = b\"EAI=\"\n  }\n]\n"
+  },
+  "any/map-value.pxf": {
+   "parse": true,
+   "format": "@type any.v1.Holder\n\n# Accept: a map value of type Any may open with a type entry.\nby_key = {\n  k: {\n    @type = \"any.v1.Leaf\"\n    tag = \"t\"\n  }\n}\n",
+   "decode": {
+    "accept": true,
+    "hex": [
+     "1a170a016b12120a0b616e792e76312e4c65616612030a0174"
+    ]
+   },
+   "full": {
+    "accept": true,
+    "hex": [
+     "1a170a016b12120a0b616e792e76312e4c65616612030a0174"
+    ]
+   },
+   "discard": true,
+   "marshal": "by_key = {\n  k: {\n    type_url = \"any.v1.Leaf\"\n    value = b\"CgF0\"\n  }\n}\n"
+  },
+  "any/plain-fields.pxf": {
+   "parse": true,
+   "format": "@type any.v1.Holder\n\n# Accept: without a type entry an Any block is its own fields.\n# CgF0 is any.v1.Leaf{tag: \"t\"}.\npayload = {\n  type_url = \"any.v1.Leaf\"\n  value = b\"CgF0\"\n}\n",
+   "decode": {
+    "accept": true,
+    "hex": [
+     "0a120a0b616e792e76312e4c65616612030a0174"
+    ]
+   },
+   "full": {
+    "accept": true,
+    "hex": [
+     "0a120a0b616e792e76312e4c65616612030a0174"
+    ]
+   },
+   "discard": true,
+   "marshal": "payload {\n  @type = \"any.v1.Leaf\"\n  tag = \"t\"\n}\n"
+  },
+  "any/url-verbatim.pxf": {
+   "parse": true,
+   "format": "@type any.v1.Holder\n\n# Accept: the type URL is stored in type_url exactly as written.\npayload {\n  @type = \"type.googleapis.com/any.v1.Leaf\"\n  tag = \"t\"\n}\n",
+   "decode": {
+    "accept": true,
+    "hex": [
+     "0a260a1f747970652e676f6f676c65617069732e636f6d2f616e792e76312e4c65616612030a0174"
+    ]
+   },
+   "full": {
+    "accept": true,
+    "hex": [
+     "0a260a1f747970652e676f6f676c65617069732e636f6d2f616e792e76312e4c65616612030a0174"
+    ]
+   },
+   "discard": true,
+   "marshal": "payload {\n  @type = \"type.googleapis.com/any.v1.Leaf\"\n  tag = \"t\"\n}\n"
+  },
+  "blocks/comma-between-elements.pxf": {
+   "parse": true,
+   "format": "@type blocks.v1.Doc\n\n# Accept: commas between list elements, each a block whose entries\n# are separated by spaces. Binds two children, \"greeting\" and \"title\".\nchildren = [\n  {\n    id = \"greeting\"\n    type = \"Label\"\n  },\n  {\n    id = \"title\"\n    type = \"Label\"\n  }\n]\n",
+   "decode": {
+    "accept": true,
+    "hex": [
+     "1a110a086772656574696e6712054c6162656c1a0e0a057469746c6512054c6162656c"
+    ]
+   },
+   "full": {
+    "accept": true,
+    "hex": [
+     "1a110a086772656574696e6712054c6162656c1a0e0a057469746c6512054c6162656c"
+    ]
+   },
+   "discard": true,
+   "marshal": "children = [\n  {\n    id = \"greeting\"\n    type = \"Label\"\n  },\n  {\n    id = \"title\"\n    type = \"Label\"\n  }\n]\n"
+  },
+  "blocks/err-comma-in-block.pxf": {
+   "parse": false,
+   "decode": {
+    "accept": false
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": false
+  },
+  "blocks/err-comma-in-list-element.pxf": {
+   "parse": false,
+   "decode": {
+    "accept": false
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": false
+  },
+  "blocks/err-comma-in-map.pxf": {
+   "parse": false,
+   "decode": {
+    "accept": false
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": false
+  },
+  "blocks/err-semicolon-in-block.pxf": {
+   "parse": false,
+   "decode": {
+    "accept": false
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": false
+  },
+  "blocks/newline-in-block.pxf": {
+   "parse": true,
+   "format": "@type blocks.v1.Doc\n\n# Accept: block entries on their own lines. Binds the same values as\n# space-in-block.pxf, through the bare-block form.\naddress {\n  city = \"Berlin\"\n  zip = \"10115\"\n}\n",
+   "decode": {
+    "accept": true,
+    "hex": [
+     "0a0f0a064265726c696e12053130313135"
+    ]
+   },
+   "full": {
+    "accept": true,
+    "hex": [
+     "0a0f0a064265726c696e12053130313135"
+    ]
+   },
+   "discard": true,
+   "marshal": "address {\n  city = \"Berlin\"\n  zip = \"10115\"\n}\n"
+  },
+  "blocks/space-in-block.pxf": {
+   "parse": true,
+   "format": "@type blocks.v1.Doc\n\n# Accept: block entries on one line, separated by spaces. Binds\n# address.city to \"Berlin\" and address.zip to \"10115\".\naddress = {\n  city = \"Berlin\"\n  zip = \"10115\"\n}\n",
+   "decode": {
+    "accept": true,
+    "hex": [
+     "0a0f0a064265726c696e12053130313135"
+    ]
+   },
+   "full": {
+    "accept": true,
+    "hex": [
+     "0a0f0a064265726c696e12053130313135"
+    ]
+   },
+   "discard": true,
+   "marshal": "address {\n  city = \"Berlin\"\n  zip = \"10115\"\n}\n"
+  },
+  "dataset/arity-long.pxf": {
+   "parse": false,
+   "decode": {
+    "accept": false
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": false,
+   "stream": {
+    "accept": false
+   }
+  },
+  "dataset/arity-short.pxf": {
+   "parse": false,
+   "decode": {
+    "accept": false
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": false,
+   "stream": {
+    "accept": false
+   }
+  },
+  "dataset/block-cell.pxf": {
+   "parse": true,
+   "format": "# §3.4.4 value cells. A block in a cell on a message column. MUST be\n# accepted: a cell means what `nested_field = { name = \"inner\" value = 99 }`\n# means in a body. Rejected before v1.13, when cells were scalar-only.\n",
+   "decode": {
+    "accept": true,
+    "hex": [
+     "0a05726f772d315a090a05696e6e65721063"
+    ]
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": false,
+   "stream": {
+    "accept": true,
+    "hex": [
+     "0a05726f772d315a090a05696e6e65721063"
+    ]
+   }
+  },
+  "dataset/block-on-scalar.pxf": {
+   "parse": true,
+   "format": "# §3.4.4 value cells. A block in a cell on a scalar column. MUST be\n# rejected, binding the row: the cell means `int32_field = { value = 1 }`,\n# and a block on a scalar field is an error in a body too.\n",
+   "decode": {
+    "accept": false
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": false,
+   "stream": {
+    "accept": false
+   }
+  },
+  "dataset/cell-framing.pxf": {
+   "parse": true,
+   "format": "# §3.4.4 value cells. Row framing. MUST be accepted: two rows. A \")\" or \",\"\n# inside a string, a triple-quoted string or a comment within a block cell\n# neither ends the row nor splits the cell. A streaming reader finds the\n# row by matching parentheses outside strings and comments, so it MUST\n# yield the same two rows as a materializing parse.\n",
+   "decode": {
+    "accept": true,
+    "hex": [
+     "0a05726f772d315a0b0a0761292c2028622c10016202292c6202282c",
+     "0a05726f772d325a0e0a0a7829202279222c20287a10026203656e64"
+    ]
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": false,
+   "stream": {
+    "accept": true,
+    "hex": [
+     "0a05726f772d315a0b0a0761292c2028622c10016202292c6202282c",
+     "0a05726f772d325a0e0a0a7829202279222c20287a10026203656e64"
+    ]
+   }
+  },
+  "dataset/dotted-bad-header-empty-row.pxf": {
+   "parse": true,
+   "format": "# §3.4.4 column paths. Row type dataset.v1.Event in paths.proto. MUST be\n# rejected at the header: picks is a repeated field. The row's cells are\n# all empty, and the header rules apply to it all the same, since they\n# do not depend on what a row holds.\n",
+   "decode": {
+    "accept": false
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": false,
+   "stream": {
+    "accept": false
+   }
+  },
+  "dataset/dotted-bad-header-no-rows.pxf": {
+   "parse": true,
+   "format": "# §3.4.4 column paths. Row type dataset.v1.Event in paths.proto. MUST be\n# accepted: picks is a repeated field, so the header breaks a rule that\n# needs the row type, but those rules are checked when a row binds, and\n# this table has no rows. Compare dotted-bad-header-empty-row, which has\n# one row of empty cells and is rejected.\n",
+   "decode": {
+    "accept": true
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": false,
+   "stream": {
+    "accept": true
+   }
+  },
+  "dataset/dotted-column.pxf": {
+   "parse": true,
+   "format": "# §3.4.4 column paths. A column may be a dotted path into a sub-message.\n# MUST be accepted. The row binds as\n#   string_field = \"row-1\" nested_field { name = \"inner\" }\n# Before v1.13 a dotted column was rejected.\n",
+   "decode": {
+    "accept": true,
+    "hex": [
+     "0a05726f772d315a070a05696e6e6572"
+    ]
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": false,
+   "stream": {
+    "accept": true,
+    "hex": [
+     "0a05726f772d315a070a05696e6e6572"
+    ]
+   }
+  },
+  "dataset/dotted-empty-segment.pxf": {
+   "parse": false,
+   "decode": {
+    "accept": false
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": false,
+   "stream": {
+    "accept": false
+   }
+  },
+  "dataset/dotted-grouping.pxf": {
+   "parse": true,
+   "format": "# §3.4.4 column paths, the grouping rule. Row type dataset.v1.Event in\n# paths.proto. MUST be accepted. A row binds as the body that groups its\n# non-empty cells by path prefix, one block per prefix, wherever the\n# columns sit in the header:\n#\n#   r1: id \"r1\" desc { energy 0.5 tempo { min_bpm 60 max_bpm 120 } tags [\"x\"] } plain 1\n#   r2: id \"r2\" desc { energy 0.25 } plain 2       (every desc.tempo.* cell\n#       is empty, so tempo is absent)\n#   r3: id \"r3\" plain 3                            (every desc.* cell is\n#       empty, so desc is absent)\n#   r4: id \"r4\" desc { tempo { max_bpm 9 } } plain 4\n",
+   "decode": {
+    "accept": true,
+    "hex": [
+     "0a027231121209000000000000e03f1204083c10781a01784801",
+     "0a027232120909000000000000d03f4802",
+     "0a0272334803",
+     "0a0272341204120210094804"
+    ]
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": false,
+   "stream": {
+    "accept": true,
+    "hex": [
+     "0a027231121209000000000000e03f1204083c10781a01784801",
+     "0a027232120909000000000000d03f4802",
+     "0a0272334803",
+     "0a0272341204120210094804"
+    ]
+   }
+  },
+  "dataset/dotted-into-any.pxf": {
+   "parse": true,
+   "format": "# §3.4.4 column paths. Row type dataset.v1.Event in paths.proto. MUST be\n# accepted: payload is a google.protobuf.Any, and a path into it names\n# the Any's own fields, as a block with no type entry does (§3.16). The\n# row binds as\n#   id = \"x\" payload { type_url = \"type.googleapis.com/dataset.v1.Pick\" value = b\"CgF4\" }\n",
+   "decode": {
+    "accept": true,
+    "hex": [
+     "0a01786a2a0a23747970652e676f6f676c65617069732e636f6d2f646174617365742e76312e5069636b12030a0178"
+    ]
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": false,
+   "stream": {
+    "accept": true,
+    "hex": [
+     "0a01786a2a0a23747970652e676f6f676c65617069732e636f6d2f646174617365742e76312e5069636b12030a0178"
+    ]
+   }
+  },
+  "dataset/dotted-into-bignum.pxf": {
+   "parse": true,
+   "format": "# §3.4.4 column paths. Row type dataset.v1.Event in paths.proto. MUST be\n# rejected at the header: big is a pxf.BigInt, which is written as a\n# literal.\n",
+   "decode": {
+    "accept": false
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": false,
+   "stream": {
+    "accept": false
+   }
+  },
+  "dataset/dotted-into-duration.pxf": {
+   "parse": true,
+   "format": "# §3.4.4 column paths. Row type dataset.v1.Event in paths.proto. MUST be\n# rejected at the header: dur is a google.protobuf.Duration, which is\n# written as a literal.\n",
+   "decode": {
+    "accept": false
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": false,
+   "stream": {
+    "accept": false
+   }
+  },
+  "dataset/dotted-into-secret.pxf": {
+   "parse": true,
+   "format": "# §3.4.4 column paths. Row type dataset.v1.Event in paths.proto. MUST be\n# accepted: pw is a pxf.Secret, which is not on the list of types written\n# as a literal, because its block form is one people write. The row binds\n# as\n#   id = \"x\" pw { value = \"s3cret\" hint = \"db password\" }\n",
+   "decode": {
+    "accept": true,
+    "hex": [
+     "0a017872150a06733363726574120b64622070617373776f7264"
+    ]
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": false,
+   "stream": {
+    "accept": true,
+    "hex": [
+     "0a017872150a06733363726574120b64622070617373776f7264"
+    ]
+   }
+  },
+  "dataset/dotted-into-timestamp.pxf": {
+   "parse": true,
+   "format": "# §3.4.4 column paths. Row type dataset.v1.Event in paths.proto. MUST be\n# rejected at the header: ts is a google.protobuf.Timestamp, which is\n# written as a literal, so a path into its encoding is not a column.\n",
+   "decode": {
+    "accept": false
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": false,
+   "stream": {
+    "accept": false
+   }
+  },
+  "dataset/dotted-into-wrapper.pxf": {
+   "parse": true,
+   "format": "# §3.4.4 column paths. Row type dataset.v1.Event in paths.proto. MUST be\n# rejected at the header: wrap is a google.protobuf.Int32Value, which is\n# written as a literal.\n",
+   "decode": {
+    "accept": false
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": false,
+   "stream": {
+    "accept": false
+   }
+  },
+  "dataset/dotted-null-leaf.pxf": {
+   "parse": true,
+   "format": "# §3.4.4 column paths. Row type dataset.v1.Event in paths.proto. MUST be\n# accepted. null in a dotted cell applies to the leaf, as\n#   desc { label = null }\n# does in a body: label (a wrapper) is unset, and desc is present.\n",
+   "decode": {
+    "accept": true,
+    "hex": [
+     "0a016e1200"
+    ]
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": false,
+   "stream": {
+    "accept": true,
+    "hex": [
+     "0a016e1200"
+    ]
+   }
+  },
+  "dataset/dotted-oneof-two-members.pxf": {
+   "parse": true,
+   "format": "# §3.4.4 column paths. Row type dataset.v1.Event in paths.proto. MUST be\n# rejected: the row fills two members of the oneof `choice`, which the\n# body  a { name = \"x\" } b { name = \"y\" }  would be rejected for.\n",
+   "decode": {
+    "accept": false
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": false,
+   "stream": {
+    "accept": false
+   }
+  },
+  "dataset/dotted-oneof.pxf": {
+   "parse": true,
+   "format": "# §3.4.4 column paths. Row type dataset.v1.Event in paths.proto. MUST be\n# accepted. Columns may reach different members of the oneof `choice`,\n# and two columns may fill the same member: they share one block, so the\n# member is set once.\n#\n#   row 1: a { name \"x\" n 1 }\n#   row 2: b { name \"y\" }\n",
+   "decode": {
+    "accept": true,
+    "hex": [
+     "32050a01781001",
+     "3a030a0179"
+    ]
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": false,
+   "stream": {
+    "accept": true,
+    "hex": [
+     "32050a01781001",
+     "3a030a0179"
+    ]
+   }
+  },
+  "dataset/dotted-overlap-deep.pxf": {
+   "parse": false,
+   "decode": {
+    "accept": false
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": false,
+   "stream": {
+    "accept": false
+   }
+  },
+  "dataset/dotted-overlap.pxf": {
+   "parse": false,
+   "decode": {
+    "accept": false
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": false,
+   "stream": {
+    "accept": false
+   }
+  },
+  "dataset/dotted-required-missing.pxf": {
+   "parse": true,
+   "format": "# §3.4.4 column paths. Row type dataset.v1.Event in paths.proto, whose\n# Req.n is (pxf.required). MUST be rejected: req.d makes req present, and\n# req.n is empty, as  req { d = \"x\" }  is rejected in a body.\n",
+   "decode": {
+    "accept": false
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": false,
+   "stream": {
+    "accept": false
+   }
+  },
+  "dataset/dotted-required.pxf": {
+   "parse": true,
+   "format": "# §3.4.4 column paths. Row type dataset.v1.Event in paths.proto, whose\n# Req.n is (pxf.required) and Req.d has (pxf.default) \"dflt\". MUST be\n# accepted. Both apply under a present parent only, as in a body:\n#\n#   \"absent\": every req.* cell is empty, so req is absent, and req.n is\n#             not required\n#   \"set\":    req { n 5 }, and req.d takes its default \"dflt\"\n",
+   "decode": {
+    "accept": true,
+    "hex": [
+     "0a06616273656e74",
+     "0a0373657442080805120464666c74"
+    ]
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": false,
+   "stream": {
+    "accept": true,
+    "hex": [
+     "0a06616273656e74",
+     "0a0373657442080805120464666c74"
+    ]
+   }
+  },
+  "dataset/dotted-through-map.pxf": {
+   "parse": true,
+   "format": "# §3.4.4 column paths. Row type dataset.v1.Event in paths.proto. MUST be\n# rejected at the header: by_name is a map field, and a path has no key.\n",
+   "decode": {
+    "accept": false
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": false,
+   "stream": {
+    "accept": false
+   }
+  },
+  "dataset/dotted-through-repeated.pxf": {
+   "parse": true,
+   "format": "# §3.4.4 column paths. Row type dataset.v1.Event in paths.proto. MUST be\n# rejected at the header: picks is a repeated field, and a path has no\n# index. A value cell on picks is the way to write it.\n",
+   "decode": {
+    "accept": false
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": false,
+   "stream": {
+    "accept": false
+   }
+  },
+  "dataset/dotted-through-scalar.pxf": {
+   "parse": true,
+   "format": "# §3.4.4 column paths. Row type dataset.v1.Event in paths.proto. MUST be\n# rejected at the header: plain is an int32, not a message field, so a\n# path cannot go through it.\n",
+   "decode": {
+    "accept": false
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": false,
+   "stream": {
+    "accept": false
+   }
+  },
+  "dataset/dotted-trailing-dot.pxf": {
+   "parse": false,
+   "decode": {
+    "accept": false
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": false,
+   "stream": {
+    "accept": false
+   }
+  },
+  "dataset/dotted-unknown-segment.pxf": {
+   "parse": true,
+   "format": "# §3.4.4 column paths. Row type dataset.v1.Event in paths.proto. MUST be\n# rejected at the header: dataset.v1.Desc has no field nope.\n",
+   "decode": {
+    "accept": false
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": false,
+   "stream": {
+    "accept": false
+   }
+  },
+  "dataset/dotted-with-value-cells.pxf": {
+   "parse": true,
+   "format": "# §3.4.4 column paths beside value cells. Row type dataset.v1.Event in\n# paths.proto. MUST be accepted. A dotted column may hold a list or a\n# block, and plain columns may hold value cells next to it:\n#\n#   id \"m\" desc { energy 0.5 tempo { min_bpm 60 } tags [\"a\", \"b\"] }\n#          picks [{ name \"p\" }]\n",
+   "decode": {
+    "accept": true,
+    "hex": [
+     "0a016d121309000000000000e03f1202083c1a01611a01621a030a0170"
+    ]
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": false,
+   "stream": {
+    "accept": true,
+    "hex": [
+     "0a016d121309000000000000e03f1202083c1a01611a01621a030a0170"
+    ]
+   }
+  },
+  "dataset/duplicate-column.pxf": {
+   "parse": false,
+   "decode": {
+    "accept": false
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": false,
+   "stream": {
+    "accept": false
+   }
+  },
+  "dataset/empty-rows.pxf": {
+   "parse": true,
+   "format": "# §3.4.4 zero-row table. Valid — a header with no rows denotes an empty\n# dataset. MUST be accepted.\n",
+   "decode": {
+    "accept": true
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": false,
+   "stream": {
+    "accept": true
+   }
+  },
+  "dataset/junk-between-rows.pxf": {
+   "parse": false,
+   "decode": {
+    "accept": false
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": false,
+   "stream": {
+    "accept": false
+   }
+  },
+  "dataset/list-cell.pxf": {
+   "parse": true,
+   "format": "# §3.4.4 value cells. A list in a cell on a repeated column. MUST be\n# accepted: a cell means what `repeated_string = [\"alpha\", \"beta\"]` means\n# in a body. Rejected before v1.13, when cells were scalar-only.\n",
+   "decode": {
+    "accept": true,
+    "hex": [
+     "0a05726f772d316205616c706861620462657461"
+    ]
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": false,
+   "stream": {
+    "accept": true,
+    "hex": [
+     "0a05726f772d316205616c706861620462657461"
+    ]
+   }
+  },
+  "dataset/nested-cells.pxf": {
+   "parse": true,
+   "format": "# §3.4.4 value cells. MUST be accepted. Each row binds to the message its\n# body would: a non-empty cell in column c means `c = \u003cvalue\u003e`.\n#\n#   row-1: nested_field {name \"n1\" value 1}; repeated_string [a, b];\n#          repeated_nested [{x}, {y 2}]; string_map {k: v}; int32_field 1\n#   row-2: nested_field present and empty ({}); repeated_string empty ([]);\n#          repeated_nested and string_map absent (empty cells); int32_field 2\n#   row-3: every nested column absent; int32_field 3\n#   row-4: nested_field null (present-but-null, as `nested_field = null`\n#          is in a body); the other nested columns absent; int32_field 4\n",
+   "decode": {
+    "accept": true,
+    "hex": [
+     "0a05726f772d3110015a060a026e3110016201616201626a030a01786a050a0179100272060a016b120176",
+     "0a05726f772d3210025a00",
+     "0a05726f772d331003",
+     "0a05726f772d341004"
+    ]
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": false,
+   "stream": {
+    "accept": true,
+    "hex": [
+     "0a05726f772d3110015a060a026e3110016201616201626a030a01786a050a0179100272060a016b120176",
+     "0a05726f772d3210025a00",
+     "0a05726f772d331003",
+     "0a05726f772d341004"
+    ]
+   }
+  },
+  "dataset/null-on-optional-cell.pxf": {
+   "parse": true,
+   "format": "# §3.4.4 + § Booleans, Null, and Identifier Values (#339). Row type\n# dataset.v1.Event in paths.proto. MUST be accepted: a cell applies the\n# singular-field null rules, and opt is an optional scalar, so the null\n# leaves it unset and present-but-null.\n",
+   "decode": {
+    "accept": true,
+    "hex": [
+     "0a01617801",
+     "0a0162"
+    ]
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": false,
+   "stream": {
+    "accept": true,
+    "hex": [
+     "0a01617801",
+     "0a0162"
+    ]
+   }
+  },
+  "dataset/null-on-scalar-cell.pxf": {
+   "parse": true,
+   "format": "# §3.4.4 + § Booleans, Null, and Identifier Values (#339). Row type\n# test.v1.AllTypes. MUST be rejected: a cell applies the singular-field\n# null rules, and int32_field is a plain scalar.\n",
+   "decode": {
+    "accept": false
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": false,
+   "stream": {
+    "accept": false
+   }
+  },
+  "dataset/rows-end-at-directive.pxf": {
+   "parse": true,
+   "format": "# §3.4.4 appending. Two datasets in one document. The first one's rows end\n# at the second \"@dataset\" directive, which is a legitimate end of the\n# sequence. MUST be accepted: two datasets, two rows and one row.\n",
+   "decode": {
+    "accept": true,
+    "hex": [
+     "0a05726f772d311001",
+     "0a05726f772d321002",
+     "0a05726f772d335001"
+    ]
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": false,
+   "stream": {
+    "accept": true,
+    "hex": [
+     "0a05726f772d311001",
+     "0a05726f772d321002"
+    ]
+   }
+  },
+  "dataset/string-newline-in-cell.pxf": {
+   "parse": false,
+   "decode": {
+    "accept": false
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": false,
+   "stream": {
+    "accept": false
+   }
+  },
+  "dataset/truncated-row-eof.pxf": {
+   "parse": false,
+   "decode": {
+    "accept": false
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": false,
+   "stream": {
+    "accept": false
+   }
+  },
+  "dataset/truncated-row-then-rows.pxf": {
+   "parse": false,
+   "decode": {
+    "accept": false
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": false,
+   "stream": {
+    "accept": false
+   }
+  },
+  "dataset/with-body.pxf": {
+   "parse": false,
+   "decode": {
+    "accept": false
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": false,
+   "stream": {
+    "accept": false
+   }
+  },
+  "dataset/with-type.pxf": {
+   "parse": false,
+   "decode": {
+    "accept": false
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": false,
+   "stream": {
+    "accept": false
+   }
+  },
+  "discard/bad-inner-entry.pxf": {
+   "parse": false,
+   "decode": {
+    "accept": false
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": false
+  },
+  "discard/block-then-field.pxf": {
+   "parse": true,
+   "format": "@type discard.v1.Holder\n\nnope {\n  a = 1\n  b = [\n    1,\n    2\n  ]\n}\ns = \"x\"\n",
+   "decode": {
+    "accept": false
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": true
+  },
+  "discard/block-unterminated.pxf": {
+   "parse": false,
+   "decode": {
+    "accept": false
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": false
+  },
+  "discard/list-of-blocks.pxf": {
+   "parse": true,
+   "format": "@type discard.v1.Holder\n\nnope = [\n  {\n    a = 1\n  },\n  {\n    b = 2\n  }\n]\n",
+   "decode": {
+    "accept": false
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": true
+  },
+  "discard/list-unterminated.pxf": {
+   "parse": false,
+   "decode": {
+    "accept": false
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": false
+  },
+  "discard/map-then-field.pxf": {
+   "parse": true,
+   "format": "@type discard.v1.Holder\n\nnope = {\n  a: {\n    b = 1\n  }\n  c: [\n    1\n  ]\n}\ns = \"x\"\n",
+   "decode": {
+    "accept": false
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": true
+  },
+  "discard/mismatched-closer.pxf": {
+   "parse": false,
+   "decode": {
+    "accept": false
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": false
+  },
+  "discard/mismatched-inside.pxf": {
+   "parse": false,
+   "decode": {
+    "accept": false
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": false
+  },
+  "discard/missing-value.pxf": {
+   "parse": false,
+   "decode": {
+    "accept": false
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": false
+  },
+  "discard/scalar-then-field.pxf": {
+   "parse": true,
+   "format": "@type discard.v1.Holder\n\nnope = 1\ns = \"x\"\n",
+   "decode": {
+    "accept": false
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": true
+  },
+  "discard/unterminated-string.pxf": {
+   "parse": false,
+   "decode": {
+    "accept": false
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": false
+  },
+  "duplicates/err-map-key-twice-across-bindings.pxf": {
+   "parse": true,
+   "format": "@type dup.v1.Holder\n\n# Reject: a map key repeated across two bindings of the map field.\nlabels = {\n  a: \"1\"\n}\nlabels = {\n  a: \"2\"\n}\n",
+   "decode": {
+    "accept": false
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": false
+  },
+  "duplicates/err-map-key-twice-in-literal.pxf": {
+   "parse": true,
+   "format": "@type dup.v1.Holder\n\n# Reject: a map key repeated inside one map literal (#396).\nlabels = {\n  a: \"1\"\n  a: \"2\"\n}\n",
+   "decode": {
+    "accept": false
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": false
+  },
+  "duplicates/err-map-key-twice-int-spellings.pxf": {
+   "parse": true,
+   "format": "@type dup.v1.Holder\n\n# Reject: keys compare as values of the key type, so 1 and \"1\" are one key of an int32-keyed map.\nnums = {\n  1: \"x\"\n  \"1\": \"y\"\n}\n",
+   "decode": {
+    "accept": false
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": false
+  },
+  "duplicates/err-map-key-twice-message-values.pxf": {
+   "parse": true,
+   "format": "@type dup.v1.Holder\n\n# Reject: a repeated key in a map of messages; the two values do not merge.\ninners = {\n  k: {\n    a = 1\n  }\n  k: {\n    b = 2\n  }\n}\n",
+   "decode": {
+    "accept": false
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": false
+  },
+  "duplicates/err-map-key-twice-same-value.pxf": {
+   "parse": true,
+   "format": "@type dup.v1.Holder\n\n# Reject: a repeated map key, even with the same value.\nlabels = {\n  a: \"1\"\n  a: \"1\"\n}\n",
+   "decode": {
+    "accept": false
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": false
+  },
+  "duplicates/err-message-assign-then-block.pxf": {
+   "parse": true,
+   "format": "@type dup.v1.Holder\n\n# Reject: \"m = { ... }\" and \"m { ... }\" are the same binding written two ways; both together bind m twice.\nm = {\n  a = 1\n}\nm {\n  b = 2\n}\n",
+   "decode": {
+    "accept": false
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": false
+  },
+  "duplicates/err-message-twice.pxf": {
+   "parse": true,
+   "format": "@type dup.v1.Holder\n\n# Reject: two blocks for one singular message field bind it twice. They do not merge.\nm {\n  a = 1\n}\nm {\n  b = 2\n}\n",
+   "decode": {
+    "accept": false
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": false
+  },
+  "duplicates/err-nested-scalar-twice.pxf": {
+   "parse": true,
+   "format": "@type dup.v1.Holder\n\n# Reject: the rule holds in every message body, here a sub-message.\nm {\n  a = 1\n  a = 2\n}\n",
+   "decode": {
+    "accept": false
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": false
+  },
+  "duplicates/err-null-then-value.pxf": {
+   "parse": true,
+   "format": "@type dup.v1.Holder\n\n# Reject: null is a binding, so a value after it binds the field a second time.\nw = null\nw = 3\n",
+   "decode": {
+    "accept": false
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": false
+  },
+  "duplicates/err-oneof-member-twice.pxf": {
+   "parse": true,
+   "format": "@type dup.v1.Holder\n\n# Reject: a oneof member bound twice.\nkm {\n  a = 1\n}\nkm {\n  a = 1\n}\n",
+   "decode": {
+    "accept": false
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": false
+  },
+  "duplicates/err-oneof-scalar-twice.pxf": {
+   "parse": true,
+   "format": "@type dup.v1.Holder\n\n# Reject: a scalar oneof member bound twice.\nks = \"a\"\nks = \"b\"\n",
+   "decode": {
+    "accept": false
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": false
+  },
+  "duplicates/err-optional-twice.pxf": {
+   "parse": true,
+   "format": "@type dup.v1.Holder\n\n# Reject: a proto3 optional scalar bound twice.\no = 1\no = 2\n",
+   "decode": {
+    "accept": false
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": false
+  },
+  "duplicates/err-scalar-same-value.pxf": {
+   "parse": true,
+   "format": "@type dup.v1.Holder\n\n# Reject: a singular scalar bound twice, even to the same value.\ns = \"a\"\ns = \"a\"\n",
+   "decode": {
+    "accept": false
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": false
+  },
+  "duplicates/err-scalar-twice.pxf": {
+   "parse": true,
+   "format": "@type dup.v1.Holder\n\n# Reject: a singular scalar bound twice. The second binding is the error; it does not replace the first.\ns = \"a\"\ns = \"b\"\n",
+   "decode": {
+    "accept": false
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": false
+  },
+  "duplicates/err-wrapper-twice.pxf": {
+   "parse": true,
+   "format": "@type dup.v1.Holder\n\n# Reject: a wrapper is a singular field; binding it twice is rejected.\nw = 1\nw = 2\n",
+   "decode": {
+    "accept": false
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": false
+  },
+  "duplicates/map-key-once-per-body.pxf": {
+   "parse": true,
+   "format": "@type dup.v1.Holder\n\n# Accept: each message body is its own scope, so key a occurs once in each element's map.\nitems = [\n  {\n    tags = {\n      a: \"1\"\n    }\n  },\n  {\n    tags = {\n      a: \"2\"\n    }\n  }\n]\n",
+   "decode": {
+    "accept": true,
+    "hex": [
+     "3a081a060a01611201313a081a060a0161120132"
+    ]
+   },
+   "full": {
+    "accept": true,
+    "hex": [
+     "3a081a060a01611201313a081a060a0161120132"
+    ]
+   },
+   "discard": true,
+   "marshal": "items = [\n  {\n    tags = {\n      a: \"1\"\n    }\n  },\n  {\n    tags = {\n      a: \"2\"\n    }\n  }\n]\n"
+  },
+  "duplicates/map-twice-distinct-keys.pxf": {
+   "parse": true,
+   "format": "@type dup.v1.Holder\n\n# Accept: a map field bound twice with distinct keys; the entries merge.\nlabels = {\n  a: \"1\"\n}\nlabels = {\n  b: \"2\"\n}\n",
+   "decode": {
+    "accept": true,
+    "hex": [
+     "4a060a01611201314a060a0162120132"
+    ]
+   },
+   "full": {
+    "accept": true,
+    "hex": [
+     "4a060a01611201314a060a0162120132"
+    ]
+   },
+   "discard": true,
+   "marshal": "labels = {\n  a: \"1\"\n  b: \"2\"\n}\n"
+  },
+  "duplicates/once-per-body.pxf": {
+   "parse": true,
+   "format": "@type dup.v1.Holder\n\n# Accept: each message body is its own scope. a is bound once in m, once in n and once in each list element.\nm {\n  a = 1\n}\nn {\n  a = 1\n}\nitems = [\n  {\n    a = 1\n  },\n  {\n    a = 2\n  }\n]\n",
+   "decode": {
+    "accept": true,
+    "hex": [
+     "1a020801320208013a0208013a020802"
+    ]
+   },
+   "full": {
+    "accept": true,
+    "hex": [
+     "1a020801320208013a0208013a020802"
+    ]
+   },
+   "discard": true,
+   "marshal": "m {\n  a = 1\n}\nn {\n  a = 1\n}\nitems = [\n  {\n    a = 1\n  },\n  {\n    a = 2\n  }\n]\n"
+  },
+  "duplicates/repeated-twice.pxf": {
+   "parse": true,
+   "format": "@type dup.v1.Holder\n\n# Accept: a repeated field may be bound more than once; the lists concatenate (#337).\nitems = [\n  {\n    a = 1\n  }\n]\nitems = [\n  {\n    a = 2\n  }\n]\n",
+   "decode": {
+    "accept": true,
+    "hex": [
+     "3a0208013a020802"
+    ]
+   },
+   "full": {
+    "accept": true,
+    "hex": [
+     "3a0208013a020802"
+    ]
+   },
+   "discard": true,
+   "marshal": "items = [\n  {\n    a = 1\n  },\n  {\n    a = 2\n  }\n]\n"
+  },
+  "duration/err-digit-led-identifier.pxf": {
+   "parse": false,
+   "decode": {
+    "accept": false
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": false
+  },
+  "duration/err-sign-per-segment.pxf": {
+   "parse": false,
+   "decode": {
+    "accept": false
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": false
+  },
+  "duration/err-unit-then-alpha.pxf": {
+   "parse": false,
+   "decode": {
+    "accept": false
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": false
+  },
+  "duration/negative-fractional.pxf": {
+   "parse": true,
+   "format": "@type duration.v1.Holder\n\n# A fractional segment under a leading \"-\" yields seconds and nanos of the\n# same sign, as google.protobuf.Duration requires: seconds = -1,\n# nanos = -500000000.\nd = -1.5s\n",
+   "decode": {
+    "accept": true,
+    "hex": [
+     "0a1608ffffffffffffffffff011080b6ca91feffffffff01"
+    ]
+   },
+   "full": {
+    "accept": true,
+    "hex": [
+     "0a1608ffffffffffffffffff011080b6ca91feffffffff01"
+    ]
+   },
+   "discard": true,
+   "marshal": "d = -1.5s\n"
+  },
+  "duration/negative-multi-segment.pxf": {
+   "parse": true,
+   "format": "@type duration.v1.Holder\n\n# The sign applies to the whole literal, not to its first segment:\n# -1h30m is minus ninety minutes, seconds = -5400.\nd = -1h30m\n",
+   "decode": {
+    "accept": true,
+    "hex": [
+     "0a0b08e8d5ffffffffffffff01"
+    ]
+   },
+   "full": {
+    "accept": true,
+    "hex": [
+     "0a0b08e8d5ffffffffffffff01"
+    ]
+   },
+   "discard": true,
+   "marshal": "d = -1h30m0s\n"
+  },
+  "duration/negative-seconds.pxf": {
+   "parse": true,
+   "format": "@type duration.v1.Holder\n\n# A negative Duration is written with one leading \"-\" before the first\n# segment. Binds to seconds = -30, nanos = 0.\nd = -30s\n",
+   "decode": {
+    "accept": true,
+    "hex": [
+     "0a0b08e2ffffffffffffffff01"
+    ]
+   },
+   "full": {
+    "accept": true,
+    "hex": [
+     "0a0b08e2ffffffffffffffff01"
+    ]
+   },
+   "discard": true,
+   "marshal": "d = -30s\n"
+  },
+  "duration/negative-zero.pxf": {
+   "parse": true,
+   "format": "@type duration.v1.Holder\n\n# \"-0s\" denotes zero: seconds = 0, nanos = 0.\nd = -0s\n",
+   "decode": {
+    "accept": true,
+    "hex": [
+     "0a00"
+    ]
+   },
+   "full": {
+    "accept": true,
+    "hex": [
+     "0a00"
+    ]
+   },
+   "discard": true,
+   "marshal": "d = 0s\n"
+  },
+  "duration/roundtrip-negative.pxf": {
+   "parse": true,
+   "format": "@type duration.v1.Holder\n\nd = -1.5s\n",
+   "decode": {
+    "accept": true,
+    "hex": [
+     "0a1608ffffffffffffffffff011080b6ca91feffffffff01"
+    ]
+   },
+   "full": {
+    "accept": true,
+    "hex": [
+     "0a1608ffffffffffffffffff011080b6ca91feffffffff01"
+    ]
+   },
+   "discard": true,
+   "marshal": "d = -1.5s\n"
+  },
+  "keyed/anonymous-duplicate-ok.pxf": {
+   "parse": true,
+   "format": "@type keyed.v1.Node\n\n# Duplicate keys are representable only in the anonymous form. Where the\n# schema layer tolerates them (plain decode — no uniqueness constraint\n# beyond the keyed block itself), decode accepts, and encode/fmt MUST\n# keep the anonymous form: the keyed form requires all keys distinct.\nid = \"root\"\nchildren = [\n  {\n    id = \"dup\"\n    type = \"Label\"\n  },\n  {\n    id = \"dup\"\n    type = \"HBox\"\n  }\n]\n",
+   "decode": {
+    "accept": true,
+    "hex": [
+     "0a04726f6f74220c0a0364757012054c6162656c220b0a03647570120448426f78"
+    ]
+   },
+   "full": {
+    "accept": true,
+    "hex": [
+     "0a04726f6f74220c0a0364757012054c6162656c220b0a03647570120448426f78"
+    ]
+   },
+   "discard": true,
+   "marshal": "id = \"root\"\nchildren = [\n  {\n    id = \"dup\"\n    type = \"Label\"\n  },\n  {\n    id = \"dup\"\n    type = \"HBox\"\n  }\n]\n"
+  },
+  "keyed/anonymous-equivalence.pxf": {
+   "parse": true,
+   "format": "@type keyed.v1.Node\n\n# Anonymous-form equivalence: decodes to exactly the same message as\n# roundtrip-keyed.pxf (key fields written explicitly, same order).\n# fmt canonicalizes this document to the keyed form.\nid = \"root\"\ntype = \"VBox\"\nchildren = [\n  {\n    id = \"greeting\"\n    type = \"Label\"\n    weight = 1\n  },\n  {\n    id = \"counter_row\"\n    type = \"HBox\"\n    weight = 2\n  }\n]\n",
+   "decode": {
+    "accept": true,
+    "hex": [
+     "0a04726f6f74120456426f7822130a086772656574696e6712054c6162656c180122150a0b636f756e7465725f726f77120448426f781802"
+    ]
+   },
+   "full": {
+    "accept": true,
+    "hex": [
+     "0a04726f6f74120456426f7822130a086772656574696e6712054c6162656c180122150a0b636f756e7465725f726f77120448426f781802"
+    ]
+   },
+   "discard": true,
+   "marshal": "id = \"root\"\ntype = \"VBox\"\nchildren {\n  greeting {\n    type = \"Label\"\n    weight = 1\n  }\n  counter_row {\n    type = \"HBox\"\n    weight = 2\n  }\n}\n"
+  },
+  "keyed/err-duplicate-key-spelling.pxf": {
+   "parse": true,
+   "format": "@type keyed.v1.Node\n\n# Spelling-equivalence duplicate: duplicate detection compares UNQUOTED\n# values, so \"greeting\" (quoted) and greeting (bare) are the same key.\n# MUST be rejected exactly like err-duplicate-key.pxf.\nid = \"root\"\nchildren {\n  greeting {\n    type = \"Label\"\n  }\n  \"greeting\" {\n    type = \"HBox\"\n  }\n}\n",
+   "decode": {
+    "accept": false
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": false
+  },
+  "keyed/err-duplicate-key.pxf": {
+   "parse": true,
+   "format": "@type keyed.v1.Node\n\n# Duplicate entry names in one keyed block MUST be rejected (decode\n# error; diagnostic in tolerant mode).\nid = \"root\"\nchildren {\n  greeting {\n    type = \"Label\"\n  }\n  greeting {\n    type = \"HBox\"\n  }\n}\n",
+   "decode": {
+    "accept": false
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": false
+  },
+  "keyed/err-empty-key-anonymous.pxf": {
+   "parse": true,
+   "format": "@type keyed.v1.Node\n\n# The empty-key rule applies in the anonymous form too: an explicit\n# empty-string assignment to the key field of an element of a keyed\n# repeated field MUST be rejected.\nid = \"root\"\nchildren = [\n  {\n    id = \"\"\n    type = \"Label\"\n  }\n]\n",
+   "decode": {
+    "accept": false
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": false
+  },
+  "keyed/err-empty-key.pxf": {
+   "parse": true,
+   "format": "@type keyed.v1.Node\n\n# The empty string is not a valid key. A quoted entry name \"\" MUST be\n# rejected.\nid = \"root\"\nchildren {\n  \"\" {\n    type = \"Label\"\n  }\n}\n",
+   "decode": {
+    "accept": false
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": false
+  },
+  "keyed/err-key-conflict.pxf": {
+   "parse": true,
+   "format": "@type keyed.v1.Node\n\n# Key conflict: an explicit key-field assignment inside a named entry\n# that DISAGREES with the entry name MUST be rejected.\nid = \"root\"\nchildren {\n  greeting {\n    id = \"farewell\"\n    type = \"Label\"\n  }\n}\n",
+   "decode": {
+    "accept": false
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": false
+  },
+  "keyed/err-key-null.pxf": {
+   "parse": true,
+   "format": "@type keyed.v1.Catalog\n\n# Key conflict: an entry name binds the key field, so binding that field\n# to null inside the entry's block disagrees with it and MUST be rejected.\ntags {\n  alpha {\n    name = null\n  }\n}\n",
+   "decode": {
+    "accept": false
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": false
+  },
+  "keyed/err-key-oneof-sibling-null.pxf": {
+   "parse": true,
+   "format": "@type keyed.v1.Catalog\n\n# Key conflict: null on another member of the key field's oneof chooses\n# that member, so it writes two members and MUST be rejected.\nchoices {\n  alpha {\n    other = null\n  }\n}\n",
+   "decode": {
+    "accept": false
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": false
+  },
+  "keyed/err-key-oneof-sibling.pxf": {
+   "parse": true,
+   "format": "@type keyed.v1.Catalog\n\n# Key conflict: an entry name binds the key field, so binding another\n# member of the key field's oneof writes two members and MUST be rejected.\nchoices {\n  alpha {\n    other = \"x\"\n  }\n}\n",
+   "decode": {
+    "accept": false
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": false
+  },
+  "keyed/err-quoted-name-unkeyed.pxf": {
+   "parse": true,
+   "format": "@type keyed.v1.Doc\n\n# 'items' carries no (pxf.key): a quoted entry name is only meaningful\n# as a key, so the schema layer MUST reject this document. The parse\n# itself succeeds — the grammar accepts quoted entry names everywhere;\n# the restriction is schema-layer.\nitems {\n  \"a\" {\n    label = \"first\"\n  }\n}\n",
+   "decode": {
+    "accept": false
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": false
+  },
+  "keyed/fmt-anonymous-to-keyed.pxf": {
+   "parse": true,
+   "format": "@type keyed.v1.Deployment\n\nservice = \"edge\"\nregions = [\n  {\n    name = \"us-east-1\"\n    replicas = 3\n  },\n  {\n    name = \"primary\"\n    replicas = 2\n  }\n]\n",
+   "decode": {
+    "accept": true,
+    "hex": [
+     "0a0465646765120d0a0975732d656173742d311003120b0a077072696d6172791002"
+    ]
+   },
+   "full": {
+    "accept": true,
+    "hex": [
+     "0a0465646765120d0a0975732d656173742d311003120b0a077072696d6172791002"
+    ]
+   },
+   "discard": true,
+   "marshal": "service = \"edge\"\nregions {\n  \"us-east-1\" {\n    replicas = 3\n  }\n  primary {\n    replicas = 2\n  }\n}\n"
+  },
+  "keyed/fmt-unquote.pxf": {
+   "parse": true,
+   "format": "@type keyed.v1.Node\n\nid = \"root\"\ntype = \"VBox\"\nchildren {\n  \"greeting\" {\n    id = \"greeting\"\n    type = \"Label\"\n  }\n  counter_row {\n    type = \"HBox\"\n  }\n}\n",
+   "decode": {
+    "accept": true,
+    "hex": [
+     "0a04726f6f74120456426f7822110a086772656574696e6712054c6162656c22130a0b636f756e7465725f726f77120448426f78"
+    ]
+   },
+   "full": {
+    "accept": true,
+    "hex": [
+     "0a04726f6f74120456426f7822110a086772656574696e6712054c6162656c22130a0b636f756e7465725f726f77120448426f78"
+    ]
+   },
+   "discard": true,
+   "marshal": "id = \"root\"\ntype = \"VBox\"\nchildren {\n  greeting {\n    type = \"Label\"\n  }\n  counter_row {\n    type = \"HBox\"\n  }\n}\n"
+  },
+  "keyed/key-null-anonymous-ok.pxf": {
+   "parse": true,
+   "format": "@type keyed.v1.Catalog\n\n# Legal: the anonymous form has no entry name to disagree with, so an\n# optional key field may be null. The element's key is absent.\ntags = [\n  {\n    name = null\n  }\n]\n",
+   "decode": {
+    "accept": true,
+    "hex": [
+     "1200"
+    ]
+   },
+   "full": {
+    "accept": true,
+    "hex": [
+     "1200"
+    ]
+   },
+   "discard": true,
+   "marshal": "tags = [\n  {\n  }\n]\n"
+  },
+  "keyed/key-oneof-ok.pxf": {
+   "parse": true,
+   "format": "@type keyed.v1.Catalog\n\n# Legal: a key in a oneof takes the entry name, an agreeing assignment\n# stays redundant, and the anonymous form may choose another member.\nchoices {\n  alpha {\n  }\n  beta {\n    name = \"beta\"\n  }\n}\nchoices = [\n  {\n    other = \"x\"\n  }\n]\n",
+   "decode": {
+    "accept": true,
+    "hex": [
+     "0a070a05616c7068610a060a04626574610a03120178"
+    ]
+   },
+   "full": {
+    "accept": true,
+    "hex": [
+     "0a070a05616c7068610a060a04626574610a03120178"
+    ]
+   },
+   "discard": true,
+   "marshal": "choices = [\n  {\n    name = \"alpha\"\n  },\n  {\n    name = \"beta\"\n  },\n  {\n    other = \"x\"\n  }\n]\n"
+  },
+  "keyed/redundant-key-ok.pxf": {
+   "parse": true,
+   "format": "@type keyed.v1.Node\n\n# An explicit key-field assignment inside a named entry that AGREES with\n# the entry name is redundant but legal. Decode accepts; fmt drops the\n# redundant assignment when canonicalizing.\nid = \"root\"\nchildren {\n  greeting {\n    id = \"greeting\"\n    type = \"Label\"\n  }\n}\n",
+   "decode": {
+    "accept": true,
+    "hex": [
+     "0a04726f6f7422110a086772656574696e6712054c6162656c"
+    ]
+   },
+   "full": {
+    "accept": true,
+    "hex": [
+     "0a04726f6f7422110a086772656574696e6712054c6162656c"
+    ]
+   },
+   "discard": true,
+   "marshal": "id = \"root\"\nchildren {\n  greeting {\n    type = \"Label\"\n  }\n}\n"
+  },
+  "keyed/roundtrip-keyed.pxf": {
+   "parse": true,
+   "format": "@type keyed.v1.Node\n\n# Keyed round-trip: canonical keyed-block form. Entry name = key-field\n# value, entry order = list order; the key field is not repeated inside\n# the entry blocks. decode → encode reproduces this body.\nid = \"root\"\ntype = \"VBox\"\nchildren {\n  greeting {\n    type = \"Label\"\n    weight = 1\n  }\n  counter_row {\n    type = \"HBox\"\n    weight = 2\n  }\n}\n",
+   "decode": {
+    "accept": true,
+    "hex": [
+     "0a04726f6f74120456426f7822130a086772656574696e6712054c6162656c180122150a0b636f756e7465725f726f77120448426f781802"
+    ]
+   },
+   "full": {
+    "accept": true,
+    "hex": [
+     "0a04726f6f74120456426f7822130a086772656574696e6712054c6162656c180122150a0b636f756e7465725f726f77120448426f781802"
+    ]
+   },
+   "discard": true,
+   "marshal": "id = \"root\"\ntype = \"VBox\"\nchildren {\n  greeting {\n    type = \"Label\"\n    weight = 1\n  }\n  counter_row {\n    type = \"HBox\"\n    weight = 2\n  }\n}\n"
+  },
+  "keyed/roundtrip-quoted.pxf": {
+   "parse": true,
+   "format": "@type keyed.v1.Deployment\n\n# Quoted-name round-trip: keys that are not identifier-safe are written\n# as string-literal entry names and stay quoted in canonical form.\nservice = \"edge\"\nregions {\n  \"us-east-1\" {\n    replicas = 3\n  }\n  \"eu-west-2\" {\n    replicas = 1\n  }\n}\n",
+   "decode": {
+    "accept": true,
+    "hex": [
+     "0a0465646765120d0a0975732d656173742d311003120d0a0965752d776573742d321001"
+    ]
+   },
+   "full": {
+    "accept": true,
+    "hex": [
+     "0a0465646765120d0a0975732d656173742d311003120d0a0965752d776573742d321001"
+    ]
+   },
+   "discard": true,
+   "marshal": "service = \"edge\"\nregions {\n  \"us-east-1\" {\n    replicas = 3\n  }\n  \"eu-west-2\" {\n    replicas = 1\n  }\n}\n"
+  },
+  "map-keys/bool-keys-integer.pxf": {
+   "parse": true,
+   "format": "@type mapkeys.v1.Flags\n\n# The integer spelling: an integer key matches a bool K \"encoded as 0/1\".\nby_flag = {\n  1: \"integer one\"\n  0: \"integer zero\"\n}\n",
+   "decode": {
+    "accept": true,
+    "hex": [
+     "0a100800120c696e7465676572207a65726f0a0f0801120b696e7465676572206f6e65"
+    ]
+   },
+   "full": {
+    "accept": true,
+    "hex": [
+     "0a100800120c696e7465676572207a65726f0a0f0801120b696e7465676572206f6e65"
+    ]
+   },
+   "discard": true,
+   "marshal": "by_flag = {\n  false: \"integer zero\"\n  true: \"integer one\"\n}\n"
+  },
+  "map-keys/bool-keys-keyword.pxf": {
+   "parse": true,
+   "format": "@type mapkeys.v1.Flags\n\n# The keyword spelling: map-key = identifier / string / integer / bool.\nby_flag = {\n  true: \"keyword\"\n  false: \"keyword\"\n}\n",
+   "decode": {
+    "accept": true,
+    "hex": [
+     "0a0b080012076b6579776f72640a0b080112076b6579776f7264"
+    ]
+   },
+   "full": {
+    "accept": true,
+    "hex": [
+     "0a0b080012076b6579776f72640a0b080112076b6579776f7264"
+    ]
+   },
+   "discard": true,
+   "marshal": "by_flag = {\n  false: \"keyword\"\n  true: \"keyword\"\n}\n"
+  },
+  "map-keys/bool-keys.pxf": {
+   "parse": true,
+   "format": "@type mapkeys.v1.Flags\n\n# The quoted-literal spelling: a string key is parsed as a literal of\n# K's type, and a bool literal is exactly \"true\" or \"false\".\nby_flag = {\n  \"true\": \"quoted literal\"\n  \"false\": \"quoted literal\"\n}\n",
+   "decode": {
+    "accept": true,
+    "hex": [
+     "0a120800120e71756f746564206c69746572616c0a120801120e71756f746564206c69746572616c"
+    ]
+   },
+   "full": {
+    "accept": true,
+    "hex": [
+     "0a120800120e71756f746564206c69746572616c0a120801120e71756f746564206c69746572616c"
+    ]
+   },
+   "discard": true,
+   "marshal": "by_flag = {\n  false: \"quoted literal\"\n  true: \"quoted literal\"\n}\n"
+  },
+  "map-keys/fmt-bare-keys.pxf": {
+   "parse": true,
+   "format": "@type mapkeys.v1.Flags\n\nby_flag = {\n  true: \"keyword\"\n  0: \"integer\"\n}\n",
+   "decode": {
+    "accept": true,
+    "hex": [
+     "0a0b08001207696e74656765720a0b080112076b6579776f7264"
+    ]
+   },
+   "full": {
+    "accept": true,
+    "hex": [
+     "0a0b08001207696e74656765720a0b080112076b6579776f7264"
+    ]
+   },
+   "discard": true,
+   "marshal": "by_flag = {\n  false: \"integer\"\n  true: \"keyword\"\n}\n"
+  },
+  "map-keys/fmt-dotted-keys.pxf": {
+   "parse": true,
+   "format": "@type mapkeys.v1.Labels\n\nby_label = {\n  a.b: \"quoted dotted\"\n  c.d: \"bare dotted\"\n  \".e\": \"leading dot\"\n  \"1.5\": \"float-shaped\"\n}\n",
+   "decode": {
+    "accept": true,
+    "hex": [
+     "0a110a022e65120b6c656164696e6720646f740a130a03312e35120c666c6f61742d7368617065640a140a03612e62120d71756f74656420646f747465640a120a03632e64120b6261726520646f74746564"
+    ]
+   },
+   "full": {
+    "accept": true,
+    "hex": [
+     "0a110a022e65120b6c656164696e6720646f740a130a03312e35120c666c6f61742d7368617065640a140a03612e62120d71756f74656420646f747465640a120a03632e64120b6261726520646f74746564"
+    ]
+   },
+   "discard": true,
+   "marshal": "by_label = {\n  \".e\": \"leading dot\"\n  \"1.5\": \"float-shaped\"\n  a.b: \"quoted dotted\"\n  c.d: \"bare dotted\"\n}\n"
+  },
+  "map-keys/fmt-keyword-keys.pxf": {
+   "parse": true,
+   "format": "@type mapkeys.v1.Labels\n\nby_label = {\n  \"true\": \"quoted keyword\"\n  \"false\": \"quoted keyword\"\n  \"null\": \"quoted keyword\"\n  \"123\": \"quoted integer\"\n  plain: \"quoted identifier-safe key\"\n  bare: \"bare identifier\"\n}\n",
+   "decode": {
+    "accept": true,
+    "hex": [
+     "0a150a03313233120e71756f74656420696e74656765720a170a0462617265120f62617265206964656e7469666965720a170a0566616c7365120e71756f746564206b6579776f72640a160a046e756c6c120e71756f746564206b6579776f72640a230a05706c61696e121a71756f746564206964656e7469666965722d73616665206b65790a160a0474727565120e71756f746564206b6579776f7264"
+    ]
+   },
+   "full": {
+    "accept": true,
+    "hex": [
+     "0a150a03313233120e71756f74656420696e74656765720a170a0462617265120f62617265206964656e7469666965720a170a0566616c7365120e71756f746564206b6579776f72640a160a046e756c6c120e71756f746564206b6579776f72640a230a05706c61696e121a71756f746564206964656e7469666965722d73616665206b65790a160a0474727565120e71756f746564206b6579776f7264"
+    ]
+   },
+   "discard": true,
+   "marshal": "by_label = {\n  \"123\": \"quoted integer\"\n  \"false\": \"quoted keyword\"\n  \"null\": \"quoted keyword\"\n  \"true\": \"quoted keyword\"\n  bare: \"bare identifier\"\n  plain: \"quoted identifier-safe key\"\n}\n"
+  },
+  "map-keys/invalid/identifier-lower-f.pxf": {
+   "parse": true,
+   "format": "@type mapkeys.v1.Flags\n\n# An identifier key on a bool K matches nothing: an identifier names a\n# field, and a map has none. \"f\" is not a bool literal in any case.\n# MUST be rejected.\nby_flag = {\n  f: \"v\"\n}\n",
+   "decode": {
+    "accept": false
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": false
+  },
+  "map-keys/invalid/identifier-lower-t.pxf": {
+   "parse": true,
+   "format": "@type mapkeys.v1.Flags\n\n# An identifier key on a bool K matches nothing: an identifier names a\n# field, and a map has none. \"t\" is not a bool literal in any case.\n# MUST be rejected.\nby_flag = {\n  t: \"v\"\n}\n",
+   "decode": {
+    "accept": false
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": false
+  },
+  "map-keys/invalid/identifier-title-False.pxf": {
+   "parse": true,
+   "format": "@type mapkeys.v1.Flags\n\n# An identifier key on a bool K matches nothing: an identifier names a\n# field, and a map has none. \"False\" is not a bool literal in any case.\n# MUST be rejected.\nby_flag = {\n  False: \"v\"\n}\n",
+   "decode": {
+    "accept": false
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": false
+  },
+  "map-keys/invalid/identifier-title-True.pxf": {
+   "parse": true,
+   "format": "@type mapkeys.v1.Flags\n\n# An identifier key on a bool K matches nothing: an identifier names a\n# field, and a map has none. \"True\" is not a bool literal in any case.\n# MUST be rejected.\nby_flag = {\n  True: \"v\"\n}\n",
+   "decode": {
+    "accept": false
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": false
+  },
+  "map-keys/invalid/identifier-upper-F.pxf": {
+   "parse": true,
+   "format": "@type mapkeys.v1.Flags\n\n# An identifier key on a bool K matches nothing: an identifier names a\n# field, and a map has none. \"F\" is not a bool literal in any case.\n# MUST be rejected.\nby_flag = {\n  F: \"v\"\n}\n",
+   "decode": {
+    "accept": false
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": false
+  },
+  "map-keys/invalid/identifier-upper-FALSE.pxf": {
+   "parse": true,
+   "format": "@type mapkeys.v1.Flags\n\n# An identifier key on a bool K matches nothing: an identifier names a\n# field, and a map has none. \"FALSE\" is not a bool literal in any case.\n# MUST be rejected.\nby_flag = {\n  FALSE: \"v\"\n}\n",
+   "decode": {
+    "accept": false
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": false
+  },
+  "map-keys/invalid/identifier-upper-T.pxf": {
+   "parse": true,
+   "format": "@type mapkeys.v1.Flags\n\n# An identifier key on a bool K matches nothing: an identifier names a\n# field, and a map has none. \"T\" is not a bool literal in any case.\n# MUST be rejected.\nby_flag = {\n  T: \"v\"\n}\n",
+   "decode": {
+    "accept": false
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": false
+  },
+  "map-keys/invalid/identifier-upper-TRUE.pxf": {
+   "parse": true,
+   "format": "@type mapkeys.v1.Flags\n\n# An identifier key on a bool K matches nothing: an identifier names a\n# field, and a map has none. \"TRUE\" is not a bool literal in any case.\n# MUST be rejected.\nby_flag = {\n  TRUE: \"v\"\n}\n",
+   "decode": {
+    "accept": false
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": false
+  },
+  "map-keys/invalid/identifier-word-yes.pxf": {
+   "parse": true,
+   "format": "@type mapkeys.v1.Flags\n\n# An identifier key on a bool K matches nothing: an identifier names a\n# field, and a map has none. \"yes\" is not a bool literal in any case.\n# MUST be rejected.\nby_flag = {\n  yes: \"v\"\n}\n",
+   "decode": {
+    "accept": false
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": false
+  },
+  "map-keys/invalid/string-lower-t.pxf": {
+   "parse": true,
+   "format": "@type mapkeys.v1.Flags\n\n# A string key is parsed as a literal of K's type, and a bool literal is\n# exactly \"true\" or \"false\". \"t\" is not one. MUST be rejected.\nby_flag = {\n  t: \"v\"\n}\n",
+   "decode": {
+    "accept": false
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": false
+  },
+  "map-keys/invalid/string-one-1.pxf": {
+   "parse": true,
+   "format": "@type mapkeys.v1.Flags\n\n# A string key is parsed as a literal of K's type, and a bool literal is\n# exactly \"true\" or \"false\". \"1\" is not one. MUST be rejected.\nby_flag = {\n  \"1\": \"v\"\n}\n",
+   "decode": {
+    "accept": false
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": false
+  },
+  "map-keys/invalid/string-upper-TRUE.pxf": {
+   "parse": true,
+   "format": "@type mapkeys.v1.Flags\n\n# A string key is parsed as a literal of K's type, and a bool literal is\n# exactly \"true\" or \"false\". \"TRUE\" is not one. MUST be rejected.\nby_flag = {\n  TRUE: \"v\"\n}\n",
+   "decode": {
+    "accept": false
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": false
+  },
+  "map-keys/invalid/string-zero-0.pxf": {
+   "parse": true,
+   "format": "@type mapkeys.v1.Flags\n\n# A string key is parsed as a literal of K's type, and a bool literal is\n# exactly \"true\" or \"false\". \"0\" is not one. MUST be rejected.\nby_flag = {\n  \"0\": \"v\"\n}\n",
+   "decode": {
+    "accept": false
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": false
+  },
+  "nulls/default-optional.pxf": {
+   "parse": true,
+   "format": "@type nulls.v1.Defaulted\n\n# Accept: null on an optional scalar with a (pxf.default). The default\n# applies only to an absent field: d stays unset, not 5, and is\n# present-but-null.\nd = null\n",
+   "decode": {
+    "accept": true,
+    "hex": [
+     ""
+    ]
+   },
+   "full": {
+    "accept": true,
+    "hex": [
+     ""
+    ]
+   },
+   "discard": true
+  },
+  "nulls/editions-explicit.pxf": {
+   "parse": true,
+   "format": "@type nulls.ed.v1.Ed\n\n# Accept: in an editions file, a scalar with EXPLICIT presence (the 2023\n# default) may hold null; it is left unset and present-but-null.\nexplicit_scalar = null\n",
+   "decode": {
+    "accept": true,
+    "hex": [
+     ""
+    ]
+   },
+   "full": {
+    "accept": true,
+    "hex": [
+     ""
+    ]
+   },
+   "discard": true
+  },
+  "nulls/err-editions-implicit.pxf": {
+   "parse": true,
+   "format": "@type nulls.ed.v1.Ed\n\n# Reject: an editions scalar with IMPLICIT presence has no unset state, so\n# null would read back as zero.\nimplicit_scalar = null\n",
+   "decode": {
+    "accept": false
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": false
+  },
+  "nulls/err-list-element.pxf": {
+   "parse": true,
+   "format": "@type nulls.v1.Holder\n\n# Reject: null as a list element. List elements are not nullable.\nl = [\n  1,\n  null\n]\n",
+   "decode": {
+    "accept": false
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": false
+  },
+  "nulls/err-map-message-value.pxf": {
+   "parse": true,
+   "format": "@type nulls.v1.Holder\n\n# Reject: null as the value of a map entry whose value type is a message.\n# The value has presence, but a map entry is not nullable (#380): in\n# binary an entry without a value reads back as the empty message.\nmm = {\n  a: null\n}\n",
+   "decode": {
+    "accept": false
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": false
+  },
+  "nulls/err-map-value.pxf": {
+   "parse": true,
+   "format": "@type nulls.v1.Holder\n\n# Reject: null as the value of a map entry. A map is list-typed for the\n# null rule, and its entries are not nullable (#380). Leave the key out\n# instead.\nm = {\n  a: null\n}\n",
+   "decode": {
+    "accept": false
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": false
+  },
+  "nulls/err-map.pxf": {
+   "parse": true,
+   "format": "@type nulls.v1.Holder\n\n# Reject: null on a map field. A map is not nullable; write {} for an\n# empty one.\nm = null\n",
+   "decode": {
+    "accept": false
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": false
+  },
+  "nulls/err-nested-scalar.pxf": {
+   "parse": true,
+   "format": "@type nulls.v1.Holder\n\n# Reject: null on a plain proto3 scalar inside a message body. The rule\n# applies in every body, not only at the top level.\nmsg {\n  x = null\n}\n",
+   "decode": {
+    "accept": false
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": false
+  },
+  "nulls/err-oneof-sibling.pxf": {
+   "parse": true,
+   "format": "@type nulls.v1.Holder\n\n# Reject: a null oneof member is that member present, so writing it after\n# a sibling of the same oneof writes two members.\nkm {\n  x = 1\n}\nks = null\n",
+   "decode": {
+    "accept": false
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": false
+  },
+  "nulls/err-proto2-required.pxf": {
+   "parse": true,
+   "format": "@type nulls.v1.Strict\n\n# Reject: null on a proto2 required field (#379). It has explicit\n# presence, but leaving it unset would make the message invalid in\n# binary, so the null is an error.\nr = null\n",
+   "decode": {
+    "accept": false
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": false
+  },
+  "nulls/err-repeated.pxf": {
+   "parse": true,
+   "format": "@type nulls.v1.Holder\n\n# Reject: null on a repeated field. A list is not nullable; write []\n# for an empty one.\nl = null\n",
+   "decode": {
+    "accept": false
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": false
+  },
+  "nulls/err-scalar.pxf": {
+   "parse": true,
+   "format": "@type nulls.v1.Holder\n\n# Reject: null on a plain proto3 scalar field. It has no unset state, so\n# null would read back as 0. Declare it optional, or as its wrapper type,\n# to make it nullable.\nn = null\n",
+   "decode": {
+    "accept": false
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": false
+  },
+  "nulls/message.pxf": {
+   "parse": true,
+   "format": "@type nulls.v1.Holder\n\n# Accept: null on a singular message field clears it: msg is unset.\nmsg = null\n",
+   "decode": {
+    "accept": true,
+    "hex": [
+     ""
+    ]
+   },
+   "full": {
+    "accept": true,
+    "hex": [
+     ""
+    ]
+   },
+   "discard": true
+  },
+  "nulls/oneof-message.pxf": {
+   "parse": true,
+   "format": "@type nulls.v1.Holder\n\n# Accept: null on a message member of a oneof clears it: the oneof k is\n# unset.\nkm = null\n",
+   "decode": {
+    "accept": true,
+    "hex": [
+     ""
+    ]
+   },
+   "full": {
+    "accept": true,
+    "hex": [
+     ""
+    ]
+   },
+   "discard": true
+  },
+  "nulls/oneof-scalar.pxf": {
+   "parse": true,
+   "format": "@type nulls.v1.Holder\n\n# Accept: null on a scalar member of a oneof. A member has explicit\n# presence: the oneof k is unset, and ks is present-but-null.\nks = null\n",
+   "decode": {
+    "accept": true,
+    "hex": [
+     ""
+    ]
+   },
+   "full": {
+    "accept": true,
+    "hex": [
+     ""
+    ]
+   },
+   "discard": true
+  },
+  "nulls/optional-scalar.pxf": {
+   "parse": true,
+   "format": "@type nulls.v1.Holder\n\n# Accept: null on an optional scalar field. Explicit presence gives the\n# field an unset state: o is unset, and present-but-null.\no = null\n",
+   "decode": {
+    "accept": true,
+    "hex": [
+     ""
+    ]
+   },
+   "full": {
+    "accept": true,
+    "hex": [
+     ""
+    ]
+   },
+   "discard": true
+  },
+  "nulls/proto2-scalar.pxf": {
+   "parse": true,
+   "format": "@type nulls.v1.Legacy\n\n# Accept: null on a proto2 optional scalar. It has explicit presence: p\n# is unset, and present-but-null.\np = null\n",
+   "decode": {
+    "accept": true,
+    "hex": [
+     ""
+    ]
+   },
+   "full": {
+    "accept": true,
+    "hex": [
+     ""
+    ]
+   },
+   "discard": true
+  },
+  "nulls/required-optional.pxf": {
+   "parse": true,
+   "format": "@type nulls.v1.Required\n\n# Accept: null on an optional scalar marked (pxf.required). A null field\n# is present for that check: r is unset, and present-but-null.\nr = null\n",
+   "decode": {
+    "accept": true,
+    "hex": [
+     ""
+    ]
+   },
+   "full": {
+    "accept": true,
+    "hex": [
+     ""
+    ]
+   },
+   "discard": true
+  },
+  "nulls/wrapper.pxf": {
+   "parse": true,
+   "format": "@type nulls.v1.Holder\n\n# Accept: null on a wrapper field. The wrapper makes the scalar\n# nullable: w is unset, and present-but-null.\nw = null\n",
+   "decode": {
+    "accept": true,
+    "hex": [
+     ""
+    ]
+   },
+   "full": {
+    "accept": true,
+    "hex": [
+     ""
+    ]
+   },
+   "discard": true
+  },
+  "postdecode/any-default.pxf": {
+   "parse": true,
+   "format": "@type postdecode.v1.Root\n\nname = \"r\"\npayload {\n  @type = \"postdecode.v1.Leaf\"\n  name = \"inner\"\n}\n",
+   "decode": {
+    "accept": true,
+    "hex": [
+     "0a01722a1d0a12706f73746465636f64652e76312e4c65616612070a05696e6e6572"
+    ]
+   },
+   "full": {
+    "accept": true,
+    "hex": [
+     "0a01722a230a12706f73746465636f64652e76312e4c656166120d0a05696e6e6572120464666c74"
+    ]
+   },
+   "discard": true,
+   "marshal": "name = \"r\"\npayload {\n  @type = \"postdecode.v1.Leaf\"\n  name = \"inner\"\n}\n"
+  },
+  "postdecode/err-any-does-not-satisfy-outer.pxf": {
+   "parse": true,
+   "format": "@type postdecode.v1.Root\n\npayload {\n  @type = \"postdecode.v1.Leaf\"\n  name = \"inner\"\n}\n",
+   "decode": {
+    "accept": true,
+    "hex": [
+     "2a1d0a12706f73746465636f64652e76312e4c65616612070a05696e6e6572"
+    ]
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": true,
+   "marshal": "payload {\n  @type = \"postdecode.v1.Leaf\"\n  name = \"inner\"\n}\n"
+  },
+  "postdecode/err-any-required.pxf": {
+   "parse": true,
+   "format": "@type postdecode.v1.Root\n\nname = \"r\"\npayload {\n  @type = \"postdecode.v1.Leaf\"\n  tag = \"x\"\n}\n",
+   "decode": {
+    "accept": true,
+    "hex": [
+     "0a01722a190a12706f73746465636f64652e76312e4c6561661203120178"
+    ]
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": true,
+   "marshal": "name = \"r\"\npayload {\n  @type = \"postdecode.v1.Leaf\"\n  tag = \"x\"\n}\n"
+  },
+  "postdecode/err-element-does-not-satisfy-outer.pxf": {
+   "parse": true,
+   "format": "@type postdecode.v1.Root\n\nlist = [\n  {\n    name = \"a\"\n  }\n]\n",
+   "decode": {
+    "accept": true,
+    "hex": [
+     "12030a0161"
+    ]
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": true,
+   "marshal": "list = [\n  {\n    name = \"a\"\n  }\n]\n"
+  },
+  "postdecode/err-list-required.pxf": {
+   "parse": true,
+   "format": "@type postdecode.v1.Root\n\nname = \"r\"\nlist = [\n  {\n    name = \"a\"\n  },\n  {\n    tag = \"x\"\n  }\n]\n",
+   "decode": {
+    "accept": true,
+    "hex": [
+     "0a017212030a01611203120178"
+    ]
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": true,
+   "marshal": "name = \"r\"\nlist = [\n  {\n    name = \"a\"\n  },\n  {\n    tag = \"x\"\n  }\n]\n"
+  },
+  "postdecode/err-map-required.pxf": {
+   "parse": true,
+   "format": "@type postdecode.v1.Root\n\nname = \"r\"\nby_key = {\n  k: {\n    tag = \"x\"\n  }\n}\n",
+   "decode": {
+    "accept": true,
+    "hex": [
+     "0a01721a080a016b1203120178"
+    ]
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": true,
+   "marshal": "name = \"r\"\nby_key = {\n  k: {\n    tag = \"x\"\n  }\n}\n"
+  },
+  "postdecode/list-default.pxf": {
+   "parse": true,
+   "format": "@type postdecode.v1.Root\n\nname = \"r\"\nlist = [\n  {\n    name = \"a\"\n  },\n  {\n    name = \"b\"\n    tag = \"set\"\n  }\n]\n",
+   "decode": {
+    "accept": true,
+    "hex": [
+     "0a017212030a016112080a01621203736574"
+    ]
+   },
+   "full": {
+    "accept": true,
+    "hex": [
+     "0a017212090a0161120464666c7412080a01621203736574"
+    ]
+   },
+   "discard": true,
+   "marshal": "name = \"r\"\nlist = [\n  {\n    name = \"a\"\n  },\n  {\n    name = \"b\"\n    tag = \"set\"\n  }\n]\n"
+  },
+  "postdecode/map-default.pxf": {
+   "parse": true,
+   "format": "@type postdecode.v1.Root\n\nname = \"r\"\nby_key = {\n  k: {\n    name = \"a\"\n  }\n}\nby_num = {\n  1: {\n    name = \"b\"\n  }\n}\n",
+   "decode": {
+    "accept": true,
+    "hex": [
+     "0a01721a080a016b12030a01612207080112030a0162"
+    ]
+   },
+   "full": {
+    "accept": true,
+    "hex": [
+     "0a01721a0e0a016b12090a0161120464666c74220d080112090a0162120464666c74"
+    ]
+   },
+   "discard": true,
+   "marshal": "name = \"r\"\nby_key = {\n  k: {\n    name = \"a\"\n  }\n}\nby_num = {\n  1: {\n    name = \"b\"\n  }\n}\n"
+  },
+  "postdecode/single-default.pxf": {
+   "parse": true,
+   "format": "@type postdecode.v1.Root\n\nname = \"r\"\nsingle {\n  name = \"a\"\n}\n",
+   "decode": {
+    "accept": true,
+    "hex": [
+     "0a017232030a0161"
+    ]
+   },
+   "full": {
+    "accept": true,
+    "hex": [
+     "0a017232090a0161120464666c74"
+    ]
+   },
+   "discard": true,
+   "marshal": "name = \"r\"\nsingle {\n  name = \"a\"\n}\n"
+  },
+  "repeated/concat-lists.pxf": {
+   "parse": true,
+   "format": "@type test.v1.AllTypes\n\n# Entries and Keys: a repeated field MAY be bound more than once with a list\n# value. The elements concatenate in document order. MUST be accepted:\n# repeated_string = [\"a\", \"b\", \"c\"], repeated_nested names = [\"n1\", \"n2\"].\nrepeated_string = [\n  \"a\"\n]\nrepeated_nested = [\n  {\n    name = \"n1\"\n  }\n]\nrepeated_string = [\n  \"b\",\n  \"c\"\n]\nrepeated_nested = [\n  {\n    name = \"n2\"\n    value = 2\n  }\n]\n",
+   "decode": {
+    "accept": true,
+    "hex": [
+     "6201616201626201636a040a026e316a060a026e321002"
+    ]
+   },
+   "full": {
+    "accept": true,
+    "hex": [
+     "6201616201626201636a040a026e316a060a026e321002"
+    ]
+   },
+   "discard": true,
+   "marshal": "repeated_string = [\n  \"a\",\n  \"b\",\n  \"c\"\n]\nrepeated_nested = [\n  {\n    name = \"n1\"\n  },\n  {\n    name = \"n2\"\n    value = 2\n  }\n]\n"
+  },
+  "repeated/err-assigned-block.pxf": {
+   "parse": true,
+   "format": "@type test.v1.AllTypes\n\n# Entries and Keys: a repeated message field assigned a single block. MUST be\n# rejected, like the block-tail form it abbreviates — the element goes in a\n# list: repeated_nested = [{ name = \"n1\" }].\nrepeated_nested = {\n  name = \"n1\"\n}\n",
+   "decode": {
+    "accept": false
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": false
+  },
+  "repeated/err-block-entries.pxf": {
+   "parse": true,
+   "format": "@type test.v1.AllTypes\n\n# Entries and Keys: a repeated message field written as repeated blocks.\n# MUST be rejected — outside the keyed surface form of a keyed repeated\n# field, a block on a repeated field is an error. The list form is\n# repeated_nested = [{ name = \"n1\" }, { name = \"n2\" }].\nrepeated_nested {\n  name = \"n1\"\n}\nrepeated_nested {\n  name = \"n2\"\n}\n",
+   "decode": {
+    "accept": false
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": false
+  },
+  "repeated/err-scalar-entries.pxf": {
+   "parse": true,
+   "format": "@type test.v1.AllTypes\n\n# Entries and Keys: a repeated field bound to a scalar. MUST be rejected —\n# a repeated field is written with a list value: repeated_string = [\"a\", \"b\"].\nrepeated_string = \"a\"\nrepeated_string = \"b\"\n",
+   "decode": {
+    "accept": false
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": false
+  },
+  "strings/err-raw-newline.pxf": {
+   "parse": false,
+   "decode": {
+    "accept": false
+   },
+   "full": {
+    "accept": false
+   },
+   "discard": false
+  },
+  "strings/escaped-newline.pxf": {
+   "parse": true,
+   "format": "@type strings.v1.Holder\n\n# Accept: the escape \\n is how a simple string holds a line break.\n# Binds s to \"x\", LF, \"y\".\ns = \"x\\ny\"\n",
+   "decode": {
+    "accept": true,
+    "hex": [
+     "0a03780a79"
+    ]
+   },
+   "full": {
+    "accept": true,
+    "hex": [
+     "0a03780a79"
+    ]
+   },
+   "discard": true,
+   "marshal": "s = \"x\\ny\"\n"
+  },
+  "strings/newline-after-string.pxf": {
+   "parse": true,
+   "format": "@type strings.v1.Holder\n\n# Accept: a newline after a closed string ends the entry, not the string.\n# Binds s to \"x\" and t to \"y\".\ns = \"x\"\nt = \"y\"\n",
+   "decode": {
+    "accept": true,
+    "hex": [
+     "0a0178120179"
+    ]
+   },
+   "full": {
+    "accept": true,
+    "hex": [
+     "0a0178120179"
+    ]
+   },
+   "discard": true,
+   "marshal": "s = \"x\"\nt = \"y\"\n"
+  },
+  "strings/triple-quoted.pxf": {
+   "parse": true,
+   "format": "@type strings.v1.Holder\n\n# Accept: a triple-quoted string may span lines. Binds s to \"x\", LF, \"y\"\n# (the leading LF after the opening quotes and the common indent are\n# stripped).\ns = \"x\\ny\"\n",
+   "decode": {
+    "accept": true,
+    "hex": [
+     "0a03780a79"
+    ]
+   },
+   "full": {
+    "accept": true,
+    "hex": [
+     "0a03780a79"
+    ]
+   },
+   "discard": true,
+   "marshal": "s = \"x\\ny\"\n"
+  }
+ },
+ "violations": {
+  "bind-checks-test.proto": [
+   {
+    "file": "bind-checks-test.proto",
+    "element": "bindcheck.v1.BadDefaults.list",
+    "kind": "defaultOption",
+    "name": "x"
+   },
+   {
+    "file": "bind-checks-test.proto",
+    "element": "bindcheck.v1.BadDefaults.map",
+    "kind": "defaultOption",
+    "name": "x"
+   },
+   {
+    "file": "bind-checks-test.proto",
+    "element": "bindcheck.v1.BadDefaults.msg",
+    "kind": "defaultOption",
+    "name": "x"
+   },
+   {
+    "file": "bind-checks-test.proto",
+    "element": "bindcheck.v1.RequiredMember.a",
+    "kind": "requiredOption",
+    "name": "choice"
+   },
+   {
+    "file": "bind-checks-test.proto",
+    "element": "bindcheck.v1.TwoOneofDefaults.a",
+    "kind": "defaultOption",
+    "name": "x"
+   },
+   {
+    "file": "bind-checks-test.proto",
+    "element": "bindcheck.v1.TwoOneofDefaults.b",
+    "kind": "defaultOption",
+    "name": "y"
+   },
+   {
+    "file": "bind-imported-test.proto",
+    "element": "bindcheck.v1.Imported.null",
+    "kind": "field",
+    "name": "null"
+   }
+  ],
+  "bind-imported-test.proto": [
+   {
+    "file": "bind-imported-test.proto",
+    "element": "bindcheck.v1.Imported.null",
+    "kind": "field",
+    "name": "null"
+   }
+  ],
+  "bind-oneof-test.proto": []
+ }
+}
