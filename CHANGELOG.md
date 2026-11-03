@@ -31,6 +31,8 @@ format changes.
 
 ### Fixed
 
+- **A `pb` map entry always carries its key and value, zero-valued or not** ([#42](https://github.com/trendvidia/protowire-typescript/issues/42), protowire#295). A zero key or value was omitted, which is not the layout `protoc` and protobuf-go write. `dump-envelope` gains `--vector`.
+
 - **`discardUnknown` no longer accepts what `parse` rejects** ([#61](https://github.com/trendvidia/protowire-typescript/issues/61)). An unterminated or mismatched unknown value decoded without error.
 
 - **`(pxf.required)` and `(pxf.default)` apply inside list elements, map values and `Any` bodies** ([#58](https://github.com/trendvidia/protowire-typescript/issues/58), [#68](https://github.com/trendvidia/protowire-typescript/issues/68)). `Result` records those fields under their own paths (`items[0].a`, `by_key["k"].a`, `payload.a`), so a field inside one no longer makes a same-named field of the enclosing message look present.
