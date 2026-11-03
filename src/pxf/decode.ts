@@ -1581,6 +1581,10 @@ function postDecode(
     if (nullMaskFd && fd.number === nullMaskFd.number) continue;
     const path = pathPrefix + fd.name;
     if (result.isAbsent(path)) {
+      // Setting one member of a oneof clears the others, so a member is absent
+      // precisely when a sibling was chosen. Presence comes from the document:
+      // a default applied in this pass does not count (draft -01 "Oneof Members").
+      if (siblingPresent(fd, result, pathPrefix)) continue;
       if (isRequired(fd)) {
         throw new PxfError({ line: 1, column: 1, offset: 0 }, `required field ${JSON.stringify(path)} is absent`);
       }
@@ -1604,6 +1608,12 @@ function postDecode(
       postDecode(sub, result, undefined, path + ".");
     }
   }
+}
+
+function siblingPresent(fd: DescField, result: Result, pathPrefix: string): boolean {
+  if (fd.fieldKind !== "scalar" && fd.fieldKind !== "enum" && fd.fieldKind !== "message") return false;
+  const oo = fd.oneof;
+  return oo !== undefined && oo.fields.some((f) => f !== fd && !result.isAbsent(pathPrefix + f.name));
 }
 
 function applyDefault(parent: ReflectMessage, fd: DescField, def: string): void {

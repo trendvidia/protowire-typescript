@@ -67,7 +67,7 @@ describe("validateDescriptor", () => {
     expect(vs).toHaveLength(1);
     expect(vs[0]).toEqual<Violation>({
       // bufbuild's DescFile.name omits the `.proto` extension.
-      file: "schema-test",
+      file: "schema-test.proto",
       element: "schema.test.v1.FieldNull.null",
       name: "null",
       kind: "field",

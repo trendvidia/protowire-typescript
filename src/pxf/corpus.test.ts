@@ -25,6 +25,7 @@ import { unmarshal, type UnmarshalOptions } from "./decode.js";
 import { marshal } from "./encode.js";
 import { format } from "./format.js";
 import { parse } from "./parser.js";
+import { validateFile } from "./schema.js";
 
 interface Leg {
   accept: boolean;
@@ -39,7 +40,11 @@ interface FixtureRecord {
 }
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "testdata/corpus");
-const reference = JSON.parse(readFileSync(resolve(root, "reference.json"), "utf8")) as Record<string, FixtureRecord>;
+const record = JSON.parse(readFileSync(resolve(root, "reference.json"), "utf8")) as {
+  fixtures: Record<string, FixtureRecord>;
+  violations: Record<string, unknown[]>;
+};
+const reference = record.fixtures;
 
 const GAPS: Record<string, number> = {
   "any/assignment.pxf": 48,
@@ -189,5 +194,21 @@ describe("corpus map-keys spelling", () => {
     const out = marshal(unmarshal(expected, desc), desc);
     for (const key of ["a.b:", "c.d:", '".e":', '"1.5":']) expect(out).toContain(key);
   });
+});
+
+describe("bind-time violations", () => {
+  const files = readdirSync(resolve(root, "..")).filter((f) => /^bind-.*-test\.binpb$/.test(f));
+  for (const set of files) {
+    const registry = createFileRegistry(
+      fromBinary(FileDescriptorSetSchema, new Uint8Array(readFileSync(resolve(root, "..", set)))),
+    );
+    for (const file of registry.files) {
+      if (!file.proto.name.startsWith("bind-")) continue;
+      it(`${file.proto.name} matches the reference`, () => {
+        const got = validateFile(file).map(({ file: f, element, kind, name }) => ({ file: f, element, kind, name }));
+        expect(got).toEqual(record.violations[file.proto.name]);
+      });
+    }
+  }
 });
 

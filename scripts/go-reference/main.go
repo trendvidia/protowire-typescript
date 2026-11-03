@@ -84,7 +84,52 @@ func main() {
 	}
 	enc := json.NewEncoder(os.Stdout)
 	enc.SetIndent("", " ")
-	check(enc.Encode(out))
+	check(enc.Encode(Output{Fixtures: out, Violations: violations(os.Args[1])}))
+}
+
+// Output is reference.json.
+type Output struct {
+	Fixtures   map[string]Record    `json:"fixtures"`
+	Violations map[string][]Finding `json:"violations"`
+}
+
+// Finding is one bind-time violation.
+type Finding struct {
+	File    string `json:"file"`
+	Element string `json:"element"`
+	Kind    string `json:"kind"`
+	Name    string `json:"name"`
+}
+
+var kinds = map[pxf.ViolationKind]string{
+	pxf.ViolationField:          "field",
+	pxf.ViolationOneof:          "oneof",
+	pxf.ViolationEnumValue:      "enumValue",
+	pxf.ViolationKeyOption:      "keyOption",
+	pxf.ViolationDefaultOption:  "defaultOption",
+	pxf.ViolationRequiredOption: "requiredOption",
+}
+
+// violations validates the bind-* files of the bind-*-test descriptor sets.
+func violations(corpus string) map[string][]Finding {
+	out := map[string][]Finding{}
+	sets, err := filepath.Glob(filepath.Join(corpus, "..", "bind-*-test.binpb"))
+	check(err)
+	for _, set := range sets {
+		files, _ := load(set)
+		files.RangeFiles(func(fd protoreflect.FileDescriptor) bool {
+			if !strings.HasPrefix(fd.Path(), "bind-") {
+				return true
+			}
+			found := []Finding{}
+			for _, v := range pxf.ValidateFile(fd) {
+				found = append(found, Finding{v.File, v.Element, kinds[v.Kind], v.Name})
+			}
+			out[fd.Path()] = found
+			return true
+		})
+	}
+	return out
 }
 
 // resolver adapts a file set to pxf.TypeResolver.

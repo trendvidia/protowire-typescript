@@ -19,9 +19,17 @@ format changes.
 
 ### Added
 
+- **v1.11 bind-time checks over the import closure** ([#33](https://github.com/trendvidia/protowire-typescript/issues/33)). `validateDescriptor` and `unmarshal` report a misplaced `(pxf.default)` as the new `defaultOption` kind, two defaults in one oneof, `(pxf.required)` on a oneof member, and reserved names, in the bound file and everything it imports. Results are cached per descriptor. This narrows accepted schemas: one bad placement fails every file that imports it.
+
+- **`@required` and `@default` are read** ([#62](https://github.com/trendvidia/protowire-typescript/issues/62)), from the annotation carrier at extension 1327, alongside the bracket spelling. Different defaults in the two spellings are a `defaultOption` violation. `@default` on a big-number field is reported as a violation for now rather than dropped.
+
 - **Conformance test against protowire-go.** `src/pxf/corpus.test.ts` holds this port to the reference on the spec repo's `any`, `blocks`, `dataset`, `duplicates`, `duration`, `map-keys`, `nulls`, `repeated` and `strings` fixtures: the same verdict on each leg, and the same bound message. `scripts/go-reference` records the reference's results for a pinned protowire-go, and CI regenerates them. Fixtures this port does not meet yet are listed with their issue. A `,` or `;` between block entries was already rejected ([#54](https://github.com/trendvidia/protowire-typescript/issues/54)).
 
 ### Fixed
+
+- **A `(pxf.default)` on a oneof member no longer destroys the arm the document chose** ([#31](https://github.com/trendvidia/protowire-typescript/issues/31)). It applies only when no member is present, and a null member counts as present.
+
+- **`Violation.file` is the descriptor's path, extension included** ([#32](https://github.com/trendvidia/protowire-typescript/issues/32)), as in the other ports.
 
 - **Fractional and `µs` duration literals are read** ([#34](https://github.com/trendvidia/protowire-typescript/issues/34)). `1.5ms`, `2µs`, `1h30m0.5s` and `-2.5s` lexed as a number and an identifier, so this port could not read its own encoder's output for those values.
 
