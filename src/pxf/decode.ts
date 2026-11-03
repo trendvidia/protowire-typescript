@@ -35,7 +35,7 @@ import {
   type Value,
 } from "./ast.js";
 import { parseGoDuration } from "./duration.js";
-import { findMatchingBrace, MAX_NESTING_DEPTH } from "./parser.js";
+import { findMatchingBrace, MAX_NESTING_DEPTH, parse } from "./parser.js";
 import {
   findFieldByProtoName,
   isAny,
@@ -673,11 +673,13 @@ class Decoder {
         }
         case TokenKind.LBRACE: {
           if (keyKind === TokenKind.STRING) throw quotedNameUnkeyedError(pos, key);
+          const skipStart = this.current.pos.offset;
           this.advance();
           const fd = findFieldByProtoName(desc, key);
           if (!fd) {
             if (this.discardUnknown) {
               this.skipBraced();
+              this.checkSkipped(pos, skipStart);
               continue;
             }
             throw this.err(pos, `unknown field ${JSON.stringify(key)} in ${desc.typeName}`);
@@ -1352,19 +1354,32 @@ class Decoder {
     throw this.err(pos, `expected enum name or number for field ${JSON.stringify(fd.name)}`);
   }
 
+  /**
+   * What `discardUnknown` skips must still be a value: the bracket count finds
+   * its end, and the parser decides, so a skip accepts only what `parse` does.
+   */
+  private checkSkipped(pos: Position, start: number): void {
+    const text = this.lex.inputView().slice(start, this.current.pos.offset);
+    try {
+      parse(`_ = ${text}`);
+    } catch (e) {
+      throw this.err(pos, `invalid value of unknown field: ${(e as Error).message}`);
+    }
+  }
+
   private skipValue(): void {
+    const pos = this.current.pos;
     const tk = this.peek();
     if (tk === TokenKind.LBRACE) {
       this.advance();
       this.skipBraced();
-      return;
-    }
-    if (tk === TokenKind.LBRACKET) {
+    } else if (tk === TokenKind.LBRACKET) {
       this.advance();
       this.skipBracketed();
-      return;
+    } else if (tk !== TokenKind.EOF) {
+      this.advance();
     }
-    this.advance();
+    this.checkSkipped(pos, pos.offset);
   }
 
   private skipBraced(): void {
