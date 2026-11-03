@@ -18,7 +18,9 @@ export const enum WireType {
 }
 
 const textEncoder = new TextEncoder();
-const textDecoder = new TextDecoder("utf-8", { fatal: false });
+// A proto string holds UTF-8 (HARDENING.md § UTF-8), so a decoder refuses one
+// that is not, rather than replacing what it cannot read.
+const textDecoder = new TextDecoder("utf-8", { fatal: true });
 
 export class Writer {
   private buf: Uint8Array;
@@ -324,7 +326,12 @@ export class Reader {
 
   /** UTF-8 length-prefixed string. */
   string(): string {
-    return textDecoder.decode(this.bytesView());
+    const bytes = this.bytesView();
+    try {
+      return textDecoder.decode(bytes);
+    } catch {
+      throw new Error("invalid UTF-8 in string");
+    }
   }
 
   /** Decode a tag varint into { fieldNumber, wireType }. */
