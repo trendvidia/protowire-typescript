@@ -1171,7 +1171,7 @@ class Decoder {
           );
       }
 
-      const k = decodeMapKey(keyKind, keyStr, pos);
+      const k = decodeMapKey(fd.name, keyKind, keyStr, tk, pos);
       // Compared as values of the key type: `1:` and `"1":` are one key.
       if (seen.has(k)) {
         throw this.err(pos, `map key ${JSON.stringify(keyStr)} of field ${JSON.stringify(fd.name)} is already set`);
@@ -1482,9 +1482,21 @@ function setSecondsNanos(target: ReflectMessage, seconds: bigint, nanos: number)
   target.set(nf, nanos);
 }
 
-function decodeMapKey(kind: ScalarType, key: string, pos: Position): unknown {
+function decodeMapKey(
+  field: string,
+  kind: ScalarType,
+  key: string,
+  token: TokenKind,
+  pos: Position,
+): unknown {
   switch (kind) {
     case ScalarType.STRING:
+      if (token === TokenKind.BOOL) {
+        throw new PxfError(
+          pos,
+          `invalid string map key ${key} for field ${JSON.stringify(field)}: the keyword ${key} is a bool key; write ${JSON.stringify(key)} for the string`,
+        );
+      }
       return key;
     case ScalarType.INT32:
     case ScalarType.SINT32:
@@ -1513,9 +1525,19 @@ function decodeMapKey(kind: ScalarType, key: string, pos: Position): unknown {
       return v;
     }
     case ScalarType.BOOL:
-      if (key === "true") return true;
-      if (key === "false") return false;
-      throw new PxfError(pos, `invalid bool map key: ${key}`);
+      // The keyword, the integer 0 / 1, or the quoted literal. An identifier
+      // and a quoted "1" are neither (draft -01, protowire#284).
+      if (token === TokenKind.BOOL || token === TokenKind.STRING) {
+        if (key === "true") return true;
+        if (key === "false") return false;
+      } else if (token === TokenKind.INT) {
+        if (key === "1") return true;
+        if (key === "0") return false;
+      }
+      throw new PxfError(
+        pos,
+        `invalid bool map key ${key} for field ${JSON.stringify(field)}: a bool key is true, false, 0, 1, "true" or "false"`,
+      );
     default:
       throw new PxfError(pos, `unsupported map key kind: ${kind}`);
   }

@@ -492,7 +492,8 @@ class Parser {
     const pos = this.current.pos;
     const k = this.current.kind;
 
-    if (k !== TokenKind.IDENT && k !== TokenKind.STRING && k !== TokenKind.INT) {
+    // A bool is a key only in a map entry (map-key in draft -01).
+    if (k !== TokenKind.IDENT && k !== TokenKind.STRING && k !== TokenKind.INT && k !== TokenKind.BOOL) {
       throw new PxfError(
         pos,
         `expected identifier, string, or integer, got ${tokenKindName(k)} (${JSON.stringify(this.current.value)})`,
@@ -501,6 +502,12 @@ class Parser {
     const keyKind = k;
     const key = this.current.value;
     this.advance();
+    if (keyKind === TokenKind.BOOL && (this.current.kind !== TokenKind.COLON || !opts.allowMapEntry)) {
+      throw new PxfError(
+        pos,
+        `expected identifier, string, or integer, got ${tokenKindName(k)} (${JSON.stringify(key)})`,
+      );
+    }
 
     switch (this.current.kind) {
       case TokenKind.EQUALS: {
@@ -543,6 +550,7 @@ class Parser {
           kind: "mapEntry",
           pos,
           key,
+          keyQuoted: keyKind === TokenKind.STRING,
           value,
           leadingComments,
           trailingComment: "",

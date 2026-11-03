@@ -172,7 +172,10 @@ export interface Assignment {
 export interface MapEntry {
   readonly kind: "mapEntry";
   readonly pos: Position;
+  /** The denoted key: unquoted, even when written as a string literal. */
   readonly key: string;
+  /** The key was a string literal. Unset on an entry built in code. */
+  readonly keyQuoted?: boolean;
   readonly value: Value;
   readonly leadingComments: Comment[];
   readonly trailingComment: string;

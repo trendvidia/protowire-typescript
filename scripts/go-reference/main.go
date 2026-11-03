@@ -39,9 +39,11 @@ type Leg struct {
 
 // Record is a fixture's outcome on each leg. Stream is set for @dataset only.
 type Record struct {
-	Parse  bool `json:"parse"`
-	Decode Leg  `json:"decode"`
-	Stream *Leg `json:"stream,omitempty"`
+	Parse   bool   `json:"parse"`
+	Format  string `json:"format,omitempty"`
+	Decode  Leg    `json:"decode"`
+	Marshal string `json:"marshal,omitempty"`
+	Stream  *Leg   `json:"stream,omitempty"`
 }
 
 var typeLine = regexp.MustCompile(`(?m)^@(?:type|dataset)\s+([\w.]+)`)
@@ -109,6 +111,9 @@ func load(path string) (*protoregistry.Files, pxf.UnmarshalOptions) {
 func record(data []byte, desc protoreflect.MessageDescriptor, o pxf.UnmarshalOptions) Record {
 	doc, parseErr := pxf.Parse(data)
 	r := Record{Parse: parseErr == nil}
+	if parseErr == nil {
+		r.Format = string(pxf.FormatDocument(doc))
+	}
 	if parseErr == nil && len(doc.Datasets) > 0 || bytes.Contains(data, []byte("\n@dataset ")) || bytes.HasPrefix(data, []byte("@dataset ")) {
 		r.Decode = bindParsed(doc, parseErr, desc, o)
 		s := bindStream(data, desc, o)
@@ -119,6 +124,9 @@ func record(data []byte, desc protoreflect.MessageDescriptor, o pxf.UnmarshalOpt
 	err := o.Unmarshal(data, msg)
 	if err == nil {
 		r.Decode = Leg{Accept: true, Hex: []string{encode(msg)}}
+		text, err := pxf.MarshalOptions{TypeResolver: o.TypeResolver}.Marshal(msg)
+		check(err)
+		r.Marshal = string(text)
 	}
 	return r
 }

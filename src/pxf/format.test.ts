@@ -128,16 +128,14 @@ describe("maps", () => {
     expect(format(parse(src))).toBe('labels = {\n  "key with space": "v"\n}\n');
   });
 
-  it("int-keyed map preserves the numeric form (parser produced the key as INT-text)", () => {
+  it("a bare integer key stays bare (protowire#306)", () => {
     const src = `codes = {
   404: "Not Found"
   500: "Internal"
 }`;
-    // The map key "404" is a digit-only string — needsQuoting returns true
-    // because the first char isn't alphanumeric ident-start. So it's quoted.
     const out = format(parse(src));
     expect(out).toBe(
-      'codes = {\n  "404": "Not Found"\n  "500": "Internal"\n}\n',
+      'codes = {\n  404: "Not Found"\n  500: "Internal"\n}\n',
     );
   });
 });

@@ -22,6 +22,8 @@ import { describe, expect, it } from "vitest";
 
 import { bindRow, DatasetReader } from "./dataset_reader.js";
 import { unmarshal, type UnmarshalOptions } from "./decode.js";
+import { marshal } from "./encode.js";
+import { format } from "./format.js";
 import { parse } from "./parser.js";
 
 interface Leg {
@@ -30,7 +32,9 @@ interface Leg {
 }
 interface FixtureRecord {
   parse: boolean;
+  format?: string;
   decode: Leg;
+  marshal?: string;
   stream?: Leg;
 }
 
@@ -59,8 +63,6 @@ const GAPS: Record<string, number> = {
   "dataset/nested-cells.pxf": 47,
   "duration/negative-fractional.pxf": 34,
   "duration/roundtrip-negative.pxf": 34,
-  "map-keys/bool-keys-integer.pxf": 41,
-  "map-keys/bool-keys-keyword.pxf": 41,
   "any/err-not-any.pxf": 48,
   "any/err-unresolved.pxf": 48,
   "dataset/block-on-scalar.pxf": 47,
@@ -75,7 +77,6 @@ const GAPS: Record<string, number> = {
   "dataset/dotted-through-repeated.pxf": 49,
   "dataset/dotted-through-scalar.pxf": 49,
   "dataset/dotted-unknown-segment.pxf": 49,
-  "map-keys/fmt-bare-keys.pxf": 41,
 };
 
 function registryFor(dir: string) {
@@ -144,13 +145,17 @@ for (const dir of dirs) {
         const failures: string[] = [];
         let parsed = true;
         try {
-          parse(text);
+          const formatted = format(parse(text));
+          if (want.format !== undefined && formatted !== want.format) failures.push("format: text differs from the reference");
         } catch {
           parsed = false;
         }
         if (parsed !== want.parse) failures.push(`parse: ${parsed ? "accepted" : "rejected"}, the reference did not`);
         const decode = compare("decode", want.decode, desc, () => decodeLeg(text, desc, { typeResolver }));
         if (decode) failures.push(decode);
+        if (!decode && want.marshal !== undefined && marshal(unmarshal(text, desc, { typeResolver }), desc, { typeResolver }) !== want.marshal) {
+          failures.push("marshal: text differs from the reference");
+        }
         if (want.stream) {
           const stream = compare("stream", want.stream, desc, () => streamLeg(text, desc));
           if (stream) failures.push(stream);
@@ -164,3 +169,27 @@ for (const dir of dirs) {
     }
   });
 }
+
+describe("corpus map-keys spelling", () => {
+  const dir = resolve(root, "map-keys");
+  const registry = registryFor("map-keys");
+  for (const stem of ["fmt-bare-keys", "fmt-dotted-keys", "fmt-keyword-keys"]) {
+    const input = readFileSync(resolve(dir, `${stem}.pxf`), "utf8");
+    const expected = readFileSync(resolve(dir, `${stem}.expected.pxf`), "utf8");
+    it(`${stem} formats to its expected file, a fixed point`, () => {
+      expect(format(parse(input))).toBe(expected);
+      expect(format(parse(expected))).toBe(expected);
+    });
+    it(`${stem} binds the same before and after`, () => {
+      const desc = registry.getMessage(typeName(input))!;
+      expect(equals(desc, unmarshal(input, desc), unmarshal(expected, desc))).toBe(true);
+    });
+  }
+  it("marshal spells dotted keys as the expected file does", () => {
+    const expected = readFileSync(resolve(dir, "fmt-dotted-keys.expected.pxf"), "utf8");
+    const desc = registry.getMessage(typeName(expected))!;
+    const out = marshal(unmarshal(expected, desc), desc);
+    for (const key of ["a.b:", "c.d:", '".e":', '"1.5":']) expect(out).toContain(key);
+  });
+});
+

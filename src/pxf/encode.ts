@@ -521,7 +521,7 @@ function formatMapKey(kind: ScalarType, key: unknown): string {
   switch (kind) {
     case ScalarType.STRING: {
       const s = key as string;
-      return isValidIdent(s) ? s : writeQuotedString(s);
+      return identSafeEntryName(s) ? s : writeQuotedString(s);
     }
     case ScalarType.BOOL:
       return (key as boolean) ? "true" : "false";
@@ -540,17 +540,6 @@ function formatMapKey(kind: ScalarType, key: unknown): string {
     default:
       return String(key);
   }
-}
-
-function isValidIdent(s: string): boolean {
-  if (s === "" || s === "true" || s === "false" || s === "null") return false;
-  for (let i = 0; i < s.length; i++) {
-    const c = s.charCodeAt(i);
-    const isLetter = (c >= 0x41 && c <= 0x5a) || (c >= 0x61 && c <= 0x7a) || c === 0x5f;
-    const isDigit = c >= 0x30 && c <= 0x39;
-    if (i === 0 ? !isLetter : !(isLetter || isDigit)) return false;
-  }
-  return true;
 }
 
 /**
