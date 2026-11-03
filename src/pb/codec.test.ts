@@ -297,3 +297,28 @@ describe("a map entry carries key and value, zero-valued or not (protowire#295)"
     expect(Buffer.from(bytes).toString("hex")).toBe("22062a040a001200");
   });
 });
+
+describe("packed repeated scalars", () => {
+  const Ints = defineMessage<{ values: number[] }>({
+    fields: [{ number: 1, name: "values", kind: "int32", repeated: true }],
+    create: () => ({ values: [] }),
+  });
+  const packed = Uint8Array.of(0x0a, 0x03, 0x01, 0x02, 0x03);
+
+  it("reads what protoc writes by default", () => {
+    expect(unmarshal(packed, Ints).values).toEqual([1, 2, 3]);
+  });
+
+  it("reads both forms in one message", () => {
+    expect(unmarshal(Uint8Array.of(0x08, 0x09, 0x0a, 0x01, 0x07), Ints).values).toEqual([9, 7]);
+  });
+
+  it("rejects a run overrunning its message", () => {
+    expect(() => unmarshal(Uint8Array.of(0x0a, 0x09, 0x01), Ints)).toThrow();
+  });
+
+  it("counts elements against MaxRepeatedCount", () => {
+    expect(() => unmarshal(packed, Ints, { maxRepeatedCount: 2 })).toThrow(/MaxRepeatedCount=2/);
+    expect(unmarshal(packed, Ints, { maxRepeatedCount: 3 }).values).toHaveLength(3);
+  });
+});

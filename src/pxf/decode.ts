@@ -107,6 +107,33 @@ export interface UnmarshalOptions {
    * pass) can set this to bypass the per-call recheck.
    */
   skipValidate?: boolean;
+  /** Bytes of input a call may read. Default {@link MAX_MESSAGE_SIZE}. */
+  maxMessageSize?: number;
+  /** Decoded bytes one `b"..."` literal may hold. Default {@link MAX_MESSAGE_SIZE}. */
+  maxBytesLiteralLength?: number;
+  /** Elements of one repeated or map field. Default {@link MAX_MESSAGE_SIZE}. */
+  maxRepeatedCount?: number;
+}
+
+/** MaxMessageSize (HARDENING.md § Mandatory limits). The bytes-literal and
+ * repeated-count limits default to it. */
+export const MAX_MESSAGE_SIZE = 64 << 20;
+
+interface Limits {
+  readonly maxBytesLiteral: number;
+  readonly maxRepeated: number;
+}
+
+function limitsFor(data: string, options: UnmarshalOptions | undefined): Limits {
+  const max = options?.maxMessageSize ?? MAX_MESSAGE_SIZE;
+  const size = data.length > max / 3 ? Buffer.byteLength(data) : data.length;
+  if (size > max) {
+    throw new PxfError({ line: 1, column: 1, offset: 0 }, `input of ${size} bytes exceeds MaxMessageSize=${max}`);
+  }
+  return {
+    maxBytesLiteral: options?.maxBytesLiteralLength ?? MAX_MESSAGE_SIZE,
+    maxRepeated: options?.maxRepeatedCount ?? MAX_MESSAGE_SIZE,
+  };
 }
 
 export function unmarshal<Desc extends DescMessage>(
@@ -122,6 +149,7 @@ export function unmarshal<Desc extends DescMessage>(
     options?.discardUnknown ?? false,
     options?.typeResolver,
     null,
+    limitsFor(data, options),
   ).decodeRoot(root);
   return msg;
 }
@@ -158,6 +186,7 @@ export function unmarshalFull<Desc extends DescMessage>(
     options?.discardUnknown ?? false,
     options?.typeResolver,
     result,
+    limitsFor(data, options),
   );
   decoder.decodeRoot(root);
   postDecode(root, result, decoder.nullMaskFor(root.desc), "");
@@ -179,6 +208,7 @@ class Decoder {
     private readonly discardUnknown: boolean,
     private readonly typeResolver: TypeResolver | undefined,
     private readonly result: Result | null,
+    private readonly limits: Limits,
   ) {
     this.lex = new Lexer(input);
     this.advance();
@@ -879,6 +909,7 @@ class Decoder {
     const keyFd = keyField(fd); // set: the anonymous form of a keyed field
 
     while (this.peek() !== TokenKind.RBRACKET && this.peek() !== TokenKind.EOF) {
+      this.checkCount(fd, list.size);
       if (this.peek() === TokenKind.NULL) {
         throw this.err(
           this.current.pos,
@@ -980,6 +1011,7 @@ class Decoder {
       }
       this.advance();
 
+      this.checkCount(fd, list.size);
       const elem = reflect(fd.message, create(fd.message));
       elem.set(keyFd, name);
       const ke = { field: fd.name, keyName: keyFd.name, keyField: keyFd, entryName: name };
@@ -1010,6 +1042,15 @@ class Decoder {
     this.pathPrefix = saved;
   }
 
+  private checkCount(fd: DescField, size: number): void {
+    if (size >= this.limits.maxRepeated) {
+      throw this.err(
+        this.current.pos,
+        `field ${JSON.stringify(fd.name)} exceeds MaxRepeatedCount=${this.limits.maxRepeated}`,
+      );
+    }
+  }
+
   /** A list element's or map value's body, its Result paths under `segment`. */
   private decodeElement(elem: ReflectMessage, segment: string): void {
     const saved = this.pathPrefix;
@@ -1037,6 +1078,7 @@ class Decoder {
     const keyKind = fd.mapKey;
 
     while (this.peek() !== TokenKind.RBRACE && this.peek() !== TokenKind.EOF) {
+      this.checkCount(fd, map.size);
       const pos = this.current.pos;
       const tk = this.peek();
       if (
@@ -1229,6 +1271,9 @@ class Decoder {
           throw this.err(pos, `expected bytes for field ${JSON.stringify(fd.name)}`);
         }
         const v = decodeBase64(this.current.value);
+        if (v.length > this.limits.maxBytesLiteral) {
+          throw this.err(pos, `bytes literal decodes to more than MaxBytesLiteralLength=${this.limits.maxBytesLiteral}`);
+        }
         this.advance();
         return v;
       }

@@ -65,7 +65,11 @@ format changes.
 
 - **`Result` reports a keyed entry's name as setting the key field** (protowire-go#214). After `kd { alpha {} }`, `isSet("kd[0].name")` is `true` and `isAbsent("kd[0].name")` is `false`; they said the opposite, although the name was in the message. Decoded values do not change. `postDecode` does not walk list elements in this port yet (#58), so the reference's other symptoms, a default replacing the name and a required key reported absent, could not occur here. New tests pin the right answer for when it does.
 
+- **`pb` reads packed repeated scalars** ([#55](https://github.com/trendvidia/protowire-typescript/issues/55)), proto3's default wire form. A `repeated int32` from any standard writer failed to decode. Found by the HARDENING corpus.
+
 ### Changed
+
+- **`MaxMessageSize`, `MaxBytesLiteralLength` and `MaxRepeatedCount` are enforced** ([#55](https://github.com/trendvidia/protowire-typescript/issues/55), HARDENING.md § Mandatory limits). The PXF, `pb` and SBE decoders reject input past them, at 64 MiB by default, and each takes options to lower them.
 
 - **A singular field or a map key bound twice in one message body is rejected** ([#51](https://github.com/trendvidia/protowire-typescript/issues/51), [#53](https://github.com/trendvidia/protowire-typescript/issues/53), protowire#347, #396). The last value used to win, and two blocks for a message field kept only the last. Map keys compare as values of the key type, so `1:` and `"1":` collide. Repeated fields still concatenate, and two map bindings with distinct keys still merge. This narrows accepted input.
 
