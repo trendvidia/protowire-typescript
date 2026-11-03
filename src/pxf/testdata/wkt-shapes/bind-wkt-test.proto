@@ -1,0 +1,28 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 TrendVidia, LLC.
+// Messages redefining a well-known type with the wrong shape (draft -01
+// §wkt-shapes), and one copy with the right shape (#79).
+syntax = "proto3";
+package pxf;
+
+message BigInt {
+  string abs = 1;
+  bool negative = 2;
+}
+
+message Decimal {
+  bytes unscaled = 1;
+  int32 scale = 2;
+}
+
+message Secret {
+  string value = 1;
+  repeated string hint = 2;
+}
+
+message BigFloat {
+  bytes mantissa = 1;
+  int32 exponent = 2;
+  uint32 prec = 3;
+  bool negative = 4;
+}

@@ -1,0 +1,11 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 TrendVidia, LLC.
+// Never imports protowire's annotations, so 50000 here is its own business.
+syntax = "proto3";
+package bindretired.v1;
+
+import "bind-retired-ext-test.proto";
+
+message Unrelated {
+  string a = 1 [(old_required) = true];
+}

@@ -37,12 +37,16 @@ import {
 } from "@bufbuild/protobuf";
 
 import { type AnnotationSurface, fieldOptions, getKeyName } from "./annotations.js";
+import { wktShapeProblem } from "./descriptor.js";
+import { walkRetired } from "./retired.js";
 
 /**
  * What a schema element breaks: a reserved PXF value keyword as its name
  * (`field`, `oneof`, `enumValue`), an invalid `(pxf.required)`
  * (`requiredOption`), a misplaced `(pxf.key)` (`keyOption`), or an invalid
- * `(pxf.default)` (`defaultOption`).
+ * `(pxf.default)` (`defaultOption`), an option at a retired extension number
+ * (`retiredNumber`), or a message redefining a well-known type with the wrong
+ * shape (`wellKnownShape`).
  */
 export type ViolationKind =
   | "field"
@@ -50,7 +54,9 @@ export type ViolationKind =
   | "enumValue"
   | "requiredOption"
   | "keyOption"
-  | "defaultOption";
+  | "defaultOption"
+  | "retiredNumber"
+  | "wellKnownShape";
 
 /** A schema element that breaks a bind-time check. */
 export interface Violation {
@@ -80,6 +86,12 @@ export function violationString(v: Violation): string {
   if (v.kind === "requiredOption") {
     const label = v.surface === "carrier" ? "@required" : "(pxf.required)";
     return `${v.file}: field "${v.element}": invalid ${label}: ${v.detail} (draft -01 §annotation-extensions)`;
+  }
+  if (v.kind === "retiredNumber") {
+    return `${v.file}: "${v.element}": ${v.detail} (STABILITY.md promise 3)`;
+  }
+  if (v.kind === "wellKnownShape") {
+    return `${v.file}: message "${v.element}" redefines a well-known type: ${v.detail} (draft -01 §wkt-shapes)`;
   }
   if (v.kind === "defaultOption") {
     const label = v.surface === "carrier" ? "@default" : "(pxf.default)";
@@ -155,6 +167,7 @@ function fileViolations(file: DescFile): readonly Violation[] {
   for (const en of file.enums) walkEnum(path, en, out);
   for (const ext of file.extensions) checkKeyOption(path, ext, out);
   for (const msg of file.messages) walkKeyOptions(path, msg, out);
+  walkRetired(file, out);
   fileCache.set(file, out);
   return out;
 }
@@ -214,6 +227,8 @@ export const FUTURE_RESERVED_DIRECTIVES: ReadonlySet<string> = new Set([
 ]);
 
 function walkMessage(path: string, md: DescMessage, out: Violation[]): void {
+  const shape = wktShapeProblem(md);
+  if (shape) out.push({ file: path, element: md.typeName, name: "", kind: "wellKnownShape", detail: shape });
   for (const f of md.fields) {
     if (RESERVED.has(f.name)) {
       // DescField doesn't carry a typeName; build it from the parent

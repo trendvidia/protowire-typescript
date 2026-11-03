@@ -1,0 +1,35 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 TrendVidia, LLC.
+// Retired option numbers on every kind of element (#79).
+syntax = "proto3";
+package bindretired.v1;
+
+import "bind-retired-ext-test.proto";
+import "pxf/annotations.proto";
+
+option (old_schema_id) = 1;
+
+message Old {
+  option (old_template_id) = 2;
+  string a = 1 [(old_required) = true];
+  string b = 2 [(old_default) = "x"];
+  oneof pick {
+    option (old_oneof_carrier) = "x";
+    string c = 3;
+  }
+  message Inner {
+    string d = 1 [(old_required) = true];
+  }
+}
+
+enum Color {
+  option (old_enum_carrier) = "x";
+  COLOR_UNSPECIFIED = 0 [(old_value_carrier) = "x"];
+}
+
+service S {
+  option (old_service_carrier) = "x";
+  rpc M(Old) returns (Old) {
+    option (old_method_carrier) = "x";
+  }
+}
