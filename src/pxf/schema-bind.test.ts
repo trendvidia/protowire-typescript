@@ -145,3 +145,28 @@ describe("the annotation carrier (#62)", () => {
     });
   });
 });
+
+describe("a message with the wrong shape (#79)", () => {
+  it("is an ordinary message where nothing validates", () => {
+    const Timestamp = get(registry("bind-wkt-google-test.binpb"), "google.protobuf.Timestamp");
+    const msg = unmarshal('seconds = "x"', Timestamp, { skipValidate: true });
+    expect((msg as unknown as { seconds: string }).seconds).toBe("x");
+  });
+
+  it("fails the decode when validated", () => {
+    const Timestamp = get(registry("bind-wkt-google-test.binpb"), "google.protobuf.Timestamp");
+    expect(() => unmarshal("nanos = 1", Timestamp)).toThrow(/redefines a well-known type/);
+  });
+});
+
+describe("retired option numbers (#79)", () => {
+  it("fail the decode, saying what to recompile against", () => {
+    const Old = get(registry("bind-retired-test.binpb"), "bindretired.v1.Old");
+    expect(() => unmarshal("", Old)).toThrow(/option number 50000 on FieldOptions was \(pxf\.required\)/);
+  });
+
+  it("are not this port's business in a file that never imported protowire", () => {
+    const Unrelated = get(registry("bind-unrelated-test.binpb"), "bindretired.v1.Unrelated");
+    expect(validateDescriptor(Unrelated)).toEqual([]);
+  });
+});

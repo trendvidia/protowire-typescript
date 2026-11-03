@@ -13,6 +13,7 @@ modules:
     excludes:
       - src/pxf/testdata/corpus
       - src/pxf/testdata/annotations
+      - src/pxf/testdata/wkt-shapes
   - path: src/sbe/testdata
 lint:
   use:

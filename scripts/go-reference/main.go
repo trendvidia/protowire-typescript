@@ -135,6 +135,8 @@ var kinds = map[pxf.ViolationKind]string{
 	pxf.ViolationKeyOption:      "keyOption",
 	pxf.ViolationDefaultOption:  "defaultOption",
 	pxf.ViolationRequiredOption: "requiredOption",
+	pxf.ViolationRetiredNumber:  "retiredNumber",
+	pxf.ViolationWellKnownShape: "wellKnownShape",
 }
 
 // violations validates the bind-* files of the bind-*-test descriptor sets.

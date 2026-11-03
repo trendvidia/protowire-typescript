@@ -3126,6 +3126,122 @@
     "name": "null"
    }
   ],
-  "bind-oneof-test.proto": []
+  "bind-oneof-test.proto": [],
+  "bind-retired-ext-test.proto": [],
+  "bind-retired-test.proto": [
+   {
+    "file": "bind-retired-test.proto",
+    "element": "bind-retired-test.proto",
+    "kind": "retiredNumber",
+    "name": "50100"
+   },
+   {
+    "file": "bind-retired-test.proto",
+    "element": "bindretired.v1.COLOR_UNSPECIFIED",
+    "kind": "retiredNumber",
+    "name": "50400"
+   },
+   {
+    "file": "bind-retired-test.proto",
+    "element": "bindretired.v1.Color",
+    "kind": "retiredNumber",
+    "name": "50400"
+   },
+   {
+    "file": "bind-retired-test.proto",
+    "element": "bindretired.v1.Old",
+    "kind": "retiredNumber",
+    "name": "50200"
+   },
+   {
+    "file": "bind-retired-test.proto",
+    "element": "bindretired.v1.Old.Inner.d",
+    "kind": "retiredNumber",
+    "name": "50000"
+   },
+   {
+    "file": "bind-retired-test.proto",
+    "element": "bindretired.v1.Old.a",
+    "kind": "retiredNumber",
+    "name": "50000"
+   },
+   {
+    "file": "bind-retired-test.proto",
+    "element": "bindretired.v1.Old.b",
+    "kind": "retiredNumber",
+    "name": "50001"
+   },
+   {
+    "file": "bind-retired-test.proto",
+    "element": "bindretired.v1.Old.pick",
+    "kind": "retiredNumber",
+    "name": "50400"
+   },
+   {
+    "file": "bind-retired-test.proto",
+    "element": "bindretired.v1.S",
+    "kind": "retiredNumber",
+    "name": "50400"
+   },
+   {
+    "file": "bind-retired-test.proto",
+    "element": "bindretired.v1.S.M",
+    "kind": "retiredNumber",
+    "name": "50400"
+   }
+  ],
+  "bind-unrelated-test.proto": [],
+  "bind-wkt-google-test.proto": [
+   {
+    "file": "bind-wkt-google-test.proto",
+    "element": "google.protobuf.Any",
+    "kind": "wellKnownShape",
+    "name": ""
+   },
+   {
+    "file": "bind-wkt-google-test.proto",
+    "element": "google.protobuf.Duration",
+    "kind": "wellKnownShape",
+    "name": ""
+   },
+   {
+    "file": "bind-wkt-google-test.proto",
+    "element": "google.protobuf.FieldMask",
+    "kind": "wellKnownShape",
+    "name": ""
+   },
+   {
+    "file": "bind-wkt-google-test.proto",
+    "element": "google.protobuf.StringValue",
+    "kind": "wellKnownShape",
+    "name": ""
+   },
+   {
+    "file": "bind-wkt-google-test.proto",
+    "element": "google.protobuf.Timestamp",
+    "kind": "wellKnownShape",
+    "name": ""
+   }
+  ],
+  "bind-wkt-test.proto": [
+   {
+    "file": "bind-wkt-test.proto",
+    "element": "pxf.BigInt",
+    "kind": "wellKnownShape",
+    "name": ""
+   },
+   {
+    "file": "bind-wkt-test.proto",
+    "element": "pxf.Decimal",
+    "kind": "wellKnownShape",
+    "name": ""
+   },
+   {
+    "file": "bind-wkt-test.proto",
+    "element": "pxf.Secret",
+    "kind": "wellKnownShape",
+    "name": ""
+   }
+  ]
  }
 }

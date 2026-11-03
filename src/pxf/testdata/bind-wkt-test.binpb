@@ -1,0 +1,17 @@
+
+¿
+bind-wkt-test.protopxf"6
+BigInt
+abs (	Rabs
+negative (Rnegative";
+Decimal
+unscaled (Runscaled
+scale (Rscale"2
+Secret
+value (	Rvalue
+hint (	Rhint"r
+BigFloat
+mantissa (Rmantissa
+exponent (Rexponent
+prec (Rprec
+negative (Rnegativebproto3

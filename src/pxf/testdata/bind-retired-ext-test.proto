@@ -1,0 +1,20 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 TrendVidia, LLC.
+// Extensions at retired option numbers, so the schemas importing this can write
+// them. A real pre-registration descriptor carries the same bytes.
+syntax = "proto2";
+package bindretired.v1;
+
+import "google/protobuf/descriptor.proto";
+
+extend google.protobuf.FileOptions { optional int32 old_schema_id = 50100; }
+extend google.protobuf.MessageOptions { optional int32 old_template_id = 50200; }
+extend google.protobuf.FieldOptions {
+  optional bool old_required = 50000;
+  optional string old_default = 50001;
+}
+extend google.protobuf.OneofOptions { optional bytes old_oneof_carrier = 50400; }
+extend google.protobuf.EnumOptions { optional bytes old_enum_carrier = 50400; }
+extend google.protobuf.EnumValueOptions { optional bytes old_value_carrier = 50400; }
+extend google.protobuf.ServiceOptions { optional bytes old_service_carrier = 50400; }
+extend google.protobuf.MethodOptions { optional bytes old_method_carrier = 50400; }
