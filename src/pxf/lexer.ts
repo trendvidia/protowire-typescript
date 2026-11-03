@@ -199,6 +199,13 @@ export class Lexer {
       if (ch === '"') {
         return { kind: TokenKind.STRING, value: out, pos };
       }
+      if (ch === "\n") {
+        return {
+          kind: TokenKind.ILLEGAL,
+          value: 'newline in string literal: write it as \\n, or use a """triple-quoted""" string',
+          pos,
+        };
+      }
       if (ch !== "\\") {
         out += ch;
         continue;

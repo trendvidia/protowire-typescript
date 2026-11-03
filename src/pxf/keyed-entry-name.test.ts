@@ -22,6 +22,7 @@ import { FileDescriptorSetSchema } from "@bufbuild/protobuf/wkt";
 import { describe, expect, it } from "vitest";
 
 import { unmarshal, unmarshalFull } from "./decode.js";
+import { marshal } from "./encode.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const registry = createFileRegistry(
@@ -107,5 +108,14 @@ describe("a keyed entry's name supplies the key field", () => {
   it("leaves unmarshal, which records no presence, decoding the key", () => {
     const m = unmarshal("kd { alpha {} }", P) as unknown as Doc;
     expect(m.kd[0]?.name).toBe("alpha");
+  });
+});
+
+describe("an element's nulls", () => {
+  it("round-trip through nullFields by indexed path", () => {
+    const doc = 'kn {\n  a {\n    note = null\n  }\n}\n';
+    const { message: msg, result } = unmarshalFull(doc, P);
+    expect(result.nullPaths()).toEqual(["kn[0].note"]);
+    expect(marshal(msg, P, { nullFields: result })).toBe(doc);
   });
 });

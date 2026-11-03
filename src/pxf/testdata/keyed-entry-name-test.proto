@@ -37,4 +37,5 @@ message InOneof {
 message Nests {
   string name = 1;
   repeated WithDefault inner = 2 [(pxf.key) = "name"];
+  optional string note = 3;
 }
