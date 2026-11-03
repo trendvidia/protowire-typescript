@@ -376,3 +376,31 @@ describe("32-bit varint kinds keep the low 32 bits of a 10-byte varint (#95)", (
     expect(() => unmarshal(past, BigFloatCodec)).toThrow(/prec above 13603/);
   });
 });
+
+describe("invalid UTF-8 in a string field (#93)", () => {
+  const S = defineMessage<{ s: string; l: string[]; m: Record<string, string> }>({
+    fields: [
+      { number: 1, name: "s", kind: "string" },
+      { number: 2, name: "l", kind: "string", repeated: true },
+      { number: 3, name: "m", kind: "string", mapKey: "string" },
+    ],
+    create: () => ({ s: "", l: [], m: {} }),
+  });
+  const bad = [0x41, 0xff, 0xfe];
+
+  it.each([
+    ["a field", [0x0a, 3, ...bad]],
+    ["a list element", [0x12, 3, ...bad]],
+    ["a map key", [0x1a, 7, 0x0a, 3, ...bad, 0x12, 0]],
+    ["a map value", [0x1a, 7, 0x0a, 0, 0x12, 3, ...bad]],
+    ["a lone surrogate", [0x0a, 3, 0xed, 0xa0, 0x80]],
+  ])("is rejected in %s", (_, bytes) => {
+    expect(() => unmarshal(Uint8Array.from(bytes), S)).toThrow(/invalid UTF-8 in string/);
+  });
+
+  it("keeps valid UTF-8", () => {
+    const text = "café€";
+    const enc = new TextEncoder().encode(text);
+    expect(unmarshal(Uint8Array.from([0x0a, enc.length, ...enc]), S).s).toBe(text);
+  });
+});

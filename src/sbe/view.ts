@@ -155,7 +155,9 @@ export class View {
     }
   }
 
-  /** Trims trailing NUL padding. */
+  /** Trims trailing NUL padding. A View trusts its bytes, UTF-8 included: an
+   * invalid sequence is replaced, not refused. Decode untrusted input with
+   * `unmarshal`, which refuses it. */
   string(name: string): string {
     const ft = this.field(name);
     const slice = this.block.subarray(ft.offset, ft.offset + ft.size);
