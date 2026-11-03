@@ -150,3 +150,41 @@ describe("MAX_NESTING_DEPTH", () => {
     expect(() => unmarshal(onePast, tree)).toThrow(/MaxNestingDepth=100/);
   });
 });
+
+describe("MaxMessageSize, MaxBytesLiteralLength and MaxRepeatedCount", () => {
+  const file = createFileRegistry(
+    create(FileDescriptorProtoSchema, {
+      name: "limits-size.proto",
+      package: "limits.v1",
+      syntax: "proto3",
+      messageType: [
+        {
+          name: "Holder",
+          field: [
+            field("s", 1, OPTIONAL),
+            { ...field("list", 2, REPEATED), type: FieldDescriptorProto_Type.STRING },
+            { name: "b", number: 3, jsonName: "b", label: OPTIONAL, type: FieldDescriptorProto_Type.BYTES },
+          ],
+        },
+      ],
+    }),
+    () => undefined,
+  );
+  const Holder = file.getMessage("limits.v1.Holder")!;
+
+  it("rejects past the size, counting bytes, not characters", () => {
+    expect(() => unmarshal('s = "é"', Holder, { maxMessageSize: 7 })).toThrow(/exceeds MaxMessageSize=7/);
+    expect(() => unmarshal('s = "é"', Holder, { maxMessageSize: 8 })).not.toThrow();
+  });
+
+  it("rejects a bytes literal past the length, measured decoded", () => {
+    expect(() => unmarshal('b = b"AQID"', Holder, { maxBytesLiteralLength: 2 })).toThrow(/MaxBytesLiteralLength=2/);
+    expect(() => unmarshal('b = b"AQID"', Holder, { maxBytesLiteralLength: 3 })).not.toThrow();
+  });
+
+  it("counts a repeated field across its bindings", () => {
+    const doc = 'list = ["a"]\nlist = ["b"]';
+    expect(() => unmarshal(doc, Holder, { maxRepeatedCount: 1 })).toThrow(/MaxRepeatedCount=1/);
+    expect(() => unmarshal(doc, Holder, { maxRepeatedCount: 2 })).not.toThrow();
+  });
+});

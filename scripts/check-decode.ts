@@ -7,6 +7,9 @@
 //                --proto <path/adversarial.proto> --input <path>
 //                [--limit NAME=VALUE]...
 //
+// --limit takes MaxMessageSize, MaxBytesLiteralLength and MaxRepeatedCount,
+// the three the corpus lowers.
+//
 // Exit 0 when the input is accepted, 1 when it is rejected with a clean error,
 // and 2 for a fault in the harness. Anything else is a bug in the decoder.
 //
@@ -24,7 +27,16 @@ import { unmarshal as pxfUnmarshal } from "../src/pxf/decode.js";
 import { marshal as pxfMarshal } from "../src/pxf/encode.js";
 import { Codec, unmarshal as sbeUnmarshal } from "../src/sbe/index.js";
 
+type Limits = { maxMessageSize?: number; maxBytesLiteralLength?: number; maxRepeatedCount?: number };
+
+const LIMITS: Record<string, keyof Limits> = {
+  MaxMessageSize: "maxMessageSize",
+  MaxBytesLiteralLength: "maxBytesLiteralLength",
+  MaxRepeatedCount: "maxRepeatedCount",
+};
+
 interface Args {
+  limits: Limits;
   format: string;
   schema: string;
   proto: string;
@@ -38,6 +50,7 @@ function usage(msg: string): never {
 
 function parseArgs(argv: string[]): Args {
   const args: Partial<Args> = {};
+  const limits: Limits = {};
   for (let i = 0; i < argv.length; i += 2) {
     const name = argv[i];
     const value = argv[i + 1];
@@ -49,18 +62,19 @@ function parseArgs(argv: string[]): Args {
       case "--input":
         args[name.slice(2) as keyof Args] = value;
         break;
-      case "--limit":
-        // The decoders take no lowered limits yet. Failing the row is the
-        // contract for a port without this, and the manifest lists this port
-        // in those rows' skip.
-        usage(`--limit ${value}: this port cannot lower a limit`);
+      case "--limit": {
+        const [limit, raw] = value.split("=");
+        const n = Number(raw);
+        if (!limit || !LIMITS[limit] || !Number.isInteger(n) || n <= 0) usage(`--limit ${value}: not a limit this port can lower`);
+        limits[LIMITS[limit]] = n;
         break;
+      }
       default:
         usage(`unknown flag ${name}`);
     }
   }
   if (!args.format || !args.schema || !args.input) usage("--format, --schema and --input are required");
-  return args as Args;
+  return { ...args, limits } as Args;
 }
 
 // Hand-mirrored adversarial.proto: the pb codec takes declared fields, not
@@ -131,7 +145,7 @@ function decode(args: Args, data: Uint8Array): void {
   if (args.format === "pb") {
     const codec = PB_CODECS[args.schema];
     if (!codec) usage(`unknown schema for pb: ${args.schema}`);
-    pbUnmarshal(data, codec);
+    pbUnmarshal(data, codec, args.limits);
     return;
   }
   if (!args.proto) usage(`--proto is required for format=${args.format}`);
@@ -139,13 +153,13 @@ function decode(args: Args, data: Uint8Array): void {
   if (!desc) usage(`schema ${args.schema} not found`);
   switch (args.format) {
     case "pxf":
-      pxfUnmarshal(new TextDecoder("utf-8", { fatal: true }).decode(data), desc);
+      pxfUnmarshal(new TextDecoder("utf-8", { fatal: true }).decode(data), desc, args.limits);
       return;
     case "pb-render":
       pxfMarshal(fromBinary(desc, data), desc);
       return;
     case "sbe":
-      sbeUnmarshal(Codec.fromFiles(desc.file), desc, create(desc), data);
+      sbeUnmarshal(Codec.fromFiles(desc.file), desc, create(desc), data, args.limits);
       return;
     default:
       usage(`unsupported format: ${args.format}`);
