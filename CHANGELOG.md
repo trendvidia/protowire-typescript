@@ -19,6 +19,8 @@ format changes.
 
 ### Added
 
+- **`scripts/check-decode.ts`**, the HARDENING corpus harness ([#55](https://github.com/trendvidia/protowire-typescript/issues/55)). The spec repo's security gate can run this port again.
+
 - **`@dataset` value cells and dotted column paths** ([#47](https://github.com/trendvidia/protowire-typescript/issues/47), [#49](https://github.com/trendvidia/protowire-typescript/issues/49), protowire#341, #342). A cell holds any value, and a column may be a path into a sub-message such as `desc.tempo.min_bpm`. A row groups its cells by path prefix into one block per prefix. The header is rejected for a repeated or overlapping column or an empty segment, and when a row binds for a path that names no field or goes through a repeated, map or scalar field or into a literal type. `bindRow` runs the post-decode pass when the row type needs it, takes a `typeResolver`, and names the column in its errors. `formatValue` is exported.
 
 - **`@type` as the first entry of an `Any` block** ([#48](https://github.com/trendvidia/protowire-typescript/issues/48), protowire#354). `parse` accepts it in any block and rejects it anywhere else, the decoder takes it in a list element or a map value too, and `format` keeps it. `Entry` gains `TypeEntry`.
@@ -30,6 +32,8 @@ format changes.
 - **Conformance test against protowire-go.** `src/pxf/corpus.test.ts` holds this port to the reference on the spec repo's `any`, `blocks`, `dataset`, `duplicates`, `duration`, `map-keys`, `nulls`, `repeated` and `strings` fixtures: the same verdict on each leg, and the same bound message. `scripts/go-reference` records the reference's results for a pinned protowire-go, and CI regenerates them. Fixtures this port does not meet yet are listed with their issue. A `,` or `;` between block entries was already rejected ([#54](https://github.com/trendvidia/protowire-typescript/issues/54)).
 
 ### Fixed
+
+- **`\x` and octal escapes in a string are UTF-8 bytes** ([#55](https://github.com/trendvidia/protowire-typescript/issues/55)). `"\xC3\xA9"` decoded to two characters instead of `é`, and `"\xFF"` decoded to `ÿ` instead of being rejected on a string field. Found by running the HARDENING corpus for the first time.
 
 - **A `pb` map entry always carries its key and value, zero-valued or not** ([#42](https://github.com/trendvidia/protowire-typescript/issues/42), protowire#295). A zero key or value was omitted, which is not the layout `protoc` and protobuf-go write. `dump-envelope` gains `--vector`.
 

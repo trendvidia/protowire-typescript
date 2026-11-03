@@ -93,4 +93,7 @@ export interface Token {
   readonly kind: TokenKind;
   readonly value: string;
   readonly pos: Position;
+  /** A STRING whose `\\x` or octal escapes are not valid UTF-8. Legal syntax,
+   * but no string field can hold it, so `value` is not meaningful text. */
+  readonly invalidUtf8?: boolean;
 }
