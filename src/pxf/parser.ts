@@ -22,6 +22,7 @@ import {
   type Entry,
   type ListVal,
   type MapEntry,
+  type TypeEntry,
   type DatasetDirective,
   type DatasetRow,
   type ProtoDirective,
@@ -675,13 +676,40 @@ class Parser {
     return { kind: "blockVal", pos, entries };
   }
 
+  /** A schema-less parser takes this as the first entry of any block. */
+  private parseTypeEntry(first: boolean): TypeEntry {
+    const leadingComments = this.flushComments();
+    const pos = this.current.pos;
+    if (!first) {
+      throw new PxfError(pos, "@type must be the first entry of a block (draft -01 \"Any Blocks\")");
+    }
+    this.advance();
+    if (this.current.kind !== TokenKind.EQUALS) {
+      throw new PxfError(this.current.pos, `expected '=' after @type, got ${tokenKindName(this.current.kind)}`);
+    }
+    this.advance();
+    if ((this.current.kind as TokenKind) !== TokenKind.STRING) {
+      throw new PxfError(
+        this.current.pos,
+        `expected a string type URL after @type =, got ${tokenKindName(this.current.kind)}`,
+      );
+    }
+    const url = this.current.value;
+    this.advance();
+    return { kind: "typeEntry", pos, url, leadingComments, trailingComment: "" };
+  }
+
   private parseBody(): Entry[] {
     const entries: Entry[] = [];
     while (
       this.current.kind !== TokenKind.RBRACE &&
       this.current.kind !== TokenKind.EOF
     ) {
-      entries.push(this.parseEntry());
+      if (this.current.kind === TokenKind.AT_TYPE) {
+        entries.push(this.parseTypeEntry(entries.length === 0));
+      } else {
+        entries.push(this.parseEntry());
+      }
     }
     if (this.current.kind !== TokenKind.RBRACE) {
       throw new PxfError(

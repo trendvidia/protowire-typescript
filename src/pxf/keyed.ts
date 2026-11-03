@@ -138,7 +138,7 @@ export function canonicalizeKeyed(doc: Document, desc: DescMessage): Document {
 
 function canonEntries(entries: readonly Entry[], desc: DescMessage): Entry[] {
   return entries.map((e) => {
-    if (e.kind === "mapEntry") return e;
+    if (e.kind === "mapEntry" || e.kind === "typeEntry") return e;
     if (e.kind === "assignment") {
       if (e.keyQuoted) return e; // invalid outside keyed blocks; leave untouched
       const fd = findFieldByProtoName(desc, e.key);

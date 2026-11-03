@@ -64,6 +64,7 @@ export type {
   IntVal,
   ListVal,
   MapEntry,
+  TypeEntry,
   NullVal,
   StringVal,
   DatasetDirective,

@@ -97,6 +97,17 @@ class Formatter {
           this.write("\n");
           break;
         }
+        case "typeEntry": {
+          this.writeComments(e.leadingComments, level);
+          this.writeIndent(level);
+          this.write(`@type = ${quoteString(e.url)}`);
+          if (e.trailingComment !== "") {
+            this.write(" ");
+            this.write(e.trailingComment);
+          }
+          this.write("\n");
+          break;
+        }
         case "block": {
           this.writeComments(e.leadingComments, level);
           this.writeIndent(level);
