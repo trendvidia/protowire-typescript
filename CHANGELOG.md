@@ -52,6 +52,7 @@ format changes.
 - **`pxf.Secret` takes its string form** ([#98](https://github.com/trendvidia/protowire-typescript/issues/98)): `pw = "x"` sets `value`, and `marshal` writes a Secret without a hint or fingerprint that way.
 
 - **`pb` writes a `-0` float or double** ([#98](https://github.com/trendvidia/protowire-typescript/issues/98)). Its sign bit is set, so protobuf writes it where it omits a zero.
+- **An `Any` is written as a body only when the body gives back its bytes** ([#97](https://github.com/trendvidia/protowire-typescript/issues/97), protowire#501). A reader compares an `Any` by its bytes, and a body that lost unknown fields, reordered fields or map entries, wrote an explicit zero, held a Timestamp no literal holds, or left a `(pxf.default)` or `(pxf.required)` field unset changed the message with no error. Such an `Any` is written as `type_url` and `value`. The conformance test now pins protowire-go at `397ba4e`, which has the same rule.
 
 - **A schema redefining a well-known type, or carrying a retired option number, is refused at bind time** ([#79](https://github.com/trendvidia/protowire-typescript/issues/79)). `validateDescriptor` reports the new `wellKnownShape` and `retiredNumber` kinds. A message of the wrong shape is treated as an ordinary message everywhere, including where nothing validates. A retired number counts only in a file that imports protowire's annotations, on the kind of options that used it.
 

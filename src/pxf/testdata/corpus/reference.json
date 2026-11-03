@@ -3225,7 +3225,7 @@
     ]
    },
    "discard": true,
-   "marshal": "name = \"r\"\npayload {\n  @type = \"postdecode.v1.Leaf\"\n  name = \"inner\"\n}\n"
+   "marshal": "name = \"r\"\npayload {\n  type_url = \"postdecode.v1.Leaf\"\n  value = b\"CgVpbm5lcg==\"\n}\n"
   },
   "postdecode/err-any-does-not-satisfy-outer.pxf": {
    "parse": true,
@@ -3240,7 +3240,7 @@
     "accept": false
    },
    "discard": true,
-   "marshal": "payload {\n  @type = \"postdecode.v1.Leaf\"\n  name = \"inner\"\n}\n"
+   "marshal": "payload {\n  type_url = \"postdecode.v1.Leaf\"\n  value = b\"CgVpbm5lcg==\"\n}\n"
   },
   "postdecode/err-any-required.pxf": {
    "parse": true,
@@ -3255,7 +3255,7 @@
     "accept": false
    },
    "discard": true,
-   "marshal": "name = \"r\"\npayload {\n  @type = \"postdecode.v1.Leaf\"\n  tag = \"x\"\n}\n"
+   "marshal": "name = \"r\"\npayload {\n  type_url = \"postdecode.v1.Leaf\"\n  value = b\"EgF4\"\n}\n"
   },
   "postdecode/err-element-does-not-satisfy-outer.pxf": {
    "parse": true,

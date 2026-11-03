@@ -1,0 +1,29 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 TrendVidia, LLC.
+// An Any is written as a body only when the body gives back its bytes
+// (protowire#501).
+syntax = "proto3";
+package anyreadback.v1;
+
+import "google/protobuf/any.proto";
+import "google/protobuf/timestamp.proto";
+import "pxf/annotations.proto";
+
+message Inner {
+  string a = 1;
+  int32 b = 2;
+  map<string, int32> m = 3;
+  google.protobuf.Timestamp ts = 4;
+}
+
+message WithDefault {
+  string d = 1 [(pxf.default) = "x"];
+}
+
+message WithRequired {
+  string r = 1 [(pxf.required) = true];
+}
+
+message Holder {
+  google.protobuf.Any payload = 1;
+}
