@@ -42,6 +42,8 @@ format changes.
 
 ### Fixed
 
+- **`format` keeps every directive** (protowire fmt). It wrote only `@type` and the body, so a `@dataset` document came out empty, its rows lost, and `@entry`, `@proto` and named directives were dropped; protowire-go's `FormatDocument` does the same. It now writes each directive in document order, with its comments: a dataset's header and rows, an empty cell kept apart from `null`, a named directive's body and a `@proto` body as written. A document whose only directive is `@type` is written as before.
+
 - **`pb` writes a null element of a message list as an empty message** ([#98](https://github.com/trendvidia/protowire-typescript/issues/98)), as protowire-go writes a nil element. It was dropped, so `[1n, null]` wrote one element and the list came back shorter. It reads back as the zero value.
 
 - **SBE XML import and export keep a fixed-length array that is not text** ([#102](https://github.com/trendvidia/protowire-typescript/issues/102), protowire-go#249). `xmlToProto` read a `uint8` or `int8` array of length N as one narrowed `uint32`, so a 16-byte field took 1 byte and every later field in the block moved; it now imports as `bytes` with `(sbe.length) = N`. An array of a wider primitive is refused, naming the message, group, field or composite that holds it. `protoToXml` wrote a `bytes` field as a `char` array, which imports back as a `string`; it now writes a `uint8` array, declared once per length as `bytesN`. A `bytes` field of length 1 exports as one `uint8` and comes back as `uint32 [(sbe.encoding) = "uint8"]`, the same byte in the block. The wire bytes do not change.
