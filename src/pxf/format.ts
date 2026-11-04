@@ -5,7 +5,8 @@
  * Mirrors `protowire/encoding/pxf/format.go`.
  *
  * This is the "round-trip via AST" path used by the `protowire fmt`
- * subcommand. It is lossy in two ways the Go formatter is also lossy:
+ * subcommand. It keeps every directive, in document order, with its dataset
+ * rows. It is lossy in two ways the Go formatter is also lossy:
  *  - List elements are always comma-separated on output (commas are
  *    optional in input).
  *  - The string quoter only re-emits the escape sequences the lexer
@@ -16,10 +17,13 @@
 
 import { identSafeEntryName } from "./keyed.js";
 import type {
-  MapEntry,
   Comment,
+  DatasetDirective,
+  Directive,
   Document,
   Entry,
+  MapEntry,
+  ProtoDirective,
   Value,
 } from "./ast.js";
 
@@ -32,17 +36,53 @@ export function format(doc: Document, options: FormatOptions = {}): string {
   const indent = options.indent ?? "  ";
   const f = new Formatter(indent);
 
-  if (doc.typeUrl !== "") {
-    f.write("@type ");
-    f.write(doc.typeUrl);
-    f.write("\n\n");
+  // Every directive but @type, in document order: an anonymous @proto binds
+  // to the typed directive after it, so the order is part of the meaning.
+  // @type binds nothing, so writing it first changes nothing.
+  const others: TopDirective[] = [
+    ...doc.directives.map((d) => ({ kind: "named" as const, d })),
+    ...doc.datasets.map((d) => ({ kind: "dataset" as const, d })),
+    ...doc.protos.map((d) => ({ kind: "proto" as const, d })),
+  ].sort((a, b) => a.d.pos.offset - b.d.pos.offset);
+
+  if (others.length === 0) {
+    if (doc.typeUrl !== "") {
+      f.write("@type ");
+      f.write(doc.typeUrl);
+      f.write("\n\n");
+    }
+    f.writeComments(doc.leadingComments, 0);
+    f.formatEntries(doc.entries, 0);
+    return f.finish();
   }
 
+  if (doc.typeUrl !== "") f.write(`@type ${doc.typeUrl}\n`);
   f.writeComments(doc.leadingComments, 0);
-  f.formatEntries(doc.entries, 0);
-
+  for (const top of others) {
+    f.writeComments(top.d.leadingComments, 0);
+    switch (top.kind) {
+      case "named":
+        f.formatNamedDirective(top.d);
+        break;
+      case "dataset":
+        f.formatDataset(top.d);
+        break;
+      case "proto":
+        f.formatProto(top.d);
+        break;
+    }
+  }
+  if (doc.entries.length > 0) {
+    f.write("\n");
+    f.formatEntries(doc.entries, 0);
+  }
   return f.finish();
 }
+
+type TopDirective =
+  | { readonly kind: "named"; readonly d: Directive }
+  | { readonly kind: "dataset"; readonly d: DatasetDirective }
+  | { readonly kind: "proto"; readonly d: ProtoDirective };
 
 /** One value as PXF text. Mirrors the reference's `FormatValue`. */
 export function formatValue(v: Value): string {
@@ -73,6 +113,48 @@ class Formatter {
       this.write(c.text);
       this.write("\n");
     }
+  }
+
+  /** `@<name> prefix* [{ body }]`, the body as written: it is raw text. */
+  formatNamedDirective(d: Directive): void {
+    this.write(`@${d.name}`);
+    for (const p of d.prefixes) this.write(` ${p}`);
+    if (d.hasBody) this.write(` {${d.body}}`);
+    this.write("\n");
+  }
+
+  /** The header, then one row per line; an empty cell is an absent field. */
+  formatDataset(d: DatasetDirective): void {
+    this.write("@dataset");
+    if (d.type !== "") this.write(` ${d.type}`);
+    this.write(` (${d.columns.join(", ")})\n`);
+    for (const row of d.rows) {
+      this.write("(");
+      row.cells.forEach((cell, i) => {
+        if (i > 0) this.write(", ");
+        if (cell !== null && cell !== undefined) this.formatValue(cell, 0);
+      });
+      this.write(")\n");
+    }
+  }
+
+  formatProto(d: ProtoDirective): void {
+    this.write("@proto");
+    switch (d.shape) {
+      case "anonymous":
+        this.write(` {${new TextDecoder().decode(d.body)}}`);
+        break;
+      case "named":
+        this.write(` ${d.typeName} {${new TextDecoder().decode(d.body)}}`);
+        break;
+      case "source":
+        this.write(` """${new TextDecoder().decode(d.body)}"""`);
+        break;
+      case "descriptor":
+        this.write(` b"${encodeBase64(d.body)}"`);
+        break;
+    }
+    this.write("\n");
   }
 
   formatEntries(entries: readonly Entry[], level: number): void {

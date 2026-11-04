@@ -1,5 +1,9 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 TrendVidia, LLC.
+import { readdirSync, readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
 import { describe, it, expect } from "vitest";
 import { parse } from "./parser.js";
 import { format } from "./format.js";
@@ -223,5 +227,100 @@ describe("quoted entry names (draft -01 §3.13)", () => {
     expect(roundTrip(blockForm)).toBe(blockForm);
     const assignForm = 'regions {\n  "a\\"b" = {\n    replicas = 3\n  }\n}\n';
     expect(roundTrip(assignForm)).toBe(assignForm);
+  });
+});
+
+describe("format keeps every directive, in document order (protowire fmt)", () => {
+  /** The AST without positions or byte offsets, which formatting moves. */
+  function shape(doc: unknown): unknown {
+    return JSON.parse(
+      JSON.stringify(doc, (k, v: unknown) => {
+        if (k === "pos" || k === "bodyOffset") return undefined;
+        if (v instanceof Uint8Array) return Array.from(v);
+        if (typeof v === "bigint") return `${v}n`;
+        return v;
+      }),
+    );
+  }
+
+  function roundTrip(src: string): string {
+    const doc = parse(src);
+    const out = format(doc);
+    expect(shape(parse(out)), out).toEqual(shape(doc));
+    expect(format(parse(out))).toBe(out);
+    return out;
+  }
+
+  /** Comments by text, wherever they hang. */
+  function comments(doc: unknown): string[] {
+    const found: string[] = [];
+    JSON.stringify(doc, (k, v: unknown) => {
+      if (k === "leadingComments") for (const c of v as { text: string }[]) found.push(c.text);
+      if (k === "trailingComment" && v !== "") found.push(v as string);
+      return typeof v === "bigint" ? `${v}` : v;
+    });
+    return found.sort();
+  }
+
+  /**
+   * Nothing lost: the same AST once comments and the spelling of quotes are
+   * set aside (a formatter moves the first and canonicalises the second), and
+   * the same comments.
+   */
+  function keepsEverything(src: string): void {
+    const doc = parse(src);
+    const out = format(doc);
+    const again = parse(out);
+    const bare = (d: unknown): unknown =>
+      JSON.parse(JSON.stringify(shape(d), (k, v: unknown) => (k === "leadingComments" || k === "trailingComment" || k === "keyQuoted" || k === "nameQuoted" ? undefined : v)));
+    expect(bare(again), out).toEqual(bare(doc));
+    expect(comments(again), out).toEqual(comments(doc));
+    expect(format(again)).toBe(out);
+  }
+
+  it("writes a dataset's header and rows, empty and null cells kept apart", () => {
+    const out = roundTrip("@dataset trades.v1.Trade (id, px, note)\n(1, 2.5, )\n(2, , null)\n");
+    expect(out).toBe("@dataset trades.v1.Trade (id, px, note)\n(1, 2.5, )\n(2, , null)\n");
+  });
+
+  it("writes @entry and a named directive with its body as written, before the body", () => {
+    const out = roundTrip('@type a.v1.M\n@entry x { a = 1 }\n@header h.v1.H\n\nname = "n"\n');
+    expect(out).toBe('@type a.v1.M\n@entry x { a = 1 }\n@header h.v1.H\n\nname = "n"\n');
+  });
+
+  it("keeps @proto ahead of the dataset it types, in each body shape", () => {
+    roundTrip("@proto { string id = 1; }\n@dataset (id)\n(\"a\")\n");
+    roundTrip("@proto a.v1.R { string id = 1; }\n@dataset a.v1.R (id)\n(\"a\")\n");
+    roundTrip('@proto """syntax = "proto3"; message R { string id = 1; }"""\n@dataset R (id)\n("a")\n');
+    roundTrip('@proto b"CgA="\n@type a.v1.M\n\nx = 1\n');
+  });
+
+  it("keeps a directive's comments", () => {
+    const out = roundTrip("# about the rows\n@dataset t.v1.T (id)\n(1)\n# second\n@dataset t.v1.U (id)\n(2)\n");
+    expect(out).toContain("# about the rows\n@dataset t.v1.T (id)");
+    expect(out).toContain("# second\n@dataset t.v1.U (id)");
+  });
+
+  it("still writes a document with only @type as before", () => {
+    expect(format(parse("# c\n@type a.v1.M\n\nx = 1\n"))).toBe("@type a.v1.M\n\n# c\nx = 1\n");
+  });
+
+  it("loses nothing from any corpus document with a directive", () => {
+    const root = resolve(dirname(fileURLToPath(import.meta.url)), "testdata/corpus");
+    const files = readdirSync(root, { recursive: true, encoding: "utf8" }).filter((f) => f.endsWith(".pxf"));
+    let withDirectives = 0;
+    for (const f of files) {
+      let doc;
+      try {
+        doc = parse(readFileSync(resolve(root, f), "utf8"));
+      } catch {
+        continue;
+      }
+      if (doc.datasets.length + doc.directives.length + doc.protos.length === 0) continue;
+      withDirectives++;
+      keepsEverything(readFileSync(resolve(root, f), "utf8"));
+    }
+    // A positive count: the corpus's 29 documents with a directive were all formatted.
+    expect(withDirectives).toBe(29);
   });
 });
