@@ -22,6 +22,24 @@ const textEncoder = new TextEncoder();
 // that is not, rather than replacing what it cannot read.
 const textDecoder = new TextDecoder("utf-8", { fatal: true });
 
+/**
+ * The largest field number a tag inside a skipped group can carry,
+ * math.MaxInt32 as protobuf-go's `protowire.DecodeTag` has it.
+ */
+const MAX_TAG_NUMBER = 0x7fff_ffff;
+
+/** protobuf-go's `protowire.DefaultRecursionLimit`, for nested groups. */
+const RECURSION_LIMIT = 10000;
+
+// protobuf-go's `protowire.ParseError` texts, so a skip fails in the words
+// protowire-go uses.
+const PARSE_EOF = "unexpected EOF";
+const PARSE_FIELD_NUMBER = "proto: invalid field number";
+const PARSE_OVERFLOW = "proto: variable length integer overflow";
+const PARSE_RESERVED = "proto: cannot parse reserved wire type";
+const PARSE_END_GROUP = "proto: mismatching end group marker";
+const PARSE_ERROR = "proto: parse error";
+
 export class Writer {
   /** Descents above this writer's bytes, counted as a decoder counts them. */
   public depth = 0;
@@ -347,31 +365,81 @@ export class Reader {
     return { fieldNumber, wireType };
   }
 
-  /** Skip the value of a field with the given wire type. */
-  skip(wireType: WireType): void {
+  /**
+   * Skip the value of a field with the given wire type, as protobuf-go's
+   * `protowire.ConsumeFieldValue` does: a group is followed to the end-group
+   * of `fieldNumber`, and wire type 6 or 7, an end-group that ends nothing and
+   * a value cut short are refused. `end` is where the enclosing message ends.
+   * Errors carry protobuf-go's `protowire.ParseError` text.
+   */
+  skip(wireType: WireType, fieldNumber = 0, end = this.data.length): void {
+    if (wireType !== WireType.StartGroup) {
+      this.skipValue(wireType, end);
+      return;
+    }
+    // Nested groups are followed with a list rather than by recursion, so a
+    // hostile message cannot run the stack out. protobuf-go nests 10001.
+    const open = [fieldNumber];
+    while (open.length > 0) {
+      const t = this.consumeVarint(end);
+      const num = t >> 3n;
+      if (num < 1n || num > BigInt(MAX_TAG_NUMBER)) throw new Error(PARSE_FIELD_NUMBER);
+      const typ = Number(t & 7n) as WireType;
+      if (typ === WireType.EndGroup) {
+        if (Number(num) !== open[open.length - 1]) throw new Error(PARSE_END_GROUP);
+        open.pop();
+      } else if (typ === WireType.StartGroup) {
+        if (open.length > RECURSION_LIMIT) throw new Error(PARSE_ERROR);
+        open.push(Number(num));
+      } else {
+        this.skipValue(typ, end);
+      }
+    }
+  }
+
+  /** One value that is not a group, as `ConsumeFieldValue` takes it. */
+  private skipValue(wireType: WireType, end: number): void {
     switch (wireType) {
       case WireType.Varint:
-        this.varintBig();
+        this.consumeVarint(end);
         return;
       case WireType.Fixed64:
-        this.pos += 8;
-        if (this.pos > this.data.length) throw new Error("truncated fixed64 (skip)");
+        this.advance(8, end);
         return;
       case WireType.LengthDelimited: {
-        const len = this.varint();
-        this.pos += len;
-        if (this.pos > this.data.length) throw new Error("truncated length-delim (skip)");
+        const len = this.consumeVarint(end);
+        if (len > BigInt(end - this.pos)) throw new Error(PARSE_EOF);
+        this.pos += Number(len);
         return;
       }
       case WireType.Fixed32:
-        this.pos += 4;
-        if (this.pos > this.data.length) throw new Error("truncated fixed32 (skip)");
+        this.advance(4, end);
         return;
-      case WireType.StartGroup:
       case WireType.EndGroup:
-        throw new Error("group wire types are not supported");
+        throw new Error(PARSE_END_GROUP);
       default:
-        throw new Error(`unknown wire type ${wireType}`);
+        throw new Error(PARSE_RESERVED);
     }
+  }
+
+  private advance(n: number, end: number): void {
+    if (end - this.pos < n) throw new Error(PARSE_EOF);
+    this.pos += n;
+  }
+
+  /** `protowire.ConsumeVarint`: a tenth byte above 1 overflows 64 bits. */
+  private consumeVarint(end: number): bigint {
+    let v = 0n;
+    for (let i = 0; i < 10; i++) {
+      if (this.pos >= end) throw new Error(PARSE_EOF);
+      const b = this.data[this.pos++]!;
+      if (i === 9) {
+        if (b >= 2) throw new Error(PARSE_OVERFLOW);
+        return v | (BigInt(b) << 63n);
+      }
+      v |= BigInt(b & 0x7f) << BigInt(7 * i);
+      if (b < 0x80) return v;
+    }
+    throw new Error(PARSE_OVERFLOW);
   }
 }
