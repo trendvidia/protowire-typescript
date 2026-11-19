@@ -9,10 +9,8 @@
  * rows. It is lossy in two ways the Go formatter is also lossy:
  *  - List elements are always comma-separated on output (commas are
  *    optional in input).
- *  - The string quoter only re-emits the escape sequences the lexer
- *    accepts (`\"`, `\\`, `\n`, `\t`, `\r`); all other characters,
- *    including non-printable control chars, pass through verbatim.
- *    Use a `bytes` field for arbitrary binary data.
+ *  - A string is re-quoted the way Go's `%q` quotes it, so an escape
+ *    the input spelled is not kept: `"\x41"` is written `"A"`.
  */
 
 import { identSafeEntryName } from "./keyed.js";
@@ -268,29 +266,52 @@ class Formatter {
 // ---------------------------------------------------------------------------
 
 /**
- * Re-emit a string in PXF source syntax. Mirrors the schema-bound encoder's
- * `writeQuotedString` (encode.ts): emits the simple escape mnemonics for
- * `"`, `\`, `\n`, `\r`, `\t`, and `\xHH` for any other byte under 0x20.
- * Code units ≥ 0x20 pass through literally — valid UTF-8 stays UTF-8.
+ * Re-emit a string in PXF source syntax, as the reference's formatter does
+ * with Go's `%q` (strconv.Quote): a printable character is written as itself,
+ * `"` and `\` are escaped, then the mnemonics `\a \b \f \n \r \t \v`,
+ * `\xHH` for any other byte under 0x20 and for 0x7f, and `\uHHHH` or
+ * `\UHHHHHHHH` for any other character that is not printable. Printable is
+ * Go's `unicode.IsPrint`: a letter, mark, number, punctuation or symbol, or
+ * U+0020. Node and Go may carry different Unicode versions, so a character
+ * assigned in only one of them is quoted differently.
+ *
+ * The schema-bound encoder's `writeQuotedString` (encode.ts) mirrors the
+ * reference's Marshal instead, which escapes only bytes under 0x20.
  */
 const HEX = "0123456789abcdef";
+const PRINTABLE = /^[\p{L}\p{M}\p{N}\p{P}\p{S} ]$/u;
+const MNEMONIC: Record<string, string> = {
+  "\x07": "\\a",
+  "\b": "\\b",
+  "\f": "\\f",
+  "\n": "\\n",
+  "\r": "\\r",
+  "\t": "\\t",
+  "\v": "\\v",
+};
+
+function hex(n: number, width: number): string {
+  let out = "";
+  for (let shift = (width - 1) * 4; shift >= 0; shift -= 4) out += HEX[(n >> shift) & 0xf];
+  return out;
+}
 
 function quoteString(s: string): string {
   let out = '"';
-  for (let i = 0; i < s.length; i++) {
-    const code = s.charCodeAt(i);
-    switch (code) {
-      case 0x22: out += '\\"'; break;
-      case 0x5c: out += "\\\\"; break;
-      case 0x0a: out += "\\n"; break;
-      case 0x0d: out += "\\r"; break;
-      case 0x09: out += "\\t"; break;
-      default:
-        if (code < 0x20) {
-          out += "\\x" + HEX[(code >> 4) & 0xf] + HEX[code & 0xf];
-        } else {
-          out += s[i];
-        }
+  for (const ch of s) {
+    let code = ch.codePointAt(0)!;
+    if (ch === '"' || ch === "\\") {
+      out += "\\" + ch;
+    } else if (PRINTABLE.test(ch)) {
+      out += ch;
+    } else if (MNEMONIC[ch] !== undefined) {
+      out += MNEMONIC[ch];
+    } else if (code < 0x20 || code === 0x7f) {
+      out += "\\x" + hex(code, 2);
+    } else {
+      // A lone surrogate is no character; Go writes U+FFFD for it.
+      if (code >= 0xd800 && code <= 0xdfff) code = 0xfffd;
+      out += code < 0x10000 ? "\\u" + hex(code, 4) : "\\U" + hex(code, 8);
     }
   }
   out += '"';
