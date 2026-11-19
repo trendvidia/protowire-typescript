@@ -99,7 +99,7 @@
   "scripts": {
     "build": "tsup",
     "clean": "rm -rf dist",
-    "gen:testdata": "npm run gen:testdata:shared && npm run gen:testdata:any && npm run gen:testdata:d4 && npm run gen:testdata:schema && npm run gen:testdata:keyed && npm run gen:testdata:sbe && npm run gen:testdata:bigfloat && npm run gen:testdata:corpus",
+    "gen:testdata": "npm run gen:testdata:shared && npm run gen:testdata:any && npm run gen:testdata:d4 && npm run gen:testdata:schema && npm run gen:testdata:keyed && npm run gen:testdata:sbe && npm run gen:testdata:bigfloat && npm run gen:testdata:corpus && npm run gen:testdata:wiretype",
     "gen:testdata:shared": "protoc --include_imports --descriptor_set_out=src/pxf/testdata/test.binpb -I ../protowire/testdata ../protowire/testdata/test.proto",
     "gen:testdata:any": "protoc --include_imports --descriptor_set_out=src/pxf/testdata/any-test.binpb -I src/pxf/testdata src/pxf/testdata/any-test.proto",
     "gen:testdata:d4": "protoc --include_imports --descriptor_set_out=src/pxf/testdata/d4-test.binpb -I src/pxf/testdata -I ../protowire/proto src/pxf/testdata/d4-test.proto",
@@ -108,6 +108,7 @@
     "gen:testdata:sbe": "for f in sbe-test fixed-arrays bytes-length-one; do protoc --include_imports --descriptor_set_out=src/sbe/testdata/$f.binpb -I src/sbe/testdata -I ../protowire/proto src/sbe/testdata/$f.proto; done",
     "gen:testdata:bigfloat": "protoc --include_imports --descriptor_set_out=src/pxf/testdata/bigfloat-test.binpb -I src/pxf/testdata -I proto src/pxf/testdata/bigfloat-test.proto",
     "gen:testdata:corpus": "sh scripts/gen-corpus.sh && cd scripts/go-reference && go run . ../../src/pxf/testdata/corpus > ../../src/pxf/testdata/corpus/reference.json",
+    "gen:testdata:wiretype": "cd scripts/go-wiretype && go run . > ../../src/pb/testdata/wiretype-go.tsv",
     "gen:testdata:buf": "npm run gen:testdata:shared && npm run gen:testdata:any:buf && npm run gen:testdata:d4:buf && npm run gen:testdata:schema:buf && npm run gen:testdata:keyed:buf && npm run gen:testdata:sbe:buf && npm run gen:testdata:bigfloat:buf",
     "gen:testdata:any:buf": "buf build --as-file-descriptor-set --exclude-source-info --path src/pxf/testdata/any-test.proto -o src/pxf/testdata/any-test.binpb",
     "gen:testdata:d4:buf": "buf build --as-file-descriptor-set --exclude-source-info --path src/pxf/testdata/d4-test.proto -o src/pxf/testdata/d4-test.binpb",
