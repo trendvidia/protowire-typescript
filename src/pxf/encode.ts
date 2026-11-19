@@ -14,7 +14,6 @@ import {
   type DescMessage,
   type MessageShape,
   ScalarType,
-  fromBinary,
   toBinary,
 } from "@bufbuild/protobuf";
 import {
@@ -43,6 +42,7 @@ import {
 import { formatGoDuration } from "./duration.js";
 import { identSafeEntryName } from "./keyed.js";
 import { Result } from "./result.js";
+import { fromBinaryChecked } from "./wire-check.js";
 
 export interface MarshalOptions {
   /** Indentation string per level. Defaults to two spaces. */
@@ -520,12 +520,8 @@ class Encoder {
     const innerDesc = this.resolver!.findMessageByURL(typeURL);
     if (!innerDesc) return false;
 
-    let inner;
-    try {
-      inner = fromBinary(innerDesc, valueBytes);
-    } catch {
-      return false;
-    }
+    const inner = unpackAny(innerDesc, valueBytes, this.maxDepth);
+    if (inner === undefined) return false;
     const innerRefl = reflect(innerDesc, inner);
 
     // An Any is never refused for what its bytes hold: one too deep to write
@@ -556,6 +552,26 @@ class Encoder {
     this.writeIndent(level);
     this.buf += "}\n";
     return true;
+  }
+}
+
+/**
+ * An Any's value read as `desc`, or undefined if protobuf-go would not read
+ * it. fromBinary reads a value cut short from the bytes after it, so the bytes
+ * are read by the descriptor first, as deep as `maxDepth` (#125). Such a value
+ * was not written as a body before the check either, since a body is written
+ * only when it reads back as the same bytes; the check means fromBinary no
+ * longer decides what is unpacked.
+ */
+export function unpackAny<Desc extends DescMessage>(
+  desc: Desc,
+  value: Uint8Array,
+  maxDepth: number,
+): MessageShape<Desc> | undefined {
+  try {
+    return fromBinaryChecked(desc, value, maxDepth);
+  } catch {
+    return undefined;
   }
 }
 
