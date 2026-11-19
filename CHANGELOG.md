@@ -19,6 +19,8 @@ format changes.
 
 ### Added
 
+- **`check-decode --format pxf-fmt`** for the spec's format gate (protowire#584). It parses the document without a schema, formats it, and writes the result on stdout; `--schema` and `--proto` are not needed.
+
 - **`pb.Decimal` and `pb.BigFloat`, language values for `pxf.Decimal` and `pxf.BigFloat`**, with **`pb.DecimalValueCodec`** and **`pb.BigFloatValueCodec`** to bind a field to them ([#98](https://github.com/trendvidia/protowire-typescript/issues/98)). They are the twins of protowire-go's `*big.Rat` and `*big.Float`, and hold a value exactly without doing arithmetic. A `Decimal` keeps the scale it is given, and is written in the reduced form a `big.Rat` has (1.50 as 1.5). A `BigFloat` is rounded to its precision half to even, as a `big.Float` is, and keeps the sign of a zero. Both parse and print their PXF literal. With them `src/pb/values-table.test.ts` twins every row of the spec's struct-binding table.
 
 - **`check-decode --format pxf-pb`** for the spec's write gate, and **`pb.BigIntValueCodec`**, a `pxf.BigInt` field bound to a JavaScript `bigint` ([#98](https://github.com/trendvidia/protowire-typescript/issues/98)). `src/pb/values-table.test.ts` twins the spec's struct-binding table. `CodecBase` gains optional `readValue` and `isZeroValue` for a codec whose value is not an object.
@@ -41,6 +43,10 @@ format changes.
 - **Conformance test against protowire-go.** `src/pxf/corpus.test.ts` holds this port to the reference on the spec repo's `any`, `blocks`, `dataset`, `duplicates`, `duration`, `map-keys`, `nulls`, `repeated` and `strings` fixtures: the same verdict on each leg, and the same bound message. `scripts/go-reference` records the reference's results for a pinned protowire-go, and CI regenerates them. Fixtures this port does not meet yet are listed with their issue. A `,` or `;` between block entries was already rejected ([#54](https://github.com/trendvidia/protowire-typescript/issues/54)).
 
 ### Fixed
+
+- **`format` quotes a string as protowire-go does** (protowire#584). It follows Go's `%q`: `\a \b \f \v` as mnemonics, `\x7f`, and `\uHHHH` or `\UHHHHHHHH` for a character that is not printable. It wrote U+007F and those characters raw, and `\x07` for `\a`.
+
+- **`parse` no longer repeats a comment from a directive's body** (protowire#584). A comment inside `@name { ... }` that no inner entry took was also given to whatever followed the directive, so `format` wrote it twice.
 
 - **`format` keeps every directive** (protowire fmt). It wrote only `@type` and the body, so a `@dataset` document came out empty, its rows lost, and `@entry`, `@proto` and named directives were dropped; protowire-go's `FormatDocument` does the same. It now writes each directive in document order, with its comments: a dataset's header and rows, an empty cell kept apart from `null`, a named directive's body and a `@proto` body as written. A document whose only directive is `@type` is written as before.
 
