@@ -46,6 +46,8 @@ format changes.
 
 - **`format` quotes a string as protowire-go does** (protowire#584). It follows Go's `%q`: `\a \b \f \v` as mnemonics, `\x7f`, and `\uHHHH` or `\UHHHHHHHH` for a character that is not printable. It wrote U+007F and those characters raw, and `\x07` for `\a`.
 
+- **`format` writes a triple-quoted `@proto` with its `"""` on lines of their own**, as protowire-go does since protowire-go#303. A body ending in `"` or with a whitespace-only last line now reads back unchanged.
+
 - **`parse` no longer repeats a comment from a directive's body** (protowire#584). A comment inside `@name { ... }` that no inner entry took was also given to whatever followed the directive, so `format` wrote it twice.
 
 - **`format` keeps every directive** (protowire fmt). It wrote only `@type` and the body, so a `@dataset` document came out empty, its rows lost, and `@entry`, `@proto` and named directives were dropped; protowire-go's `FormatDocument` does the same. It now writes each directive in document order, with its comments: a dataset's header and rows, an empty cell kept apart from `null`, a named directive's body and a `@proto` body as written. A document whose only directive is `@type` is written as before.

@@ -146,7 +146,13 @@ class Formatter {
         this.write(` ${d.typeName} {${new TextDecoder().decode(d.body)}}`);
         break;
       case "source":
-        this.write(` """${new TextDecoder().decode(d.body)}"""`);
+        // The delimiters go on lines of their own, as the reference writes
+        // them (protowire-go#303). Reading strips the line break after the
+        // opening """ and drops the last line when it holds only whitespace,
+        // so the body reads back unchanged; written on the delimiters' lines
+        // instead, a body ending in '"' would close the string early and a
+        // whitespace-only last line would be dropped.
+        this.write(` """\n${new TextDecoder().decode(d.body)}\n"""`);
         break;
       case "descriptor":
         this.write(` b"${encodeBase64(d.body)}"`);

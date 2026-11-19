@@ -314,6 +314,25 @@ describe("format keeps every directive, in document order (protowire fmt)", () =
     roundTrip('@proto b"CgA="\n@type a.v1.M\n\nx = 1\n');
   });
 
+  it('writes a triple-quoted @proto with its """ on lines of their own', () => {
+    // Each expected text is protowire-go's FormatDocument output for the same
+    // input (protowire-go#303). roundTrip checks the body reads back the same.
+    const cases: [string, string][] = [
+      [
+        '@proto """syntax = "proto3"; message R { string id = 1; }"""\n@dataset R (id)\n("a")\n',
+        '@proto """\nsyntax = "proto3"; message R { string id = 1; }\n"""\n@dataset R (id)\n("a")\n',
+      ],
+      // A body that starts and ends with an empty line, after dedent.
+      ['@proto """\n\n  message S {}\n  \n  """\n@type S\n', '@type S\n@proto """\n\nmessage S {}\n\n"""\n'],
+    ];
+    for (const [src, want] of cases) {
+      expect(roundTrip(src)).toBe(want);
+      expect(new TextDecoder().decode(parse(want).protos[0]!.body)).toBe(
+        new TextDecoder().decode(parse(src).protos[0]!.body),
+      );
+    }
+  });
+
   it("keeps a directive's comments", () => {
     const out = roundTrip("# about the rows\n@dataset t.v1.T (id)\n(1)\n# second\n@dataset t.v1.U (id)\n(2)\n");
     expect(out).toContain("# about the rows\n@dataset t.v1.T (id)");
