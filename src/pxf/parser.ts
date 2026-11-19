@@ -466,7 +466,9 @@ class Parser {
           throw new PxfError(this.current.pos, PROTO_SOURCE_NOT_TRIPLE);
         }
         const body = new TextEncoder().encode(this.current.value);
-        const endOffset = this.current.pos.offset + this.current.value.length;
+        // The lexer stands just past the string. Its value is shorter than
+        // the source by the quotes and whatever dedent stripped.
+        const endOffset = this.lex.snapshot().pos;
         this.advance();
         return {
           proto: { pos: atPos, shape: "source", typeName: "", body, leadingComments },

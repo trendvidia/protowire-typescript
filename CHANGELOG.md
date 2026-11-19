@@ -42,6 +42,8 @@ format changes.
 
 ### Fixed
 
+- **`Document.bodyOffset` ends after a `@proto """…"""` body** ([#121](https://github.com/trendvidia/protowire-typescript/issues/121)). It was the string's start plus its value's length, which leaves out the quotes and whatever dedent stripped, so it pointed inside the string: 8 for `@proto """x"""`, where protowire-go gives 14. It is now the offset just past the closing quotes, as in protowire-go.
+
 - **`format` keeps every directive** (protowire fmt). It wrote only `@type` and the body, so a `@dataset` document came out empty, its rows lost, and `@entry`, `@proto` and named directives were dropped; protowire-go's `FormatDocument` does the same. It now writes each directive in document order, with its comments: a dataset's header and rows, an empty cell kept apart from `null`, a named directive's body and a `@proto` body as written. A document whose only directive is `@type` is written as before.
 
 - **`pb` writes a null element of a message list as an empty message** ([#98](https://github.com/trendvidia/protowire-typescript/issues/98)), as protowire-go writes a nil element. It was dropped, so `[1n, null]` wrote one element and the list came back shorter. It reads back as the zero value.

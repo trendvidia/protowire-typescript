@@ -58,6 +58,13 @@ message Trade { string symbol = 1; }
     expect(body).toContain("message Trade");
   });
 
+  // bodyOffset is the offset just past the last directive's last token.
+  it("bodyOffset ends after a source body's closing quotes", () => {
+    for (const head of ['@proto """x"""', '@proto """\n  x\n  """', '@type a.B\n@proto """x"""', '@proto b"AAAA"']) {
+      expect(parse(`${head}\nvalue = 1\n`).bodyOffset).toBe(head.length);
+    }
+  });
+
   it("descriptor body", () => {
     const raw = new Uint8Array([0x0a, 0x05, 0x68, 0x65, 0x6c, 0x6c, 0x6f]); // "hello"
     const b64 = btoa(String.fromCharCode(...raw));
