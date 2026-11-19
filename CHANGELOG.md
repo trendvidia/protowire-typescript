@@ -95,6 +95,8 @@ format changes.
 
 ### Changed
 
+- **A `@proto` source body must be triple-quoted** ([#121](https://github.com/trendvidia/protowire-typescript/issues/121), protowire#623, protowire-go#305). `parse`, `unmarshal`, `unmarshalFull` and `DatasetReader` read a simple-quoted `@proto "…"` as a source body, which the grammar does not admit (`proto_source_body = triple_string`). Its escapes could put `"""` in the body, and `format` then wrote text that does not parse, since a triple-quoted string has no escapes. Now `@proto "…"` is rejected with `1:8: @proto source body must be a triple-quoted string ("""...""")`, as protowire-go rejects it. The descriptor form `@proto b"…"` is a bytes literal and is still read. A hand-built `ProtoDirective` whose body holds `"""` still formats to text that does not parse, and its docs say so. This narrows accepted input.
+
 - **`marshal` refuses a message nested past `MaxNestingDepth`** ([#96](https://github.com/trendvidia/protowire-typescript/issues/96), protowire#502), in `pxf` and `pb`. A message deeper than 100 levels used to be written, and a default reader then refused it. Levels are counted as a decoder counts them, so lists and maps reach the limit at 50 levels of nesting. `maxNestingDepth` on `MarshalOptions` raises it, to pair with the same option on every reader. An `Any` too deep to write as a body is written as `type_url` and `value`.
 
 - **`pb` writes a repeated numeric scalar packed** ([#98](https://github.com/trendvidia/protowire-typescript/issues/98)), protobuf's proto3 default and what protobuf-go writes, pinned by the spec's struct-binding table (protowire#509). `packed: false` on a field keeps one tag per element. Readers take either form.
