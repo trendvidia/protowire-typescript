@@ -320,6 +320,12 @@ describe("format keeps every directive, in document order (protowire fmt)", () =
     expect(out).toContain("# second\n@dataset t.v1.U (id)");
   });
 
+  it("writes a comment inside a directive's body once, in the body", () => {
+    // protowire-go's output for the same input (protowire#584).
+    const out = roundTrip("@h { a = 1 # c\n}\n# next\n@entry x a.v1.M { n = 1 } # end\n\nx = 1\n");
+    expect(out).toBe("@h { a = 1 # c\n}\n# next\n@entry x a.v1.M { n = 1 }\n\n# end\nx = 1\n");
+  });
+
   it("still writes a document with only @type as before", () => {
     expect(format(parse("# c\n@type a.v1.M\n\nx = 1\n"))).toBe("@type a.v1.M\n\n# c\nx = 1\n");
   });

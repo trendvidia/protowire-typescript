@@ -291,6 +291,10 @@ class Parser {
       body = this.lex.inputView().slice(open + 1, close);
       hasBody = true;
       endOffset = close + 1;
+      // A comment inside the body is part of the raw body text. Reading the
+      // body left the ones no inner entry took pending, and they would be
+      // written a second time before whatever follows the directive.
+      this.pendingComments = this.pendingComments.filter((c) => c.pos.offset > close);
     }
 
     return {
