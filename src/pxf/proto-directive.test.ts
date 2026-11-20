@@ -8,8 +8,13 @@
  * descriptor. Plus reserved-directive-name rejection (draft §3.4.6).
  */
 
+import { EmptySchema } from "@bufbuild/protobuf/wkt";
 import { describe, expect, it } from "vitest";
 
+import type { Document } from "./ast.js";
+import { DatasetReader } from "./dataset_reader.js";
+import { unmarshal, unmarshalFull } from "./decode.js";
+import { format } from "./format.js";
 import { parse } from "./parser.js";
 
 const dec = new TextDecoder();
@@ -51,6 +56,13 @@ message Trade { string symbol = 1; }
     const body = dec.decode(pd.body);
     expect(body).toContain(`syntax = "proto3"`);
     expect(body).toContain("message Trade");
+  });
+
+  // bodyOffset is the offset just past the last directive's last token.
+  it("bodyOffset ends after a source body's closing quotes", () => {
+    for (const head of ['@proto """x"""', '@proto """\n  x\n  """', '@type a.B\n@proto """x"""', '@proto b"AAAA"']) {
+      expect(parse(`${head}\nvalue = 1\n`).bodyOffset).toBe(head.length);
+    }
   });
 
   it("descriptor body", () => {
@@ -116,6 +128,75 @@ message Trade { string symbol = 1; }
     expect(doc.typeUrl).toBe("some.pkg.Foo");
     expect(doc.protos).toHaveLength(1);
     expect(doc.protos[0]!.shape).toBe("named");
+  });
+});
+
+// A source body must be triple-quoted: the grammar's proto_source_body is a
+// triple_string. A simple-quoted body could carry `"""` through its escapes,
+// and no formatter can write that back (#121, protowire-go#305).
+describe("@proto source body must be triple-quoted", () => {
+  const msg = '@proto source body must be a triple-quoted string ("""...""")';
+  const empty = (s: string) => unmarshal(s, EmptySchema, { discardUnknown: true });
+  const emptyFull = (s: string) => unmarshalFull(s, EmptySchema, { discardUnknown: true });
+
+  for (const [input, at] of [
+    ['@proto "syntax = \\"proto3\\";"', "1:8"],
+    ['@proto "syntax = \\"proto3\\"; // a \\"\\"\\" b"', "1:8"], // protowire-go#305's body
+    ['@proto ""', "1:8"],
+    ['@type adversarial.v1.StringHolder\n@proto "syntax = \\"proto3\\";"', "2:8"],
+  ] as const) {
+    it(`rejects ${JSON.stringify(input)} on every path`, () => {
+      const want = `${at}: ${msg}`;
+      expect(() => parse(input)).toThrow(want);
+      // unmarshal and unmarshalFull read directives on their own path.
+      expect(() => empty(input)).toThrow(want);
+      expect(() => emptyFull(input)).toThrow(want);
+      // So does a dataset stream's header, through parse.
+      expect(() => DatasetReader.fromString(`${input}\n@dataset T (a)\n(1)\n`)).toThrow(want);
+    });
+  }
+
+  for (const input of [
+    '@proto """syntax = "proto3";"""\n',
+    '@proto\n"""syntax = "proto3";"""\n',
+    '@proto """\nsyntax = "proto3";\n"""\n',
+  ]) {
+    it(`accepts ${JSON.stringify(input)}`, () => {
+      const doc = parse(input);
+      expect(doc.protos[0]!.shape).toBe("source");
+      expect(dec.decode(doc.protos[0]!.body).trimEnd()).toBe('syntax = "proto3";');
+      expect(() => empty(input)).not.toThrow();
+      expect(() => emptyFull(input)).not.toThrow();
+    });
+  }
+
+  // The descriptor form is a bytes literal, not a string: still legal
+  // (proto-descr-body = 1*WSP bytes), empty or not.
+  for (const input of ['@proto b""\n', `@proto b"${btoa("\x0a\x05hello")}"\n`]) {
+    it(`accepts the descriptor form ${JSON.stringify(input)}`, () => {
+      const doc = parse(input);
+      expect(doc.protos[0]!.shape).toBe("descriptor");
+      expect(() => empty(input)).not.toThrow();
+      expect(() => emptyFull(input)).not.toThrow();
+    });
+  }
+
+  // A hand-built source body holding `"""` cannot be written triple-quoted,
+  // so format's output for it does not parse. Parsing never yields such a
+  // body; this pins what the ProtoDirective docs say.
+  it("a hand-built body holding triple quotes formats to text that does not parse", () => {
+    const doc: Document = {
+      typeUrl: "",
+      directives: [],
+      datasets: [],
+      protos: [
+        { pos: { line: 1, column: 1, offset: 0 }, shape: "source", typeName: "", body: new TextEncoder().encode('a """ b'), leadingComments: [] },
+      ],
+      bodyOffset: 0,
+      entries: [],
+      leadingComments: [],
+    };
+    expect(() => parse(format(doc))).toThrow();
   });
 });
 
