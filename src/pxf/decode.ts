@@ -42,7 +42,14 @@ import {
 } from "./bigfloat.js";
 import { type BigIntFields, type DecimalFields, parseBigInt, parseDecimal } from "./bignum.js";
 import { parseGoDuration } from "./duration.js";
-import { findMatchingBrace, MAX_NESTING_DEPTH, parse, parseDatasetAt } from "./parser.js";
+import {
+  findMatchingBrace,
+  isTripleQuoted,
+  MAX_NESTING_DEPTH,
+  parse,
+  parseDatasetAt,
+  PROTO_SOURCE_NOT_TRIPLE,
+} from "./parser.js";
 import {
   findFieldByProtoName,
   isAny,
@@ -435,6 +442,9 @@ class Decoder {
               break;
             }
             case TokenKind.STRING: {
+              if (!isTripleQuoted(this.lex.inputView(), this.current)) {
+                throw this.err(this.current.pos, PROTO_SOURCE_NOT_TRIPLE);
+              }
               shape = "source";
               body = new TextEncoder().encode(this.current.value);
               this.advance();

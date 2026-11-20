@@ -130,7 +130,11 @@ export type ProtoShape = "anonymous" | "named" | "source" | "descriptor";
  *   - `named`:     `@proto <dotted-name> { <message-body> }` — sugar
  *     for a single named message; `typeName` carries the dotted name.
  *   - `source`:    `@proto """<proto-source>"""` — complete `.proto`
- *     source file; `body` is the UTF-8 string contents.
+ *     source file; `body` is the UTF-8 string contents. Only the
+ *     triple-quoted form is read: `@proto "..."` is rejected (#121).
+ *     Parsing never yields a body holding `"""`, which no triple-quoted
+ *     string can carry; a hand-built one formats to text that does not
+ *     parse.
  *   - `descriptor`: `@proto b"<base64-FileDescriptorSet>"` — base64-
  *     decoded `google.protobuf.FileDescriptorSet` bytes.
  *
