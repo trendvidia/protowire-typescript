@@ -92,6 +92,13 @@ jobs:
       - name: Fail if it changed
         run: git diff --exit-code src/pxf/testdata/corpus/reference.json
 
+      - name: Regenerate the wire-type record
+        working-directory: scripts/go-wiretype
+        run: go run . > ../../src/pb/testdata/wiretype-go.tsv
+
+      - name: Fail if the wire-type record changed
+        run: git diff --exit-code src/pb/testdata/wiretype-go.tsv
+
       - uses: actions/checkout@v7
         with:
           repository: trendvidia/protowire

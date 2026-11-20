@@ -32,6 +32,7 @@ import { format as pxfFormat } from "../src/pxf/format.js";
 import { parse as pxfParse } from "../src/pxf/parser.js";
 import { deterministicBinary } from "./deterministic-pb.js";
 import { marshal as pxfMarshal } from "../src/pxf/encode.js";
+import { PROTOBUF_GO_RECURSION_LIMIT, fromBinaryChecked } from "../src/pxf/wire-check.js";
 import { Codec, unmarshal as sbeUnmarshal } from "../src/sbe/index.js";
 
 type Limits = {
@@ -199,7 +200,11 @@ function decode(args: Args, data: Uint8Array): void {
       return;
     }
     case "pb-render":
-      pxfMarshal(fromBinary(desc, data), desc);
+      // fromBinary reads a value cut short from the bytes after it, so the
+      // bytes are read by the descriptor first and refused as protobuf-go
+      // refuses them (#125). fromBinary has no depth limit of its own; the
+      // walk reads as deep as protobuf-go does.
+      pxfMarshal(fromBinaryChecked(desc, data, PROTOBUF_GO_RECURSION_LIMIT), desc);
       return;
     case "sbe":
       sbeUnmarshal(Codec.fromFiles(desc.file), desc, create(desc), data, args.limits);

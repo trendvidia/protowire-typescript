@@ -168,6 +168,31 @@ describe("skip", () => {
     }
   });
 
+  it("follows a group to its own end-group, and refuses what protobuf-go refuses", () => {
+    // Field 3: start group, field 1 = 1, a nested group 2, end group 3; then field 4.
+    const r = new Reader(Uint8Array.from([0x1b, 0x08, 0x01, 0x13, 0x14, 0x1c, 0x20, 0x07]));
+    const { fieldNumber, wireType } = r.tag();
+    r.skip(wireType, fieldNumber);
+    expect(r.tag()).toEqual({ fieldNumber: 4, wireType: WireType.Varint });
+    const skip = (bytes: number[], wireType: number, fieldNumber = 1) => () =>
+      new Reader(Uint8Array.from(bytes)).skip(wireType as WireType, fieldNumber);
+    expect(skip([0x14], WireType.StartGroup)).toThrow("proto: mismatching end group marker"); // field 2 ends group 1
+    expect(skip([], WireType.EndGroup)).toThrow("proto: mismatching end group marker");
+    expect(skip([0x01], 6)).toThrow("proto: cannot parse reserved wire type");
+    expect(skip([0x01], 7)).toThrow("proto: cannot parse reserved wire type");
+    expect(skip([0x01, 0x00], WireType.Fixed32)).toThrow("unexpected EOF");
+    expect(skip([0x02, 0x00], WireType.LengthDelimited)).toThrow("unexpected EOF");
+    expect(skip([0x00], WireType.StartGroup)).toThrow("proto: invalid field number");
+    expect(skip([0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x02], WireType.Varint)).toThrow(
+      "proto: variable length integer overflow",
+    );
+  });
+
+  it("does not run past the end it is given", () => {
+    const r = new Reader(Uint8Array.from([0x01, 0x00, 0x00, 0x00]));
+    expect(() => r.skip(WireType.Fixed32, 1, 2)).toThrow("unexpected EOF");
+  });
+
   it("rejects truncated varint", () => {
     const r = new Reader(new Uint8Array([0x80]));
     expect(() => r.varintBig()).toThrow(/truncated/);

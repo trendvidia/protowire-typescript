@@ -744,8 +744,10 @@ function unmarshalMessageFrom(
   while (r.pos < end) {
     const { fieldNumber, wireType } = r.tag();
     const f = codec.byNumber.get(fieldNumber);
-    if (f === undefined) {
-      r.skip(wireType);
+    if (f === undefined || !accepts(f, wireType)) {
+      // An unknown field, or a known one whose wire type does not match its
+      // type, which protobuf treats as unknown (protowire#614).
+      skipField(r, fieldNumber, wireType, end, skipWhere.get(codec) ?? "");
       continue;
     }
 
@@ -800,6 +802,37 @@ function unmarshalMessageFrom(
   }
   if (r.pos !== end) {
     throw new Error(`message overran expected end (pos=${r.pos}, end=${end})`);
+  }
+}
+
+/**
+ * Whether a tag of `wireType` carries field `f`'s value: the wire type its
+ * kind is written with and, for a repeated numeric scalar, the packed form.
+ */
+function accepts(f: FieldSpec, wireType: WireType): boolean {
+  if (f.mapKey !== undefined || typeof f.kind !== "string") return wireType === WireType.LengthDelimited;
+  return wireType === wireTypeOf(f.kind) || (f.repeated === true && wireType === WireType.LengthDelimited);
+}
+
+/**
+ * Where a skipped field is, in protowire-go's words, for the codecs of the
+ * big-number messages.
+ */
+const skipWhere = new WeakMap<CodecBase, string>([
+  [bigIntFields, " in BigInt"],
+  [decimalFields, " in Decimal"],
+  [bigFloatFields, " in BigFloat"],
+]);
+
+/**
+ * Skip a field read as unknown. A failure reads as protowire-go's:
+ * `corrupt field 1: proto: cannot parse reserved wire type`.
+ */
+function skipField(r: Reader, num: number, wireType: WireType, end: number, where: string): void {
+  try {
+    r.skip(wireType, num, end);
+  } catch (e) {
+    throw new Error(`corrupt field ${num}${where}: ${e instanceof Error ? e.message : String(e)}`);
   }
 }
 
@@ -871,18 +904,20 @@ function readMapEntry(
   let key: unknown = mapKeyZero(keyKind);
   let value: unknown = scalarZero(f.kind);
 
+  const valueWire = typeof f.kind === "string" ? wireTypeOf(f.kind) : WireType.LengthDelimited;
   while (r.pos < end) {
     const { fieldNumber, wireType } = r.tag();
-    if (fieldNumber === 1) {
+    if (fieldNumber === 1 && wireType === wireTypeOf(keyKind)) {
       key = readScalarValue(r, keyKind);
-    } else if (fieldNumber === 2) {
+    } else if (fieldNumber === 2 && wireType === valueWire) {
       if (typeof f.kind === "string") {
         value = readScalarValue(r, f.kind);
       } else {
         value = readNestedMessage(r, f.kind.message);
       }
     } else {
-      r.skip(wireType);
+      // Unknown, or a key or value whose wire type does not match.
+      skipField(r, fieldNumber, wireType, end, " in map entry");
     }
   }
   if (r.pos !== end) {
