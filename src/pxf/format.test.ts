@@ -23,6 +23,25 @@ describe("scalar values", () => {
     expect(out).toBe('msg = "line1\\nline2\\t\\"q\\""\n');
   });
 
+  it("strings are quoted as the reference's %q quotes them", () => {
+    // Each expected line is protowire-go's FormatDocument output for the
+    // same input (protowire#584's format gate compares them byte for byte).
+    const cases: [string, string][] = [
+      ['a = "\\x01\\x1f\\t\\n\\r\\"\\\\\'?"', 'a = "\\x01\\x1f\\t\\n\\r\\"\\\\\'?"\n'],
+      [
+        't = "\\xc3\\xa9\\u00a0\\a\\b\\f\\v\\x7f\\u2028\\U0001F600\\u00ad"',
+        't = "\u00e9\\u00a0\\a\\b\\f\\v\\x7f\\u2028\u{1f600}\\u00ad"\n',
+      ],
+      ['b = "\\ufeff\\u3000\\ue000\\U0010ffff\\u0085\\u200b"', 'b = "\\ufeff\\u3000\\ue000\\U0010ffff\\u0085\\u200b"\n'],
+      // A quoted map key is written the same way.
+      ['m = { "k\\x7f": 1 }', 'm = {\n  "k\\x7f": 1\n}\n'],
+    ];
+    for (const [src, want] of cases) {
+      expect(roundTrip(src)).toBe(want);
+      expect(roundTrip(want)).toBe(want);
+    }
+  });
+
   it("int / negative int / float", () => {
     expect(roundTrip("port = 8443")).toBe("port = 8443\n");
     expect(roundTrip("delta = -42")).toBe("delta = -42\n");
@@ -295,10 +314,35 @@ describe("format keeps every directive, in document order (protowire fmt)", () =
     roundTrip('@proto b"CgA="\n@type a.v1.M\n\nx = 1\n');
   });
 
+  it('writes a triple-quoted @proto with its """ on lines of their own', () => {
+    // Each expected text is protowire-go's FormatDocument output for the same
+    // input (protowire-go#303). roundTrip checks the body reads back the same.
+    const cases: [string, string][] = [
+      [
+        '@proto """syntax = "proto3"; message R { string id = 1; }"""\n@dataset R (id)\n("a")\n',
+        '@proto """\nsyntax = "proto3"; message R { string id = 1; }\n"""\n@dataset R (id)\n("a")\n',
+      ],
+      // A body that starts and ends with an empty line, after dedent.
+      ['@proto """\n\n  message S {}\n  \n  """\n@type S\n', '@type S\n@proto """\n\nmessage S {}\n\n"""\n'],
+    ];
+    for (const [src, want] of cases) {
+      expect(roundTrip(src)).toBe(want);
+      expect(new TextDecoder().decode(parse(want).protos[0]!.body)).toBe(
+        new TextDecoder().decode(parse(src).protos[0]!.body),
+      );
+    }
+  });
+
   it("keeps a directive's comments", () => {
     const out = roundTrip("# about the rows\n@dataset t.v1.T (id)\n(1)\n# second\n@dataset t.v1.U (id)\n(2)\n");
     expect(out).toContain("# about the rows\n@dataset t.v1.T (id)");
     expect(out).toContain("# second\n@dataset t.v1.U (id)");
+  });
+
+  it("writes a comment inside a directive's body once, in the body", () => {
+    // protowire-go's output for the same input (protowire#584).
+    const out = roundTrip("@h { a = 1 # c\n}\n# next\n@entry x a.v1.M { n = 1 } # end\n\nx = 1\n");
+    expect(out).toBe("@h { a = 1 # c\n}\n# next\n@entry x a.v1.M { n = 1 }\n\n# end\nx = 1\n");
   });
 
   it("still writes a document with only @type as before", () => {

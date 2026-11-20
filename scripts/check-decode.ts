@@ -3,7 +3,7 @@
 // HARDENING conformance harness, driven by protowire's
 // scripts/cross_security_check.sh. Mirrors protowire-go/scripts/check_decode.
 //
-//   check-decode --format <pxf|pxf-pb|pb|pb-render|sbe> --schema <message>
+//   check-decode --format <pxf|pxf-pb|pxf-fmt|pb|pb-render|sbe> --schema <message>
 //                --proto <path/adversarial.proto> --input <path>
 //                [--limit NAME=VALUE]...
 //
@@ -17,7 +17,8 @@
 // descriptor set that sits beside it: foo.proto's is foo.binpb.
 //
 // pxf-pb writes the message's PB bytes on stdout, map entries in key order,
-// for the spec's write gate.
+// for the spec's write gate. pxf-fmt writes the formatted document on stdout,
+// for the format gate (cross_fmt_check.sh); it needs no --schema or --proto.
 
 import { readFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
@@ -27,6 +28,8 @@ import { FileDescriptorSetSchema } from "@bufbuild/protobuf/wkt";
 
 import { BigFloatCodec, DecimalCodec, type MessageCodec, defineMessage, unmarshal as pbUnmarshal } from "../src/pb/index.js";
 import { unmarshal as pxfUnmarshal, unmarshalFull } from "../src/pxf/decode.js";
+import { format as pxfFormat } from "../src/pxf/format.js";
+import { parse as pxfParse } from "../src/pxf/parser.js";
 import { deterministicBinary } from "./deterministic-pb.js";
 import { marshal as pxfMarshal } from "../src/pxf/encode.js";
 import { PROTOBUF_GO_RECURSION_LIMIT, fromBinaryChecked } from "../src/pxf/wire-check.js";
@@ -88,7 +91,10 @@ function parseArgs(argv: string[]): Args {
         usage(`unknown flag ${name}`);
     }
   }
-  if (!args.format || !args.schema || !args.input) usage("--format, --schema and --input are required");
+  // Formatting reads no schema, so pxf-fmt alone may leave --schema out.
+  if (!args.format || (!args.schema && args.format !== "pxf-fmt") || !args.input) {
+    usage("--format, --schema and --input are required");
+  }
   return { ...args, limits } as Args;
 }
 
@@ -160,6 +166,14 @@ function registry(protoPath: string): Registry {
 let out: Uint8Array | undefined;
 
 function decode(args: Args, data: Uint8Array): void {
+  if (args.format === "pxf-fmt") {
+    // The format gate (protowire#584): format the parsed document, not a
+    // message, so comments, directives and dataset rows are kept and no
+    // schema is read. A document that does not parse is a rejection.
+    const doc = pxfParse(new TextDecoder("utf-8", { fatal: true }).decode(data));
+    out = new TextEncoder().encode(pxfFormat(doc));
+    return;
+  }
   if (args.format === "pb") {
     const codec = PB_CODECS[args.schema];
     if (!codec) usage(`unknown schema for pb: ${args.schema}`);
