@@ -42,6 +42,22 @@ import { type Position, type Token, TokenKind, tokenKindName } from "./token.js"
  */
 export const MAX_NESTING_DEPTH = 100;
 
+/**
+ * The error for a `@proto` source body written as a simple-quoted string
+ * (#121, protowire-go#305). The grammar admits only the triple-quoted form
+ * (`proto_source_body = triple_string`), and a simple-quoted body could carry
+ * `"""` through its escapes, which no formatter can write back.
+ */
+export const PROTO_SOURCE_NOT_TRIPLE = '@proto source body must be a triple-quoted string ("""...""")';
+
+/**
+ * Reports whether `tok`, a STRING token lexed from `input`, was written
+ * triple-quoted. Its value cannot tell: both forms lex to STRING.
+ */
+export function isTripleQuoted(input: string, tok: Token): boolean {
+  return input.startsWith('"""', tok.pos.offset);
+}
+
 export function parse(input: string): Document {
   return new Parser(input).parseDocument();
 }
@@ -444,8 +460,15 @@ class Parser {
         };
       }
       case TokenKind.STRING: {
+        // Source: @proto """<proto-source>""". The token's value already has
+        // the delimiters stripped and the leading LF and dedent applied.
+        if (!isTripleQuoted(this.lex.inputView(), this.current)) {
+          throw new PxfError(this.current.pos, PROTO_SOURCE_NOT_TRIPLE);
+        }
         const body = new TextEncoder().encode(this.current.value);
-        const endOffset = this.current.pos.offset + this.current.value.length;
+        // The lexer stands just past the string. Its value is shorter than
+        // the source by the quotes and whatever dedent stripped.
+        const endOffset = this.lex.snapshot().pos;
         this.advance();
         return {
           proto: { pos: atPos, shape: "source", typeName: "", body, leadingComments },

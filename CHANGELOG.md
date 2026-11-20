@@ -42,6 +42,8 @@ format changes.
 
 ### Fixed
 
+- **`Document.bodyOffset` ends after a `@proto """…"""` body** ([#121](https://github.com/trendvidia/protowire-typescript/issues/121)). It was the string's start plus its value's length, which leaves out the quotes and whatever dedent stripped, so it pointed inside the string: 8 for `@proto """x"""`, where protowire-go gives 14. It is now the offset just past the closing quotes, as in protowire-go.
+
 - **`format` keeps every directive** (protowire fmt). It wrote only `@type` and the body, so a `@dataset` document came out empty, its rows lost, and `@entry`, `@proto` and named directives were dropped; protowire-go's `FormatDocument` does the same. It now writes each directive in document order, with its comments: a dataset's header and rows, an empty cell kept apart from `null`, a named directive's body and a `@proto` body as written. A document whose only directive is `@type` is written as before.
 
 - **`pb` writes a null element of a message list as an empty message** ([#98](https://github.com/trendvidia/protowire-typescript/issues/98)), as protowire-go writes a nil element. It was dropped, so `[1n, null]` wrote one element and the list came back shorter. It reads back as the zero value.
@@ -94,6 +96,8 @@ format changes.
 - **`pb` reads packed repeated scalars** ([#55](https://github.com/trendvidia/protowire-typescript/issues/55)), proto3's default wire form. A `repeated int32` from any standard writer failed to decode. Found by the HARDENING corpus.
 
 ### Changed
+
+- **A `@proto` source body must be triple-quoted** ([#121](https://github.com/trendvidia/protowire-typescript/issues/121), protowire#623, protowire-go#305). `parse`, `unmarshal`, `unmarshalFull` and `DatasetReader` read a simple-quoted `@proto "…"` as a source body, which the grammar does not admit (`proto_source_body = triple_string`). Its escapes could put `"""` in the body, and `format` then wrote text that does not parse, since a triple-quoted string has no escapes. Now `@proto "…"` is rejected with `1:8: @proto source body must be a triple-quoted string ("""...""")`, as protowire-go rejects it. The descriptor form `@proto b"…"` is a bytes literal and is still read. A hand-built `ProtoDirective` whose body holds `"""` still formats to text that does not parse, and its docs say so. This narrows accepted input.
 
 - **`marshal` refuses a message nested past `MaxNestingDepth`** ([#96](https://github.com/trendvidia/protowire-typescript/issues/96), protowire#502), in `pxf` and `pb`. A message deeper than 100 levels used to be written, and a default reader then refused it. Levels are counted as a decoder counts them, so lists and maps reach the limit at 50 levels of nesting. `maxNestingDepth` on `MarshalOptions` raises it, to pair with the same option on every reader. An `Any` too deep to write as a body is written as `type_url` and `value`.
 
